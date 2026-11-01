@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Autoescuela</title>
+<meta name="description" content="Prepara el teórico de la DGT de coche y moto: lecciones, tests y simuladores.">
+<meta name="theme-color" content="#FBF8F2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+body{margin:0;font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<style>
+/* Layout: app móvil de una columna, cabecera fija arriba y barra de 5 pestañas abajo */
+:root{
+  --bg:#FBF8F2; --surface:#FFFFFF; --surface2:#F4F0E8; color-scheme:light; --fg:#2F3A35; --muted:#6E7A73; --line:#E4E0D7;
+  --accent:#4F8A6B; --accent-soft:#E7EFE9; --accent-fg:#FFFFFF;
+  --peach:#C9784A; --peach-soft:#FBE9DD; --blue:#4E7BB0; --blue-soft:#E6EDF6;
+  --ok:#3F8A5E; --ok-bg:#E3F1E7; --bad:#C0533F; --bad-bg:#FBE6E0; --warn:#A8742A; --warn-bg:#FAF0DC;
+  --display:"Lexend",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --body:"Lexend",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+:root.dk{
+  --bg:#171B19; --surface:#212622; --surface2:#2A302C; --fg:#E6ECE8; --muted:#9DA8A1; --line:#343B36;
+  --accent:#7DBB99; --accent-soft:#25352C; --accent-fg:#13201A;
+  --peach:#E39A70; --peach-soft:#3A2A21; --blue:#86A9D6; --blue-soft:#222D3A;
+  --ok:#7DCB9A; --ok-bg:#1C3326; --bad:#EC8B78; --bad-bg:#3A221D; --warn:#E3B66A; --warn-bg:#352A17; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.5;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+*{box-sizing:border-box}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top-in{max-width:520px;margin:0 auto;display:flex;align-items:center;gap:10px;min-height:54px}
+.top h1{font-family:var(--display);font-weight:700;font-size:22px;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.backbtn{border:0;background:var(--surface);color:var(--fg);width:40px;height:40px;border-radius:12px;display:grid;place-items:center;cursor:pointer;padding:0;font-size:20px}
+.brand{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:.02em}
+.brand span{color:var(--accent)}
+main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:4px 24px}
+.view{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h2{font-family:var(--display);font-weight:700;font-size:26px;line-height:1.1;margin:0;text-wrap:balance}
+h3{font-family:var(--display);font-weight:700;font-size:20px;line-height:1.15;margin:0;text-wrap:balance}
+.eyebrow{font-family:var(--display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:13px;color:var(--accent)}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+p{margin:0}
+.card{background:var(--surface);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.section-title{font-family:var(--display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:13px;color:var(--muted);margin-top:6px}
+.btn{font:inherit;font-weight:700;font-size:16px;border-radius:12px;padding:13px 16px;cursor:pointer;border:2px solid var(--accent);background:var(--surface);color:var(--accent);text-align:center;transition:transform .1s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--accent);color:var(--accent-fg)}
+.btn.ghost{border-color:var(--line);color:var(--fg)}
+.btn.danger{border-color:var(--bad);color:var(--bad)}
+.btn:disabled{opacity:.4;cursor:default}
+button:focus-visible,.item:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.item{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:14px;padding:13px 14px;border:0;width:100%;text-align:left;font:inherit;color:var(--fg);cursor:pointer}
+.item[disabled]{cursor:default;opacity:.55}
+.item .ic{width:40px;height:40px;border-radius:11px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none;font-family:var(--display);font-weight:700;font-size:17px}
+.item .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.item .tx b{font-weight:700;line-height:1.25}
+.item .tx span{font-size:14px;color:var(--muted);line-height:1.3}
+.item .chev{color:var(--muted);flex:none}
+.list{display:flex;flex-direction:column;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--surface2);color:var(--muted);white-space:nowrap}
+.chip.ok{background:var(--ok-bg);color:var(--ok)} .chip.warn{background:var(--warn-bg);color:var(--warn)} .chip.acc{background:var(--accent-soft);color:var(--accent)} .chip.bad{background:var(--bad-bg);color:var(--bad)}
+.done .ic{background:var(--ok-bg);color:var(--ok)}
+.bar{height:8px;border-radius:5px;background:var(--surface2);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:var(--surface);border-radius:14px;padding:12px 14px}
+.stat b{display:block;font-family:var(--display);font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+/* Nav */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px))}
+.nav-in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
+.nav button{border:0;background:none;font:inherit;font-size:11.5px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 9px;cursor:pointer}
+.nav button svg{width:24px;height:24px}
+.nav button.on{color:var(--accent);font-weight:700}
+/* Home */
+.hero{background:var(--accent);color:var(--accent-fg);border-radius:18px;padding:18px;display:flex;gap:16px;align-items:center}
+.hero h2{color:inherit;font-size:28px}
+.hero p{opacity:.9;font-size:14px}
+.ring{flex:none}
+/* Lesson */
+.lesson p+p{margin-top:10px}
+.lesson ul,.lesson ol{margin:8px 0 0;padding-left:22px;display:flex;flex-direction:column;gap:6px}
+.key{background:var(--accent-soft);border-radius:14px;padding:14px 16px;font-weight:700;font-size:17px;line-height:1.4}
+.key small{display:block;font-family:var(--display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px;color:var(--accent);margin-bottom:2px}
+.tip{background:var(--warn-bg);border-radius:14px;padding:12px 14px}
+.tip b{color:var(--warn)}
+.errs{background:var(--bad-bg);border-radius:14px;padding:12px 14px}
+.errs b{color:var(--bad)}
+.errs ul{margin:6px 0 0;padding-left:20px}
+.ref{font-size:13px;color:var(--muted)}
+.fig{background:var(--surface);border-radius:16px;overflow:hidden}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{padding:10px 14px;font-size:13px;color:var(--muted)}
+figure{margin:0}
+.signs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px}
+.signs div{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:12px;line-height:1.25}
+.signs svg{width:54px;height:54px}
+.ladder{list-style:none;margin:0;padding:14px;display:flex;flex-direction:column;gap:6px;counter-reset:l}
+.ladder li{counter-increment:l;background:var(--accent);color:var(--accent-fg);border-radius:10px;padding:8px 12px;font-weight:700;font-size:15px;display:flex;gap:10px;align-items:center}
+.ladder li::before{content:counter(l);font-family:var(--display);font-size:20px;opacity:.8;width:16px}
+.ladder li:nth-child(2){width:92%;opacity:.92}.ladder li:nth-child(3){width:84%;opacity:.84}.ladder li:nth-child(4){width:76%;opacity:.76}.ladder li:nth-child(5){width:68%;opacity:.68}
+/* Quiz */
+.qhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.qprog{display:flex;gap:4px;flex-wrap:wrap}
+.qprog span{width:14px;height:6px;border-radius:3px;background:var(--line)}
+.qprog span.ok{background:var(--ok)}.qprog span.bad{background:var(--bad)}.qprog span.now{background:var(--accent)}
+.qtext{font-size:18px;font-weight:700;line-height:1.35}
+.qimg{display:flex;justify-content:center;padding:6px 0}
+.qimg svg{width:96px;height:96px}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;gap:12px;align-items:flex-start;text-align:left;font:inherit;font-size:16px;background:var(--surface);color:var(--fg);border:2px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer}
+.opt b{font-family:var(--display);font-size:18px;color:var(--muted);width:16px;flex:none}
+.opt.ok{border-color:var(--ok);background:var(--ok-bg)} .opt.ok b{color:var(--ok)}
+.opt.bad{border-color:var(--bad);background:var(--bad-bg)} .opt.bad b{color:var(--bad)}
+.opt:disabled{cursor:default}
+.fb{border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.fb.ok{background:var(--ok-bg)}.fb.bad{background:var(--bad-bg)}
+.fb .v{font-family:var(--display);font-weight:700;font-size:20px}
+.fb.ok .v{color:var(--ok)}.fb.bad .v{color:var(--bad)}
+.result{text-align:center;align-items:center}
+.result .big{font-family:var(--display);font-weight:700;font-size:60px;line-height:1;font-variant-numeric:tabular-nums}
+.review{display:flex;flex-direction:column;gap:8px;text-align:left;width:100%}
+.review div{background:var(--surface2);border-radius:12px;padding:10px 12px;font-size:14px}
+/* Sim */
+.scene{background:#C9C4B8;border-radius:16px;overflow:hidden;aspect-ratio:1/1;max-width:100%;position:relative}
+.scene svg{display:block;width:100%;height:100%}
+.scene.shake{animation:shake .45s}
+@keyframes shake{20%{transform:translate(-5px,2px)}40%{transform:translate(5px,-2px)}60%{transform:translate(-3px,1px)}80%{transform:translate(3px,0)}}
+.legend{display:flex;gap:14px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:16px;border-radius:3px;vertical-align:-3px;margin-right:6px}
+.simopts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lb1{animation:blink .5s infinite}.lb2{animation:blink .5s infinite .25s}
+@keyframes blink{50%{opacity:.15}}
+textarea{width:100%;min-height:110px;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--surface2);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:10px}
+input[type=text]{width:100%;font:inherit;font-size:17px;padding:12px 14px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--fg)}
+.choice{display:flex;flex-direction:column;gap:8px}
+.choice button{text-align:left}
+.choice button.sel{border-color:var(--accent);background:var(--accent-soft)}
+.note{font-size:13px;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion: reduce){.scene.shake,.lb1,.lb2{animation:none}.btn{transition:none}}
+
+/* ===== Estilo cálido ===== */
+body{padding-bottom:calc(100px + env(safe-area-inset-bottom,0px));line-height:1.55}
+h2{font-weight:600;font-size:24px;letter-spacing:-.01em}
+h3{font-weight:600;font-size:18px}
+.top h1{font-weight:600;font-size:19px}
+.backbtn{border-radius:50%}
+.brand{font-family:var(--body);font-weight:600;font-size:20px;letter-spacing:0}
+.eyebrow,.section-title{font-family:var(--body);font-weight:500;text-transform:none;letter-spacing:0;font-size:13.5px}
+.section-title{color:var(--muted);margin:8px 4px 0}
+.card{border-radius:22px;padding:18px}
+.item{border-radius:20px;padding:13px 14px}
+.item .ic{width:46px;height:46px;border-radius:15px;font-family:var(--body);font-weight:600;font-size:16px}
+.item .ic.peach{background:var(--peach-soft);color:var(--peach)}.item .ic.blue{background:var(--blue-soft);color:var(--blue)}
+.item .ic svg{width:22px;height:22px}
+.item .tx b{font-weight:600}
+.item .chev{width:32px;height:32px;border-radius:50%;background:var(--surface2);display:grid;place-items:center;color:var(--fg);font-size:18px}
+.btn{border-radius:16px;font-weight:600}
+.chip{font-weight:600}
+.stat{border-radius:20px}
+.stat b{font-family:var(--body);font-weight:600;font-size:26px}
+.nav{left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));border:0;border-radius:22px;box-shadow:0 4px 18px rgba(47,58,53,.12);padding:4px 0}
+.nav button{font-size:11px}
+.nav button.on{font-weight:600}
+.hi{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:4px}
+.hi p{font-size:14px;color:var(--muted)}
+.hi h2{font-size:26px}
+.av{width:54px;height:54px;border-radius:50%;background:var(--accent-soft);display:grid;place-items:center;flex:none}
+.prog{background:var(--surface);border-radius:22px;padding:16px;display:flex;gap:14px;align-items:center}
+.prog .ring{color:var(--fg)}
+.themebtn{border:0;background:var(--surface);color:var(--fg);width:40px;height:40px;border-radius:50%;display:grid;place-items:center;cursor:pointer;padding:0}
+.themebtn svg{width:20px;height:20px}
+.quote{background:var(--accent-soft);border-radius:20px;padding:14px 16px;font-size:14.5px;display:flex;gap:10px;align-items:center}
+.key{border-radius:20px;font-weight:600;font-size:16.5px}
+.key small{font-family:var(--body);font-weight:500;text-transform:none;letter-spacing:0;font-size:13px}
+.tip,.errs{border-radius:20px;padding:14px 16px}
+.opt{border-radius:16px;border-width:1.5px}
+.opt b{font-family:var(--body);font-weight:600;font-size:15px}
+.qtext{font-weight:600}
+.fb{border-radius:18px;padding:14px 16px}
+.fb .v{font-family:var(--body);font-weight:600;font-size:18px}
+.result .big{font-family:var(--body);font-weight:600}
+.ladder li{border-radius:14px;font-weight:600}
+.ladder li::before{font-family:var(--body);font-size:16px}
+.scene,.fig{border-radius:22px}
+.mascot-c{display:flex;justify-content:center}
+.sg{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;vertical-align:middle;line-height:1}
+.sg svg{width:1.7em;height:1.7em;flex:none}
+.sg b{font-weight:600}
+.ref .sg svg{width:1.6em;height:1.6em}
+.listen{display:flex;align-items:center;justify-content:center;gap:8px;border-color:var(--line);color:var(--fg)}
+.listen svg,.xctl svg{width:20px;height:20px}
+.xpl{background:var(--surface);border-radius:22px;overflow:hidden;display:flex;flex-direction:column}
+.xpl .scene{border-radius:0}
+.xbadge{display:flex;align-items:center;gap:8px;padding:12px 16px 0;font-size:13px;font-weight:500;color:var(--blue)}
+.xcap{padding:12px 16px 4px;display:flex;flex-direction:column;gap:4px;min-height:96px}
+.xcap .xstep{font-size:13px;color:var(--muted);font-weight:500}
+.xcap p{font-size:16px;line-height:1.5}
+.xctl{display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:8px 16px 12px}
+.xctl .btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 14px}
+.xdots{display:flex;gap:6px;padding:0 16px 16px}
+.xdots button{flex:1;height:6px;border-radius:3px;border:0;background:var(--line);padding:0;cursor:pointer}
+.xdots button.on{background:var(--blue)}.xdots button.past{background:var(--accent)}
+.ind{animation:blink .6s infinite}
+.fx{position:fixed;inset:0;pointer-events:none;z-index:50;overflow:hidden}
+.emo{position:absolute;font-size:60px;line-height:1;animation:pop 1.6s cubic-bezier(.2,.9,.3,1.2) forwards}
+.emo.small{font-size:30px;animation:rise 1.8s ease-out forwards}
+.emo.car{font-size:46px;animation:drive 2s ease-in-out forwards}
+@keyframes pop{0%{transform:translate(-50%,-50%) scale(0) rotate(-20deg);opacity:0}25%{transform:translate(-50%,-50%) scale(1.25) rotate(8deg);opacity:1}40%{transform:translate(-50%,-50%) scale(.95) rotate(-4deg)}55%{transform:translate(-50%,-50%) scale(1.05) rotate(0)}80%{transform:translate(-50%,-62%) scale(1);opacity:1}100%{transform:translate(-50%,-90%) scale(.9);opacity:0}}
+@keyframes rise{0%{transform:translateY(0) scale(.4);opacity:0}20%{opacity:1;transform:translateY(-20px) scale(1)}100%{transform:translateY(-240px) scale(.9) rotate(var(--r));opacity:0}}
+@keyframes drive{0%{transform:translateX(-80px) scaleX(-1)}15%{transform:translateX(30px) scaleX(-1) translateY(-6px)}100%{transform:translateX(110vw) scaleX(-1)}}
+@media (prefers-reduced-motion: reduce){.emo,.emo.small,.emo.car{animation-duration:.01s}}
+</style>
+
+<header class="top" id="top"><div class="top-in" id="topIn"></div></header>
+<main><div class="view" id="view"></div></main>
+<nav class="nav" id="nav" aria-label="Secciones"><div class="nav-in" id="navIn"></div></nav>
+
+<script>
+"use strict";
+const VERSION='0.6';
+/* ================= Guardado ================= */
+const KEY='autoescuela_v1';
+let S={profile:null,q:{},lessons:{},sims:{},tests:[],days:[]};
+try{const v=localStorage.getItem(KEY);if(v){const o=JSON.parse(v);if(o&&typeof o==='object')S=Object.assign(S,o);}}catch(e){}
+function applyTheme(){document.documentElement.classList.toggle('dk',S.theme==='dark');}
+applyTheme();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+function markDay(){const t=today();if(!S.days.includes(t)){S.days.push(t);S.days=S.days.slice(-90);if(streak()>=2)setTimeout(()=>celebrate('streak'),1900);}}
+function streak(){if(!S.days.length)return 0;const set=new Set(S.days);let n=0;const d=new Date();if(!set.has(today()))d.setDate(d.getDate()-1);
+  for(;;){const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(set.has(k)){n++;d.setDate(d.getDate()-1);}else break;}return n;}
+const DAY=864e5;
+function record(id,ok){const r=S.q[id]||{n:0,ok:0,last:false,streak:0,wrong:false,due:0};r.n++;r.last=ok;
+  if(ok){r.ok++;r.streak++;r.due=Date.now()+[1,3,7][Math.min(r.streak-1,2)]*DAY;}else{r.streak=0;r.wrong=true;r.due=Date.now()+DAY;}
+  S.q[id]=r;markDay();save();}
+const isFallo=id=>{const r=S.q[id];return r&&r.wrong&&r.streak<3;};
+
+/* ================= Temario ================= */
+const COMUN=[['1','Normas generales y el conductor'],['2','La vía'],['3','Señalización'],['4','Velocidad'],['5','Prioridad de paso'],['6','Incorporación y cambios de dirección'],['7','Adelantamientos'],['8','Parada y estacionamiento'],['9','Alumbrado y señales del vehículo'],['10','Autopistas, autovías y túneles'],['11','Factores de riesgo'],['12','Seguridad vial'],['13','Seguridad pasiva y activa'],['14','El vehículo'],['15','Accidentes y primeros auxilios'],['16','Conducción eficiente y medio ambiente']];
+const MOTO=[['M1','Equipamiento y protección'],['M2','La motocicleta'],['M3','Técnica de conducción'],['M4','Circulación en moto'],['M5','Pasajero y carga'],['M6','Situaciones de riesgo']];
+const OBJ={B:'Permiso B (coche)',A2:'Permiso A2 (moto)',A2B:'Permiso A2, ya tengo el B'};
+
+/* ================= Gráficos comunes ================= */
+const DEFS=`<defs>
+ <linearGradient id="gYou" x1="0" x2="1"><stop offset="0" stop-color="#1F5FC4"/><stop offset=".5" stop-color="#4A94FF"/><stop offset="1" stop-color="#1F5FC4"/></linearGradient>
+ <linearGradient id="gOth" x1="0" x2="1"><stop offset="0" stop-color="#D9821C"/><stop offset=".5" stop-color="#FFB547"/><stop offset="1" stop-color="#D9821C"/></linearGradient>
+ <linearGradient id="gGrey" x1="0" x2="1"><stop offset="0" stop-color="#5F666E"/><stop offset=".5" stop-color="#9AA2AA"/><stop offset="1" stop-color="#5F666E"/></linearGradient>
+ <linearGradient id="gAmb" x1="0" x2="1"><stop offset="0" stop-color="#DADADA"/><stop offset=".5" stop-color="#FFFFFF"/><stop offset="1" stop-color="#DADADA"/></linearGradient>
+ <linearGradient id="gGlass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9FC3E0"/><stop offset="1" stop-color="#22324A"/></linearGradient>
+ <radialGradient id="gRoad" cx=".5" cy=".5" r=".7"><stop offset="0" stop-color="#555C63"/><stop offset="1" stop-color="#454B51"/></radialGradient>
+ <radialGradient id="gGrass" cx=".4" cy=".35" r=".9"><stop offset="0" stop-color="#8DB868"/><stop offset="1" stop-color="#6E9A50"/></radialGradient>
+ <pattern id="pTiles" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#C9C4B8"/><path d="M0 0H6M0 0V6" stroke="#B7B1A4" stroke-width=".6"/></pattern>
+ <pattern id="pDirt" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#A88B62"/><circle cx="2" cy="3" r="1" fill="#8E7350"/><circle cx="7" cy="8" r="1.2" fill="#BCA27A"/><circle cx="8" cy="2" r=".8" fill="#8E7350"/></pattern>
+</defs>`;
+const tree=(x,y,r)=>`<circle cx="${x+3}" cy="${y+4}" r="${r}" fill="rgba(0,0,0,.22)"/><circle cx="${x}" cy="${y}" r="${r}" fill="#3F6B30"/><circle cx="${x-r*.25}" cy="${y-r*.25}" r="${r*.62}" fill="#5A8C42"/><circle cx="${x-r*.38}" cy="${y-r*.4}" r="${r*.25}" fill="#77AA57"/>`;
+function roofHip(x,y,w,h){const i=Math.min(w,h)/2;
+  return `<rect x="${x+4}" y="${y+5}" width="${w}" height="${h}" fill="rgba(0,0,0,.25)"/><polygon points="${x},${y} ${x+w},${y} ${x+w-i},${y+i} ${x+i},${y+h-i}" fill="#C46A48"/><polygon points="${x},${y} ${x+i},${y+h-i} ${x},${y+h}" fill="#A9573A"/><polygon points="${x+w},${y} ${x+w},${y+h} ${x+w-i},${y+i}" fill="#B35F40"/><polygon points="${x},${y+h} ${x+w},${y+h} ${x+w-i},${y+i} ${x+i},${y+h-i}" fill="#9A4F34"/><line x1="${x+i}" y1="${y+h-i}" x2="${x+w-i}" y2="${y+i}" stroke="#7E3F29" stroke-width="1.2"/>`;}
+function roofFlat(x,y,w,h){return `<rect x="${x+4}" y="${y+5}" width="${w}" height="${h}" fill="rgba(0,0,0,.25)"/><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#A9AEB4" stroke="#8B9097" stroke-width="2"/><rect x="${x+10}" y="${y+10}" width="14" height="10" fill="#C9CDD2" stroke="#7E848B"/><circle cx="${x+17}" cy="${y+15}" r="3" fill="#7E848B"/><rect x="${x+w-26}" y="${y+h-24}" width="16" height="14" fill="#C9CDD2" stroke="#7E848B"/>`;}
+const grass=(x,y,w,h)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#gGrass)"/>`;
+function octagon(cx,cy,r){const o=[];for(let i=0;i<8;i++){const a=(22.5+45*i)*Math.PI/180;o.push((cx+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1));}return o.join(' ');}
+
+function bg(s){
+  const mark='#F2F2EC',curb='#8D887D',round=s.scene==='round';
+  let g=`<rect width="300" height="300" fill="url(#pTiles)"/>`;
+  g+=grass(0,0,110,110)+roofHip(10,10,84,82);
+  g+=grass(190,0,110,110)+tree(222,30,13)+tree(260,62,16)+tree(215,82,9)+tree(275,20,9);
+  g+=grass(0,190,110,110)+tree(30,225,15)+tree(78,262,13)+tree(40,280,9)+tree(85,212,8);
+  g+=grass(190,190,110,110)+roofFlat(208,208,82,82);
+  if(round) g+=`<circle cx="150" cy="150" r="92" fill="url(#pTiles)"/>`;
+  else [[110,110,1,1],[190,110,-1,1],[110,190,1,-1],[190,190,-1,-1]].forEach(([x,y,h,v])=>{g+=`<path d="M${x} ${y} L${x} ${y-v*14} Q${x} ${y} ${x-h*14} ${y} Z" fill="url(#pTiles)"/>`;});
+  g+=`<rect x="0" y="120" width="300" height="60" fill="url(#gRoad)"/><rect x="120" y="0" width="60" height="300" fill="url(#gRoad)"/>`;
+  if(s.dirt) g+=`<rect x="180" y="120" width="120" height="60" fill="url(#pDirt)"/><path d="M180 120 Q186 150 180 180" fill="#A88B62"/>`;
+  const L=round?76:120,H=round?224:180;
+  g+=`<g stroke="${curb}" stroke-width="2"><line x1="120" y1="0" x2="120" y2="${L}"/><line x1="180" y1="0" x2="180" y2="${L}"/><line x1="120" y1="${H}" x2="120" y2="300"/><line x1="180" y1="${H}" x2="180" y2="300"/><line y1="120" x1="0" y2="120" x2="${L}"/><line y1="180" x1="0" y2="180" x2="${L}"/>`+
+     (s.dirt?'':`<line y1="120" x1="${H}" y2="120" x2="300"/><line y1="180" x1="${H}" y2="180" x2="300"/>`)+`</g>`;
+  const dash=`stroke="${mark}" stroke-width="2" stroke-dasharray="11 8"`;
+  if(!round){
+    g+=`<line x1="150" y1="0" x2="150" y2="116" ${dash}/><line x1="150" y1="184" x2="150" y2="300" ${dash}/><line x1="0" y1="150" x2="116" y2="150" ${dash}/>`;
+    if(!s.dirt) g+=`<line x1="184" y1="150" x2="300" y2="150" ${dash}/>`;
+    if(s.stop){
+      g+=`<line x1="151" y1="186" x2="179" y2="186" stroke="${mark}" stroke-width="4"/><text x="165" y="243" fill="${mark}" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="700" font-size="15" text-anchor="middle" letter-spacing="1">STOP</text>`;
+      g+=`<circle cx="196" cy="221" r="2" fill="rgba(0,0,0,.3)"/><line x1="193" y1="206" x2="193" y2="220" stroke="#9AA0A6" stroke-width="2"/><polygon points="${octagon(193,206,11)}" fill="#C8262B" stroke="#fff" stroke-width="1.6"/><text x="193" y="208.8" fill="#fff" font-family="Arial,sans-serif" font-weight="700" font-size="6.6" text-anchor="middle">STOP</text>`;
+    }
+  }else{
+    g+=`<circle cx="150" cy="150" r="80" fill="url(#gRoad)"/><circle cx="150" cy="150" r="54" fill="none" stroke="${mark}" stroke-width="1.6" stroke-dasharray="8 7"/>`;
+    g+=`<circle cx="150" cy="150" r="31" fill="#E9E6DE"/><circle cx="150" cy="150" r="28" fill="url(#gGrass)"/><circle cx="150" cy="150" r="20" fill="none" stroke="#C9A93E" stroke-width="3" stroke-dasharray="2 3"/>`+tree(150,150,11);
+    const yl=`stroke="${mark}" stroke-width="2.5" stroke-dasharray="5 4"`;
+    g+=`<line x1="151" y1="232" x2="179" y2="232" ${yl}/><line x1="121" y1="68" x2="149" y2="68" ${yl}/><line x1="232" y1="121" x2="232" y2="149" ${yl}/><line x1="68" y1="151" x2="68" y2="179" ${yl}/>`;
+    g+=`<polygon points="157,252 173,252 165,268" fill="none" stroke="${mark}" stroke-width="2.2"/>`;
+    g+=`<line x1="150" y1="0" x2="150" y2="60" ${dash}/><line x1="150" y1="240" x2="150" y2="300" ${dash}/><line x1="0" y1="150" x2="60" y2="150" ${dash}/><line x1="240" y1="150" x2="300" y2="150" ${dash}/>`;
+    g+=`<circle cx="199" cy="264" r="2" fill="rgba(0,0,0,.3)"/><line x1="196" y1="248" x2="196" y2="263" stroke="#9AA0A6" stroke-width="2"/><polygon points="184,242 208,242 196,262" fill="#fff" stroke="#C8262B" stroke-width="3.5" stroke-linejoin="round"/>`;
+  }
+  return g;
+}
+const KINDS={you:['gYou','#174A9C'],oth:['gOth','#B5640F'],grey:['gGrey','#454B52'],amb:['gAmb','#9A9A9A']};
+function carBody(kind){const [grad,tail]=KINDS[kind]||KINDS.grey;
+  return `<rect x="-8" y="-13" width="18" height="31" rx="6" fill="rgba(0,0,0,.28)" transform="translate(1.5 1.5)"/>
+ <rect x="-10" y="-10" width="3" height="7" rx="1" fill="#1B1D20"/><rect x="7" y="-10" width="3" height="7" rx="1" fill="#1B1D20"/><rect x="-10" y="5" width="3" height="7" rx="1" fill="#1B1D20"/><rect x="7" y="5" width="3" height="7" rx="1" fill="#1B1D20"/>
+ <rect x="-8.5" y="-15.5" width="17" height="31" rx="5.5" fill="url(#${grad})" stroke="rgba(0,0,0,.35)" stroke-width=".8"/>
+ <path d="M-6.5 -7 Q0 -9.5 6.5 -7 L5.5 -2.5 H-5.5 Z" fill="url(#gGlass)"/>
+ <rect x="-5.5" y="-2.5" width="11" height="8.5" rx="1.5" fill="${tail}" opacity=".55"/>
+ <path d="M-5.5 6 H5.5 L6.3 9.5 Q0 11 -6.3 9.5 Z" fill="url(#gGlass)" opacity=".85"/>
+ <rect x="-10.5" y="-6.5" width="2.5" height="2" rx="1" fill="${tail}"/><rect x="8" y="-6.5" width="2.5" height="2" rx="1" fill="${tail}"/>
+ <rect x="-7" y="-15.6" width="4" height="2" rx="1" fill="#FFF6CC"/><rect x="3" y="-15.6" width="4" height="2" rx="1" fill="#FFF6CC"/>
+ <rect x="-7" y="13.8" width="4" height="1.8" rx=".9" fill="#E0302B"/><rect x="3" y="13.8" width="4" height="1.8" rx=".9" fill="#E0302B"/>`+
+ (kind==='amb'?`<rect x="-8.5" y="7" width="17" height="2.5" fill="#D8262B"/><rect x="-8.5" y="-12" width="17" height="2" fill="#D8262B"/><rect class="lb1" x="-5.5" y="-3.8" width="5" height="3" rx="1" fill="#E53935"/><rect class="lb2" x=".5" y="-3.8" width="5" height="3" rx="1" fill="#1E6BFF"/>`:'');}
+const carAt=(k,x,y,h)=>`<g transform="translate(${x} ${y}) rotate(${h})">${carBody(k)}</g>`;
+function pill(x,y,t){const w=t.length*6.1+18;return `<g><rect x="${x-w/2}" y="${y-11}" width="${w}" height="21" rx="10.5" fill="rgba(18,24,32,.84)"/><text x="${x}" y="${y+4}" text-anchor="middle" font-family="Atkinson Hyperlegible,system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff">${t}</text></g>`;}
+function polyD(p){return 'M'+p.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join(' L');}
+const C=150,RE=67,RI=41;
+const arc=(r,a0,a1)=>{const n=Math.max(8,Math.round(Math.abs(a1-a0)/4));const p=[];for(let i=0;i<=n;i++){const a=(a0+(a1-a0)*i/n)*Math.PI/180;p.push([C+r*Math.cos(a),C+r*Math.sin(a)]);}return p;};
+const exitEast=()=>[[165,244],[165,215.3]].concat(arc(RE,77.1,12.9)).concat([[340,165]]);
+
+const arw=(x,y1,y2,w,col)=>{const up=y2<y1,hd=w*1.9,hy=up?y2+hd:y2-hd;return `<rect x="${x-w/2}" y="${Math.min(y1,hy)}" width="${w}" height="${Math.abs(hy-y1)}" fill="${col}"/><polygon points="${x-w*1.6},${hy} ${x+w*1.6},${hy} ${x},${y2}" fill="${col}"/>`;};
+const SIGN={
+  ceda:`<svg viewBox="0 0 60 56" aria-label="Señal de ceda el paso"><polygon points="5,5 55,5 30,50" fill="#fff" stroke="#C8262B" stroke-width="7" stroke-linejoin="round"/></svg>`,
+  stop:`<svg viewBox="0 0 60 60" aria-label="Señal de STOP"><polygon points="${octagon(30,30,28)}" fill="#C8262B" stroke="#fff" stroke-width="2.5"/><text x="30" y="36.5" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="17" fill="#fff">STOP</text></svg>`,
+  r3:`<svg viewBox="0 0 60 60" aria-label="Señal de calzada con prioridad"><polygon points="30,2 58,30 30,58 2,30" fill="#fff" stroke="#888" stroke-width="1"/><polygon points="30,11 49,30 30,49 11,30" fill="#F2C230"/></svg>`,
+  r5:`<svg viewBox="0 0 60 60" aria-label="Señal de prioridad en sentido contrario"><circle cx="30" cy="30" r="27" fill="#fff" stroke="#C8262B" stroke-width="6"/>${arw(23,14,47,4.4,'#1A1A1A')}${arw(37,46,15,3.6,'#C8262B')}</svg>`,
+  r6:`<svg viewBox="0 0 60 60" aria-label="Señal de prioridad respecto al sentido contrario"><rect x="3" y="3" width="54" height="54" rx="5" fill="#1E5BB8" stroke="#fff" stroke-width="2"/>${arw(23,14,46,3.6,'#D8262B')}${arw(37,47,14,4.4,'#fff')}</svg>`,
+  r4:`<svg viewBox="0 0 60 60" aria-label="Señal de fin de prioridad"><polygon points="30,2 58,30 30,58 2,30" fill="#fff" stroke="#888" stroke-width="1"/><polygon points="30,11 49,30 30,49 11,30" fill="#D9D9D9"/><g stroke="#222" stroke-width="2.6"><line x1="22" y1="19" x2="41" y2="38"/><line x1="18" y1="24" x2="36" y2="42"/><line x1="26" y1="15" x2="45" y2="34"/></g></svg>`
+};
+
+const SIGNCODE={'R-1':'ceda','R-2':'stop','R-3':'r3','R-4':'r4','R-5':'r5','R-6':'r6'};
+const withSigns=h=>String(h).replace(/R-([1-6])(?![0-9])/g,m=>`<span class="sg">${SIGN[SIGNCODE[m]]}<b>${m}</b></span>`);
+/* ================= Tema 5: lecciones ================= */
+const ILL={
+  order:()=>`<figure class="fig"><ol class="ladder"><li>Agentes de tráfico</li><li>Señalización circunstancial</li><li>Semáforos</li><li>Señales verticales</li><li>Marcas viales</li></ol><figcaption>De más a menos importante: si dos indicaciones se contradicen, manda la de arriba.</figcaption></figure>`,
+  signs:()=>`<figure class="fig"><div class="signs"><div>${SIGN.ceda}R-1<br>Ceda el paso</div><div>${SIGN.stop}R-2<br>STOP</div><div>${SIGN.r3}R-3<br>Calzada con prioridad</div><div>${SIGN.r4}R-4<br>Fin de prioridad</div></div><figcaption>Las cuatro señales de prioridad que más salen en el examen.</figcaption></figure>`,
+  cross:()=>`<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Cruce sin señales con un coche por la derecha">${DEFS}${bg({scene:'cross'})}<path d="M200 135 L118 135" stroke="#FFB547" stroke-width="3" stroke-dasharray="6 5" fill="none"/><polygon points="110,135 120,129 120,141" fill="#FFB547"/>${carAt('oth',222,135,-90)}${carAt('you',165,222,0)}${pill(240,106,'Viene por tu derecha')}${pill(165,268,'Tú cedes el paso')}</svg><figcaption>Sin señales: el coche naranja llega por tu derecha, así que pasa primero.</figcaption></figure>`,
+  round:()=>{const p=exitEast();p[p.length-1]=[290,165];return `<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Glorieta con la trayectoria para la primera salida">${DEFS}${bg({scene:'round'})}<path d="${polyD(p)}" stroke="#4A94FF" stroke-width="3.5" stroke-dasharray="7 5" fill="none" stroke-linecap="round"/><polygon points="298,165 287,159 287,171" fill="#4A94FF"/>${carAt('you',165,262,0)}${pill(84,262,'Cede a los de dentro')}${pill(240,200,'Primera salida')}</svg><figcaption>Para la primera salida entra y circula por el carril exterior, y señaliza con el intermitente derecho.</figcaption></figure>`;},
+  narrow:()=>`<figure class="fig"><div class="signs" style="grid-template-columns:1fr 1fr"><div>${SIGN.r5}R-5<br>Prioridad en sentido contrario: cedes</div><div>${SIGN.r6}R-6<br>Prioridad respecto al sentido contrario: pasas tú</div></div><svg viewBox="0 0 300 170" role="img" aria-label="Estrechamiento por obras con dos coches">${DEFS}<rect width="300" height="170" fill="url(#gGrass)"/>${tree(30,22,12)}${tree(270,24,10)}${tree(250,150,12)}<rect x="0" y="50" width="300" height="64" fill="url(#gRoad)"/><line x1="0" y1="82" x2="300" y2="82" stroke="#F2F2EC" stroke-width="2" stroke-dasharray="11 8"/><rect x="128" y="86" width="64" height="24" fill="#E8E2D2"/><g fill="#E26B1C"><rect x="128" y="86" width="64" height="5"/><rect x="128" y="105" width="64" height="5"/></g><g>${[134,150,166,182].map(x=>`<circle cx="${x}" cy="84" r="3.5" fill="#F07A20" stroke="#fff" stroke-width="1"/>`).join('')}</g>${carAt('you',96,98,90)}${carAt('oth',226,66,-90)}${pill(150,140,'Sin señal: pasa primero quien entró antes')}</svg><figcaption>Las obras dejan un solo carril útil. Si no hay señal, espera fuera quien llegó después.</figcaption></figure>`,
+  peat:()=>`<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Giro a la derecha con peatones cruzando">${DEFS}${bg({scene:'cross'})}${[124,133,142,151,160,169].map(y=>`<rect x="194" y="${y}" width="16" height="5" fill="#F2F2EC"/>`).join('')}<path d="M165 196 Q165 165 196 165 L258 165" stroke="#4A94FF" stroke-width="3.5" stroke-dasharray="7 5" fill="none"/><polygon points="268,165 257,159 257,171" fill="#4A94FF"/>${[[202,140,'#7A4EA8'],[200,158,'#2E8B6E']].map(([x,y,c])=>`<ellipse cx="${x}" cy="${y}" rx="6" ry="4" fill="${c}"/><circle cx="${x}" cy="${y}" r="3.2" fill="#3A2A20"/>`).join('')}${carAt('you',165,214,0)}${pill(232,226,'Cede a los peatones')}</svg><figcaption>Al girar, los peatones que cruzan la calle a la que entras tienen preferencia, aunque no haya paso de peatones.</figcaption></figure>`
+};
+
+const LESSONS=[
+ {id:'L1',t:'Cómo se regula la prioridad',min:6,ill:'order',
+  key:'Si varias indicaciones se contradicen, manda el agente. Después, por este orden: señalización circunstancial, semáforos, señales verticales y marcas viales.',
+  body:`<p><b>Prioridad de paso</b> es el derecho de un vehículo a pasar antes que otro cuando sus trayectorias se cruzan. Quien no la tiene debe <b>ceder el paso</b>: no obligar al que tiene prioridad a frenar, desviarse o cambiar bruscamente de velocidad.</p>
+  <p>La señalización circunstancial es la que cambia temporalmente las normas de una vía: conos, balizas, señales de obras o paneles luminosos.</p>
+  <p>Si no hay agentes, semáforos ni señales, se aplican las normas generales que verás en la lección 3.</p>
+  <p><b>Cómo se cede el paso.</b> Quien debe ceder tiene que dejarlo claro con antelación, reduciendo la velocidad de forma visible y deteniéndose si hace falta. Quien tiene prioridad tampoco puede pasar sin mirar: debe comprobar que el otro le ha visto y va a cederle.</p>`,
+  tip:'Primero la persona, luego lo que está de pie y por último lo pintado: agente, semáforo, señal, suelo.',
+  errs:['Obedecer al semáforo en verde cuando un agente te ordena parar.','Creer que tener prioridad te permite entrar en un cruce sin mirar.'],
+  ref:'Reglamento General de Circulación, arts. 56, 58 y 133'},
+ {id:'L2',t:'Cruces con señales',min:7,ill:'signs',
+  key:'Ceda el paso (R-1): cede, y para solo si hace falta. STOP (R-2): para siempre por completo y después cede.',
+  body:`<ul><li><b>R-1 Ceda el paso.</b> Reduce, mira y cede a quien circula por la vía a la que llegas. Si no viene nadie, no hace falta parar.</li>
+  <li><b>R-2 STOP.</b> Detención obligatoria. Paras por completo ante la línea de detención o, si no la hay, justo antes de la intersección, aunque no venga nadie. Después cedes el paso.</li>
+  <li><b>R-3 Calzada con prioridad.</b> En las intersecciones de esa vía tienes preferencia.</li>
+  <li><b>R-4 Fin de prioridad.</b> Desde ahí vuelven a aplicarse las normas generales.</li></ul>
+  <p><b>Marcas viales.</b> Una línea blanca continua atravesando tu carril es una línea de detención (STOP, semáforo, agente). Una línea discontinua de trazos anchos es de ceda el paso, y a menudo va acompañada de un triángulo pintado en el suelo.</p>
+  <p><b>Semáforo en amarillo intermitente.</b> No da preferencia a nadie: cruza con precaución aplicando las señales o las normas de prioridad de ese cruce.</p>`,
+  tip:'El STOP siempre para: aunque veas que no viene nadie, las ruedas tienen que detenerse del todo.',
+  errs:['Hacer un "STOP rodando", reduciendo mucho pero sin llegar a detenerse.','Parar en un ceda el paso sin necesidad y frenar a los que vienen detrás.'],
+  ref:'RGC, arts. 56, 146 y 151; marcas viales de detención y de ceda el paso'},
+ {id:'L3',t:'Cruces sin señales',min:7,ill:'cross',
+  key:'Sin señales ni semáforos, cede el paso a quien venga por tu derecha.',
+  body:`<p>La regla general tiene tres excepciones. Tienen preferencia, aunque vengan por la izquierda:</p>
+  <ol><li>Los vehículos que circulan por una vía <b>pavimentada</b> frente a los que salen de un camino sin pavimentar.</li>
+  <li>Los vehículos que circulan sobre <b>raíles</b>, como el tranvía.</li>
+  <li>En las <b>glorietas</b>, los que ya circulan dentro frente a los que quieren entrar.</li></ol>
+  <p><b>Incorporarse a la circulación.</b> Si sales de un garaje, una gasolinera, una vía de servicio o un carril de aceleración, debes ceder el paso a los que ya circulan por la vía.</p>
+  <p><b>Cruce atascado.</b> Aunque tengas preferencia, no entres en un cruce ni en un paso de peatones si es previsible que te quedes parado dentro y bloquees a los demás.</p>`,
+  tip:'Mira a tu derecha: si alguien llega por ahí, va primero. Luego repasa las tres excepciones: asfalto, tranvía y glorieta.',
+  errs:['Pensar que tiene preferencia el que va más rápido o la calle más ancha.','Entrar en un cruce con atasco porque "tengo preferencia".'],
+  ref:'RGC, arts. 57, 59 y 72'},
+ {id:'L4',t:'Glorietas',min:7,ill:'round',anim:'glorieta',
+  key:'Dentro de la glorieta tienen preferencia los que ya circulan por ella. Se gira dejando la isleta a tu izquierda.',
+  body:`<ul><li>Al llegar, reduce, cede el paso a los que circulan por el anillo y entra cuando haya hueco. Si está libre, entra sin pararte.</li>
+  <li>Se circula en sentido contrario a las agujas del reloj, dejando la isleta central a la izquierda.</li>
+  <li>Para la <b>primera salida</b>, entra y circula por el carril exterior.</li>
+  <li>Para salidas más lejanas puedes usar el carril interior, pero debes pasar al exterior <b>con antelación</b>, cediendo el paso a quien circule por él.</li>
+  <li>Señaliza la salida con el intermitente derecho.</li>
+  <li>Si no puedes pasar al exterior con seguridad, sigue y sal por la siguiente salida o da otra vuelta. Nunca salgas cruzando desde el interior.</li></ul>`,
+  tip:'Dentro manda el de dentro. Para salir, primero al exterior.',
+  errs:['Salir directamente desde el carril interior cortando el paso al de fuera.','Detenerte dentro de la glorieta para dejar entrar a alguien.'],
+  ref:'RGC, arts. 57.1 c) y 74; recomendaciones de la DGT sobre glorietas'},
+ {id:'L5',t:'Estrechamientos y pendientes',min:5,ill:'narrow',
+  key:'En un estrechamiento sin señal pasa primero quien entró antes. Si hay señal R-5 o R-6, manda la señal.',
+  body:`<p>Un <b>estrechamiento</b> es un tramo donde no caben dos vehículos a la vez, por obras, un puente estrecho o vehículos aparcados.</p>
+  <ul><li><b>Sin señal:</b> tiene preferencia quien haya entrado primero. El otro espera fuera, sin meterse.</li>
+  <li><b>R-5, prioridad en sentido contrario</b> (redonda, borde rojo): debes ceder el paso a los que vienen de frente.</li>
+  <li><b>R-6, prioridad respecto al sentido contrario</b> (cuadrada, fondo azul): tienes preferencia sobre los que vienen de frente.</li></ul>
+  <p><b>Tramos estrechos de gran pendiente.</b> Tiene preferencia el vehículo que sube, salvo que pueda llegar antes a un apartadero.</p>`,
+  tip:'Redonda con borde rojo (R-5): el otro va primero. Cuadrada azul (R-6): vas tú.',
+  errs:['Meterte en el estrechamiento a la vez que el que viene de frente.','Pensar que en una cuesta estrecha tiene preferencia el que baja.'],
+  ref:'RGC, arts. 60, 62 y 151'},
+ {id:'L6',t:'Peatones, ciclistas, animales y emergencias',min:7,ill:'peat',
+  key:'Al girar, cede el paso a los peatones y ciclistas que crucen la calle a la que entras. Los vehículos de emergencia en servicio pasan siempre primero.',
+  body:`<p><b>Peatones.</b> Tienen preferencia en los pasos de peatones señalizados, cuando giras y cruzan la calzada a la que te incorporas (aunque no haya paso) y cuando cruzas un arcén por el que circulan.</p>
+  <p><b>Ciclistas.</b> Tienen preferencia cuando circulan por un carril bici, un paso para ciclistas o el arcén, y cuando giras y cruzan o circulan cerca. Un grupo de ciclistas que ya ha empezado a cruzar cuenta como uno solo: deja pasar a todo el grupo.</p>
+  <p><b>Animales.</b> Tienen preferencia en las cañadas señalizadas y cuando giras y cruzan la vía a la que te incorporas.</p>
+  <p><b>Vehículos de emergencia.</b> Ambulancias, bomberos y policía en servicio, con las señales luminosas y acústicas, tienen prioridad sobre todos. Facilita su paso: apártate hacia la derecha y detente si hace falta. No los sigas aprovechando el hueco.</p>`,
+  tip:'Antes de girar, mira la calle a la que vas a entrar: si alguien la está cruzando, espera.',
+  errs:['Pensar que sin paso de peatones el peatón nunca tiene preferencia.','Dejar pasar solo al primer ciclista de un grupo que ya está cruzando.'],
+  ref:'RGC, arts. 64 a 69'}
+];
+
+/* ================= Tema 5: preguntas (redacción propia) ================= */
+const QS=[
+ {id:'q1',l:'L1',q:'Un agente te indica que avances, pero el semáforo está en rojo. ¿Qué haces?',o:['Avanzo, obedeciendo al agente','Espero a que el semáforo se ponga en verde','Me detengo y pido instrucciones'],c:0,e:'Las indicaciones de los agentes prevalecen sobre cualquier otra señal, incluidos los semáforos.',r:'RGC, art. 133'},
+ {id:'q2',l:'L1',q:'¿Cuál es el orden de prioridad correcto entre las indicaciones de la vía?',o:['Agentes, señalización circunstancial, semáforos, señales verticales y marcas viales','Semáforos, agentes, señales verticales y marcas viales','Señales verticales, semáforos, agentes y marcas viales'],c:0,e:'Primero los agentes; después las señales que cambian temporalmente el régimen de la vía; luego semáforos, señales verticales y, por último, marcas viales.',r:'RGC, art. 133'},
+ {id:'q3',l:'L1',q:'El conductor que debe ceder el paso…',o:['Debe mostrar con antelación, reduciendo la velocidad, que va a ceder','Solo debe ceder si el otro le hace señales','Debe detenerse siempre, venga o no venga alguien'],c:0,e:'Quien cede debe dejarlo claro con tiempo, reduciendo de forma visible y parando si hace falta. No siempre es obligatorio detenerse.',r:'RGC, art. 58'},
+ {id:'q4',l:'L1',q:'¿Qué significa ceder el paso?',o:['No obligar al que tiene prioridad a cambiar bruscamente su trayectoria o velocidad','Detenerse siempre por completo','Pasar primero haciendo una señal con la mano'],c:0,e:'Ceder el paso es no forzar al vehículo con prioridad a frenar, desviarse o cambiar bruscamente de velocidad.',r:'RGC, art. 56'},
+ {id:'q5',l:'L2',img:'stop',q:'Ante esta señal, y sin vehículos a la vista, ¿qué debes hacer?',o:['Detenerte por completo y después continuar','Reducir mucho la velocidad y pasar sin detenerte','Continuar, porque no viene nadie'],c:0,e:'El STOP obliga a detenerse siempre, aunque no venga nadie. Después hay que ceder el paso.',r:'RGC, art. 151 · Señal R-2'},
+ {id:'q6',l:'L2',q:'Hay una señal de STOP pero no hay línea de detención pintada. ¿Dónde te detienes?',o:['Inmediatamente antes de la intersección','Justo debajo de la señal, aunque no veas bien','Dentro de la intersección, para ver mejor'],c:0,e:'Si no hay línea de detención, debes parar inmediatamente antes de la intersección.',r:'RGC, art. 151 · Señal R-2'},
+ {id:'q7',l:'L2',img:'ceda',q:'Esta señal te obliga a…',o:['Ceder el paso, deteniéndote solo si es necesario','Detenerte siempre por completo','Nada: indica que tienes preferencia'],c:0,e:'La señal de ceda el paso obliga a ceder a los que circulan por la vía a la que llegas. Solo hay que parar si hace falta.',r:'Señal R-1'},
+ {id:'q8',l:'L2',img:'r3',q:'¿Qué indica esta señal?',o:['Que circulas por una calzada con prioridad en las intersecciones','Peligro por obras','El final de la prioridad'],c:0,e:'El rombo amarillo con borde blanco es la señal R-3: calzada con prioridad. En sus intersecciones tienes preferencia.',r:'Señal R-3'},
+ {id:'q9',l:'L2',q:'Un semáforo está en amarillo intermitente. ¿Qué significa?',o:['Precaución: se aplican las señales o normas de prioridad del cruce','Prohibido pasar','Tienes preferencia sobre todos'],c:0,e:'El amarillo intermitente obliga a extremar la precaución. La prioridad se decide por las señales o, si no hay, por las normas generales.',r:'RGC, art. 146'},
+ {id:'q10',l:'L2',img:'r4',q:'Después de esta señal…',o:['Vuelven a aplicarse las normas generales de prioridad','Sigues teniendo prioridad en todos los cruces','Debes detenerte en el siguiente cruce'],c:0,e:'La señal R-4 indica el fin de la calzada con prioridad. A partir de ahí, rigen las normas generales.',r:'Señal R-4'},
+ {id:'q11',l:'L2',q:'Una línea blanca continua que atraviesa tu carril antes de un cruce indica…',o:['El lugar donde debes detenerte si hay STOP, semáforo en rojo o un agente lo ordena','Que debes ceder el paso sin detenerte','Un paso para ciclistas'],c:0,e:'Es la línea de detención. La línea de ceda el paso es discontinua.',r:'Marcas viales transversales'},
+ {id:'q12',l:'L3',q:'Llegas a un cruce sin señales. Un coche se acerca por tu derecha. ¿Quién pasa primero?',o:['El coche que viene por la derecha','Yo, porque he llegado antes','El que vaya más rápido'],c:0,e:'Sin señales ni semáforos, la preferencia es de quien se acerca por la derecha.',r:'RGC, art. 57.1'},
+ {id:'q13',l:'L3',q:'Circulas por una carretera asfaltada. Por tu derecha sale un coche de un camino de tierra. ¿Quién tiene preferencia?',o:['Tú, porque circulas por una vía pavimentada','El otro coche, porque viene por tu derecha','El que llegue primero al cruce'],c:0,e:'Es una excepción a la regla de la derecha: la vía pavimentada tiene preferencia sobre la no pavimentada.',r:'RGC, art. 57.1 a)'},
+ {id:'q14',l:'L3',q:'En un cruce sin señales se acerca un tranvía por tu izquierda. ¿Quién pasa primero?',o:['El tranvía','Yo, porque vengo por su derecha','El que llegue antes'],c:0,e:'Los vehículos que circulan sobre raíles tienen preferencia, vengan por donde vengan.',r:'RGC, art. 57.1 b)'},
+ {id:'q15',l:'L3',q:'Tienes preferencia, pero la calle de salida del cruce está atascada. ¿Qué haces?',o:['No entro en el cruce hasta que haya sitio al otro lado','Entro, porque tengo preferencia','Entro y uso el claxon para que avancen'],c:0,e:'Aun con preferencia, no debes entrar si es previsible que te quedes parado dentro bloqueando la circulación transversal.',r:'RGC, art. 59'},
+ {id:'q16',l:'L3',q:'Sales de una gasolinera a la carretera. ¿Quién tiene preferencia?',o:['Los vehículos que circulan por la carretera','Tú, si vienes por su derecha','El vehículo más grande'],c:0,e:'Quien se incorpora a la circulación desde una gasolinera, un garaje o una vía de acceso debe ceder el paso a los que ya circulan.',r:'RGC, art. 72'},
+ {id:'q17',l:'L4',q:'En una glorieta, ¿quién tiene preferencia?',o:['Los vehículos que ya circulan por ella','Los que quieren entrar por la derecha','El vehículo más grande'],c:0,e:'Dentro de la glorieta tienen preferencia los que ya circulan por el anillo.',r:'RGC, art. 57.1 c)'},
+ {id:'q18',l:'L4',q:'¿En qué sentido se circula por una glorieta?',o:['Dejando la isleta central a la izquierda','Dejando la isleta central a la derecha','Por el lado con menos tráfico'],c:0,e:'Se circula en sentido contrario a las agujas del reloj, con la isleta a la izquierda.',r:'Normas de circulación en glorietas'},
+ {id:'q19',l:'L4',q:'Vas a tomar la primera salida de una glorieta de dos carriles. ¿Por qué carril circulas?',o:['Por el carril exterior','Por el carril interior','Por cualquiera'],c:0,e:'Para la primera salida se usa el carril exterior. Desde el interior tendrías que cruzar el exterior para salir.',r:'Recomendaciones de la DGT sobre glorietas'},
+ {id:'q20',l:'L4',q:'Vas por el carril interior de una glorieta y quieres salir. ¿Qué haces?',o:['Paso al carril exterior con antelación, cediendo a quien circule por él','Salgo directamente cruzando el carril exterior','Me detengo dentro hasta que el carril exterior quede libre'],c:0,e:'Antes de salir debes situarte en el carril exterior, y para cambiar de carril hay que ceder a quien ya circula por él.',r:'RGC, art. 74'},
+ {id:'q21',l:'L4',q:'¿Cómo señalizas que vas a abandonar una glorieta?',o:['Con el intermitente derecho, antes de la salida','Con el intermitente izquierdo','No hace falta señalizarlo'],c:0,e:'La salida de la glorieta es un desplazamiento a la derecha y se señaliza con el intermitente derecho con antelación.',r:'RGC, art. 109'},
+ {id:'q22',l:'L5',q:'En un estrechamiento sin señalizar, ¿quién pasa primero?',o:['El que haya entrado antes en el estrechamiento','El que venga por la derecha','El vehículo más grande'],c:0,e:'Sin señal, tiene preferencia quien entró primero. El otro debe esperar fuera.',r:'RGC, art. 60'},
+ {id:'q23',l:'L5',img:'r5',q:'Antes de un estrechamiento ves una señal redonda con borde rojo de prioridad en sentido contrario. Significa que…',o:['Debes ceder el paso a los que vienen de frente','Tienes preferencia sobre los que vienen de frente','Está prohibido el paso'],c:0,e:'La señal R-5 obliga a ceder el paso a los vehículos que circulan en sentido contrario.',r:'Señal R-5'},
+ {id:'q24',l:'L5',img:'r6',q:'Una señal cuadrada azul de prioridad respecto al sentido contrario indica que…',o:['Tienes preferencia sobre los que vienen de frente','Debes ceder el paso a los que vienen de frente','Es una calle de sentido único'],c:0,e:'La señal R-6 te da preferencia en el estrechamiento frente a los que vienen en sentido contrario.',r:'Señal R-6'},
+ {id:'q25',l:'L5',q:'En un tramo estrecho de gran pendiente, sin señales, ¿quién tiene preferencia?',o:['El que sube, salvo que pueda llegar antes a un apartadero','El que baja','El vehículo más pesado'],c:0,e:'Tiene preferencia el vehículo que circula en sentido ascendente, salvo que pueda llegar antes a un apartadero.',r:'RGC, art. 62'},
+ {id:'q26',l:'L6',q:'Giras a la derecha y unos peatones cruzan la calle a la que entras, sin paso de peatones. ¿Quién tiene preferencia?',o:['Los peatones','Tú, porque no hay paso de peatones','El que llegue primero'],c:0,e:'Al girar, los peatones que cruzan la calzada a la que te incorporas tienen preferencia aunque no haya paso de peatones.',r:'RGC, art. 65'},
+ {id:'q27',l:'L6',q:'Un peatón espera para cruzar en un paso de peatones sin semáforo. ¿Qué haces?',o:['Me detengo y le cedo el paso','Paso si voy despacio','Toco el claxon para avisarle'],c:0,e:'En un paso de peatones señalizado y sin semáforo, los peatones tienen preferencia.',r:'RGC, art. 65'},
+ {id:'q28',l:'L6',q:'Vas a girar y un ciclista circula por el carril bici que cruzas. ¿Quién tiene preferencia?',o:['El ciclista','Tú, porque el ciclista es más lento','El que vaya por la derecha'],c:0,e:'Los ciclistas que circulan por un carril bici tienen preferencia sobre los vehículos que lo cruzan.',r:'RGC, art. 64'},
+ {id:'q29',l:'L6',q:'Un grupo de ciclistas está cruzando un cruce; el primero ya ha entrado. ¿Qué haces?',o:['Dejo pasar a todo el grupo, porque cuenta como una unidad','Paso en cuanto cruce el primero','Paso entre dos ciclistas si hay hueco'],c:0,e:'Un grupo de ciclistas que ya ha iniciado el cruce se considera una sola unidad a efectos de preferencia.',r:'RGC, art. 64'},
+ {id:'q30',l:'L6',q:'Oyes una ambulancia con sirena y luces que se acerca por detrás. ¿Qué haces?',o:['Facilito su paso apartándome a la derecha y deteniéndome si hace falta','Acelero para no estorbar','Sigo igual, porque no puedo apartarme'],c:0,e:'Ante un vehículo de emergencia en servicio, debes facilitarle el paso, apartándote hacia la derecha y deteniéndote si es necesario.',r:'RGC, arts. 67 a 69'},
+ {id:'q31',l:'L6',q:'En una cañada señalizada cruza un rebaño. ¿Quién tiene preferencia?',o:['El ganado','Tú, porque circulas por la carretera','El que llegue antes'],c:0,e:'Los animales tienen preferencia en las cañadas debidamente señalizadas.',r:'RGC, art. 66'}
+];
+const QBY=Object.fromEntries(QS.map(q=>[q.id,q]));
+
+/* ================= Simuladores ================= */
+const SIMS={
+ cruces:{name:'Prioridad en cruces',desc:'6 situaciones: regla de la derecha, STOP, excepciones, emergencias y atascos',list:[
+  {title:'Coche por la derecha',desc:'Cruce sin semáforos ni señales. Un coche se acerca por tu derecha.',scene:{scene:'cross'},
+   cars:{you:[[165,320],[165,202]],oth:[[320,135],[202,135]]},
+   opts:[{label:'Paso yo',ok:false,type:'crash',p:{you:[[165,202],[165,148]],oth:[[202,135],[178,135]]},at:[165,138]},
+         {label:'Cedo el paso',ok:true,type:'go',moves:[{c:'oth',p:[[202,135],[-40,135]],s:0,d:1400},{c:'you',p:[[165,202],[165,-40]],s:1100,d:1600}]}],
+   okMsg:'Cedes el paso y el otro coche cruza primero.',expl:'En un cruce sin señalizar tiene preferencia el vehículo que se acerca por tu derecha. Reduce, detente si hace falta y deja que pase.',norma:'RGC, art. 57.1'},
+  {title:'Señal de STOP',desc:'Tienes un STOP. Por la vía principal se acerca un coche desde tu izquierda.',scene:{scene:'cross',stop:true},
+   cars:{you:[[165,320],[165,202]],oth:{p:[[-40,165],[60,165]],lin:true}},
+   opts:[{label:'Paso yo',ok:false,type:'crash',p:{you:[[165,202],[165,182]],oth:[[60,165],[148,165]]},at:[160,168]},
+         {label:'Cedo el paso',ok:true,type:'go',moves:[{c:'oth',p:[[60,165],[340,165]],s:0,d:1700},{c:'you',p:[[165,202],[165,-40]],s:1400,d:1600}]}],
+   okMsg:'Te detienes por completo y dejas pasar al coche de la vía principal.',expl:'El STOP obliga a parar del todo antes de la línea y ceder el paso a todos los vehículos de la vía a la que llegas, vengan por la izquierda o por la derecha.',norma:'RGC, art. 56 · Señal R-2'},
+  {title:'Coche por la izquierda',desc:'Cruce sin señales. El otro coche llega por tu izquierda.',scene:{scene:'cross'},
+   cars:{you:[[165,320],[165,202]],oth:[[-40,165],[98,165]]},
+   opts:[{label:'Paso yo',ok:true,type:'go',moves:[{c:'you',p:[[165,202],[165,-40]],s:0,d:1500},{c:'oth',p:[[98,165],[340,165]],s:1100,d:1600}]},
+         {label:'Cedo el paso',ok:false,type:'hesitate',bubble:'oth',moves:[{c:'you',p:[[165,202],[165,-40]],s:0,d:1500},{c:'oth',p:[[98,165],[340,165]],s:1100,d:1600}]}],
+   badTitle:'Tenías preferencia',okMsg:'Tú vienes por la derecha del otro coche, así que tienes preferencia.',expl:'Sin señales, la preferencia es de quien viene por la derecha, y aquí eres tú. Pasa con precaución: quedarte parado sin motivo genera dudas y bloquea el cruce.',norma:'RGC, art. 57.1'},
+  {title:'Camino de tierra',desc:'Tu calle está asfaltada. Por tu derecha llega un coche desde un camino de tierra.',scene:{scene:'cross',dirt:true},
+   cars:{you:[[165,320],[165,202]],oth:[[320,135],[202,135]]},
+   opts:[{label:'Paso yo',ok:true,type:'go',moves:[{c:'you',p:[[165,202],[165,-40]],s:0,d:1500},{c:'oth',p:[[202,135],[-40,135]],s:1100,d:1500}]},
+         {label:'Cedo el paso',ok:false,type:'hesitate',bubble:'oth',moves:[{c:'you',p:[[165,202],[165,-40]],s:0,d:1500},{c:'oth',p:[[202,135],[-40,135]],s:1100,d:1500}]}],
+   badTitle:'Tenías preferencia',okMsg:'Circulas por una vía pavimentada y el otro sale de un camino de tierra, así que pasas tú.',expl:'La regla de la derecha tiene excepciones. Una de ellas: los vehículos que circulan por una vía pavimentada tienen preferencia sobre los que salen de un camino sin pavimentar, aunque vengan por la derecha.',norma:'RGC, art. 57.1 a)'},
+  {title:'Ambulancia en servicio',desc:'Cruce sin señales. Por tu izquierda se acerca una ambulancia con luces y sirena.',scene:{scene:'cross'},
+   cars:{you:[[165,320],[165,202]],oth:{p:[[-40,165],[60,165]],lin:true,kind:'amb'}},
+   opts:[{label:'Paso yo',ok:false,type:'crash',p:{you:[[165,202],[165,182]],oth:[[60,165],[148,165]]},at:[160,168]},
+         {label:'Cedo el paso',ok:true,type:'go',moves:[{c:'oth',p:[[60,165],[340,165]],s:0,d:1500},{c:'you',p:[[165,202],[165,-40]],s:1300,d:1600}]}],
+   okMsg:'Dejas pasar a la ambulancia aunque venga por tu izquierda.',expl:'Un vehículo de emergencia en servicio, con las señales luminosas y acústicas, tiene prioridad sobre todos. Facilita su paso y no arranques hasta que haya pasado.',norma:'RGC, arts. 67 a 69'},
+  {title:'Cruce atascado',desc:'No viene nadie por tu derecha, pero la calle de enfrente tiene cola y apenas queda sitio.',scene:{scene:'cross'},
+   cars:{you:[[165,320],[165,202]],e1:{p:[[165,107],[165,104]],kind:'grey'},e2:{p:[[165,73],[165,70]],kind:'grey'},oth:[[380,135],[379,135]]},
+   opts:[{label:'Entro en el cruce',ok:false,type:'block',bubble:'oth',moves:[{c:'you',p:[[165,202],[165,134]],s:0,d:1100},{c:'oth',p:[[379,135],[200,135]],s:700,d:1300}]},
+         {label:'Espero fuera',ok:true,type:'go',moves:[{c:'e1',p:[[165,104],[165,-60]],s:0,d:1600},{c:'e2',p:[[165,70],[165,-90]],s:0,d:1600},{c:'you',p:[[165,202],[165,-40]],s:900,d:1800}]}],
+   badTitle:'Has bloqueado el cruce',okMsg:'Esperas fuera hasta que la cola avanza y hay sitio al otro lado.',expl:'Aunque tengas preferencia, no entres en un cruce si es previsible que te quedes parado dentro: bloquearías a los que circulan por la otra calle.',norma:'RGC, art. 59'}
+ ]},
+ glorietas:{name:'Glorietas',desc:'5 situaciones: entrar, elegir carril, salir desde el interior y preferencia dentro',list:[
+  {title:'Coche en el anillo',desc:'Quieres entrar. Un coche circula por la glorieta y se acerca a tu entrada.',scene:{scene:'round'},
+   cars:{you:[[165,330],[165,244]],oth:{p:arc(RE,215,155),lin:true}},
+   opts:[{label:'Entro',ok:false,type:'crash',p:{you:[[165,244],[164,222]],oth:arc(RE,155,84)},at:[160,215]},
+         {label:'Espero',ok:true,type:'go',moves:[{c:'oth',p:arc(RE,155,-77.1).concat([[165,-40]]),s:0,d:2100},{c:'you',p:exitEast(),s:1500,d:1800}]}],
+   okMsg:'Esperas en la entrada hasta que el anillo queda libre.',expl:'Dentro de una glorieta tienen preferencia los que ya circulan por ella. Quien quiere entrar debe ceder el paso.',norma:'RGC, art. 57.1 c) · Señal R-1'},
+  {title:'Anillo libre',desc:'Llegas a la glorieta y no circula nadie por ella. Detrás de ti viene otro coche.',scene:{scene:'round'},
+   cars:{you:[[165,330],[165,244]],e1:{p:[[165,380],[165,288]],kind:'grey'}},
+   opts:[{label:'Entro',ok:true,type:'go',moves:[{c:'you',p:exitEast(),s:0,d:1800},{c:'e1',p:[[165,288],[165,244]],s:600,d:1000}]},
+         {label:'Espero',ok:false,type:'hesitate',bubble:'e1',moves:[{c:'you',p:exitEast(),s:0,d:1800},{c:'e1',p:[[165,288],[165,244]],s:600,d:1000}]}],
+   badTitle:'El anillo estaba libre',okMsg:'Como no viene nadie, entras sin detenerte.',expl:'Ceder el paso no obliga a parar si no viene nadie. Detenerte sin motivo en la entrada frena al tráfico de detrás y puede provocar un alcance.',norma:'Señal R-1 «Ceda el paso»'},
+  {title:'Primera salida',desc:'Vas a tomar la primera salida, a la derecha. Un coche circula por el carril exterior, todavía lejos. ¿Por qué carril vas?',scene:{scene:'round'},
+   cars:{you:[[165,330],[165,244]],oth:{p:arc(RE,240,190),lin:true}},
+   opts:[{label:'Carril exterior',ok:true,type:'go',moves:[{c:'you',p:exitEast(),s:0,d:1700},{c:'oth',p:arc(RE,190,-77.1).concat([[165,-40]]),s:300,d:3000}]},
+         {label:'Carril interior',ok:false,type:'crash',p:{you:[[165,244],[165,188]].concat(arc(RI,68.5,25)).concat([[211,163]]),oth:arc(RE,190,16)},at:[212,165]}],
+   okMsg:'Para la primera salida entras y circulas por el carril exterior.',expl:'Si vas a tomar la primera salida, usa el carril exterior. Desde el interior tendrías que cruzar el exterior para salir y cortarías el paso a quien circula por él.',norma:'RGC, art. 74 · Recomendaciones de la DGT sobre glorietas'},
+  {title:'Salir desde el interior',desc:'Vas por el carril interior y quieres tomar la próxima salida, abajo. Un coche circula a tu lado por el exterior.',scene:{scene:'round'},
+   cars:{you:{p:arc(RI,250,190),lin:true},oth:{p:arc(RE,250,190),lin:true}},
+   opts:[{label:'Me paso al exterior y salgo',ok:false,type:'crash',p:{you:arc(RI,190,150).concat([[114.5,206.8]]),oth:arc(RE,190,122)},at:[115,205]},
+         {label:'Dejo pasar y salgo después',ok:true,type:'go',moves:[{c:'oth',p:arc(RE,190,102.9).concat([[135,340]]),s:0,d:1500},{c:'you',p:arc(RI,190,45).concat([[211,178],[215.3,165],[340,165]]),s:0,d:3200}]}],
+   okMsg:'Dejas pasar al coche del exterior, cambias de carril cuando es seguro y sales por la siguiente salida.',expl:'Para salir desde el carril interior debes pasar antes al exterior, cediendo el paso a quien circula por él. Si no puedes hacerlo a tiempo, sigue y sal por la siguiente o da otra vuelta.',norma:'RGC, art. 74 (cambio de carril)'},
+  {title:'Ya estás dentro',desc:'Circulas por la glorieta. En la entrada de la izquierda espera un coche para entrar.',scene:{scene:'round'},
+   cars:{you:{p:arc(RE,270,215),lin:true},oth:[[-40,165],[56,165]]},
+   opts:[{label:'Sigo circulando',ok:true,type:'go',moves:[{c:'you',p:arc(RE,215,12.9).concat([[340,165]]),s:0,d:2600},{c:'oth',p:[[56,165],[84.7,165]].concat(arc(RE,167.1,-77.1)).concat([[165,-40]]),s:1500,d:2800}]},
+         {label:'Me paro para dejarle entrar',ok:false,type:'hesitate',bubble:'oth',moves:[{c:'you',p:arc(RE,215,12.9).concat([[340,165]]),s:0,d:2600},{c:'oth',p:[[56,165],[84.7,165]].concat(arc(RE,167.1,-77.1)).concat([[165,-40]]),s:1500,d:2800}]}],
+   badTitle:'Tenías preferencia',okMsg:'Sigues circulando: dentro de la glorieta tienes preferencia.',expl:'El que espera en la entrada debe cederte el paso. Detenerte dentro para dejarle entrar confunde a los demás y puede provocar un alcance por detrás.',norma:'RGC, art. 57.1 c)'}
+ ]}
+};
+
+/* ================= Motor de animación ================= */
+let animToken=0;
+function measure(p){const L=[0];for(let i=1;i<p.length;i++)L.push(L[i-1]+Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]));return L;}
+function at(p,f){const L=measure(p),T=L[L.length-1]*f;let i=1;while(i<p.length-1&&L[i]<T)i++;
+  const a=p[i-1],b=p[i],seg=(L[i]-L[i-1])||1,k=Math.min(1,Math.max(0,(T-L[i-1])/seg));
+  return{x:a[0]+(b[0]-a[0])*k,y:a[1]+(b[1]-a[1])*k,h:Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI+90};}
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2, lin=t=>t, decel=t=>1-Math.pow(1-t,2);
+
+/* ================= Voz ================= */
+const SPEECH=(()=>{try{return ('speechSynthesis' in window)?window.speechSynthesis:null;}catch(e){return null;}})();
+let esVoice=null;
+function esVoices(){try{return SPEECH.getVoices().filter(x=>/^es/i.test(x.lang));}catch(e){return [];}}
+function voiceScore(x){let n=0;if(/^es[-_]ES/i.test(x.lang))n+=4;if(/natural|neural|online|enhanced|premium|mejorad/i.test(x.name))n+=6;if(/google/i.test(x.name))n+=3;if(x.localService===false)n+=2;return n;}
+function pickVoice(){const v=esVoices();esVoice=(S.voice&&v.find(x=>x.name===S.voice))||v.slice().sort((a,b)=>voiceScore(b)-voiceScore(a))[0]||null;}
+if(SPEECH){pickVoice();try{SPEECH.addEventListener('voiceschanged',pickVoice);}catch(e){}}
+let speechGen=0;
+function stopSpeech(){speechGen++;try{SPEECH&&SPEECH.cancel();}catch(e){}}
+function speak(text,onend,force){const g=speechGen;let done=false;const fin=()=>{if(done)return;done=true;if(g===speechGen&&onend)onend();};
+  if(!SPEECH||(S.mute&&!force)){setTimeout(fin,Math.max(2600,text.length*60));return;}
+  try{const u=new SpeechSynthesisUtterance(text);u.lang='es-ES';if(esVoice)u.voice=esVoice;u.rate=S.rate||0.95;u.pitch=S.pitch||1;u.onend=fin;u.onerror=fin;SPEECH.speak(u);setTimeout(fin,text.length*130+5000);}
+  catch(e){setTimeout(fin,2600);}}
+function splitText(t){return t.replace(/\s+/g,' ').split(/(?<=[.!?])\s+/).map(x=>x.trim()).filter(Boolean);}
+function speakList(parts,onend,force){stopSpeech();let i=0;const nx=()=>{if(i>=parts.length){onend&&onend();return;}speak(parts[i++],nx,force);};nx();}
+const SPK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>';
+const MUTE_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+const STOP_ICON='<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+const PLAY_ICON='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+const PAUSE_ICON='<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+const REPLAY_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+
+/* ================= Explicaciones animadas ================= */
+const OFF=[[420,420],[421,420]];
+const ANIMS={glorieta:{title:'Cómo se circula por una glorieta',scene:{scene:'round'},steps:[
+ {text:'Al llegar a la glorieta, reduce y mira a tu izquierda. Los que ya circulan por el anillo tienen preferencia: espera en la línea de ceda el paso.',
+  cars:{you:[[165,330],[165,244]],oth:arc(RE,235,155),e1:OFF},
+  moves:[{c:'you',p:[[165,330],[165,244]],s:0,d:1500,fn:'decel'},{c:'oth',p:arc(RE,235,-77.1).concat([[165,-40]]),s:0,d:4600,fn:'lin'}]},
+ {text:'Cuando el anillo queda libre, entra. Si vas a tomar la primera salida, circula por el carril exterior.',
+  cars:{you:[[165,244],[165,240]],oth:OFF,e1:OFF},
+  moves:[{c:'you',p:[[165,244],[165,215.3]].concat(arc(RE,77.1,40)),s:0,d:2400}]},
+ {text:'Antes de salir, pon el intermitente derecho. Después abandona la glorieta.',ind:'right',
+  cars:{you:arc(RE,40,39),oth:OFF,e1:OFF},
+  moves:[{c:'you',p:arc(RE,40,12.9).concat([[340,165]]),s:600,d:2400}]},
+ {text:'Para salidas más lejanas puedes usar el carril interior. Entra, colócate por dentro y sigue girando con la isleta a tu izquierda.',
+  cars:{you:[[165,330],[165,320]],oth:OFF,e1:OFF},
+  moves:[{c:'you',p:[[165,330],[165,244],[165,188]].concat(arc(RI,68.5,-120)),s:0,d:4600}]},
+ {text:'Antes de tu salida, señaliza a la derecha y pasa al carril exterior cediendo el paso a quien ya circula por él. Después, sal.',ind:'right',
+  cars:{you:arc(RI,-120,-121),oth:OFF,e1:arc(RE,-55,-56)},
+  moves:[{c:'e1',p:arc(RE,-55,-167.1).concat([[-40,135]]),s:0,d:2200,fn:'lin'},{c:'you',p:arc(RI,-120,-135).concat([[87,127.1]]).concat(arc(RE,-160,-167.1)).concat([[-40,135]]),s:1500,d:3000}]}
+]}};
+const FNS={ease,lin,decel};
+function explainerHTML(k){const a=ANIMS[k];
+  return `<div class="xpl" id="xpl"><div class="xbadge">${PLAY_ICON.replace('<svg','<svg width="16" height="16"')} Explicación animada · ${a.steps.length} pasos</div>
+  <div class="scene"><svg viewBox="0 0 300 300" id="xsvg" role="img" aria-label="${esc(a.title)}"></svg></div>
+  <div class="xcap"><span class="xstep" id="xstep"></span><p id="xtext" aria-live="polite"></p></div>
+  <div class="xctl"><button class="btn primary" type="button" id="xplay"></button><button class="btn ghost" type="button" id="xre" aria-label="Volver a empezar">${REPLAY_ICON}</button><button class="btn ghost" type="button" id="xmute"></button></div>
+  <div class="xdots" id="xdots">${a.steps.map((_,i)=>`<button type="button" data-xs="${i}" aria-label="Paso ${i+1}"></button>`).join('')}</div></div>`;}
+function startExplainer(k){
+  const a=ANIMS[k],svg=document.getElementById('xsvg'),$=id=>document.getElementById(id),token=animToken;
+  let cur=0,playing=false,gen=0,cars={};
+  svg.innerHTML=DEFS+bg(a.scene)+['e1','oth'].map(id=>`<g id="x-${id}">${carBody(id==='oth'?'oth':'grey')}</g>`).join('')+
+    `<g id="x-you">${carBody('you')}<g class="ind" id="x-ind" style="display:none"><circle cx="9" cy="-12" r="2.6" fill="#FFB300"/><circle cx="9" cy="12" r="2.6" fill="#FFB300"/></g></g>`;
+  ['you','oth','e1'].forEach(id=>cars[id]=document.getElementById('x-'+id));
+  const place=(c,pt)=>cars[c].setAttribute('transform',`translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)}) rotate(${pt.h.toFixed(1)})`);
+  const alive=g=>token===animToken&&g===gen&&document.body.contains(svg);
+  function setup(i){const st=a.steps[i];cur=i;Object.entries(st.cars).forEach(([c,p])=>place(c,at(p,0)));
+    $('x-ind').style.display='none';$('xstep').textContent=`Paso ${i+1} de ${a.steps.length}`;$('xtext').textContent=st.text;
+    $('xdots').querySelectorAll('button').forEach((b,k)=>b.className=k===i?'on':k<i?'past':'');}
+  function ui(){$('xplay').innerHTML=playing?PAUSE_ICON+' Pausa':(cur===a.steps.length-1&&ended?REPLAY_ICON+' Volver a ver':PLAY_ICON+(started?' Continuar':' Ver la explicación'));
+    $('xmute').innerHTML=S.mute?MUTE_ICON:SPK_ICON;$('xmute').setAttribute('aria-label',S.mute?'Activar la voz':'Silenciar la voz');}
+  let started=false,ended=false;
+  function play(i){const g=++gen;playing=true;started=true;ended=false;setup(i);ui();const st=a.steps[i];
+    if(st.ind)$('x-ind').style.display='';
+    let animDone=false,voiceDone=false;const check=()=>{if(!alive(g)||!animDone||!voiceDone)return;
+      setTimeout(()=>{if(!alive(g))return;if(i<a.steps.length-1)play(i+1);else{playing=false;ended=true;ui();}},700);};
+    stopSpeech();speak(st.text,()=>{voiceDone=true;check();});
+    const end=Math.max(...st.moves.map(m=>m.s+m.d)),t0=performance.now();
+    (function f(now){if(!alive(g))return;const t=now-t0;
+      st.moves.forEach(m=>{const kk=Math.min(1,Math.max(0,(t-m.s)/m.d));if(t>=m.s)place(m.c,at(m.p,FNS[m.fn||'ease'](kk)));});
+      if(t<end)requestAnimationFrame(f);else{animDone=true;check();}})(t0);}
+  function pause(){gen++;playing=false;stopSpeech();setup(cur);ui();}
+  $('xplay').onclick=()=>{if(playing)pause();else play(ended?0:cur);};
+  $('xre').onclick=()=>{play(0);};
+  $('xmute').onclick=()=>{S.mute=!S.mute;save();if(S.mute)stopSpeech();ui();};
+  $('xdots').querySelectorAll('button').forEach(b=>b.onclick=()=>{const i=+b.dataset.xs;if(playing)play(i);else{gen++;setup(i);started=true;ended=false;ui();}});
+  setup(0);ui();
+}
+
+/* ================= Vistas ================= */
+const V=document.getElementById('view'),TOP=document.getElementById('topIn'),NAV=document.getElementById('navIn');
+const ICONS={
+ inicio:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+ temario:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>',
+ practicar:'<path d="M4 20l4-1 11-11-3-3L5 16zM14 6l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+ simulacros:'<circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v4l3 2M9 2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+ progreso:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+};
+const TABS=[['inicio','Inicio'],['temario','Temario'],['practicar','Practicar'],['simulacros','Simulacros'],['progreso','Progreso']];
+let tab='inicio',stack=[];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+
+function topicStats(){let seen=0,ok=0;QS.forEach(q=>{const r=S.q[q.id];if(r&&r.n){seen++;if(r.last)ok++;}});
+  const done=LESSONS.filter(l=>S.lessons[l.id]).length,pct=Math.round(ok/QS.length*100);
+  let level='Por empezar',cls='';
+  if(seen||done){if(pct>=85&&done===LESSONS.length){level='Dominado';cls='ok';}else if(pct>=50){level='Casi dominado';cls='acc';}else{level='Aprendiendo';cls='warn';}}
+  return{seen,ok,done,pct,level,cls};}
+const fallos=()=>QS.filter(q=>isFallo(q.id));
+const dueFallos=()=>fallos().filter(q=>(S.q[q.id].due||0)<=Date.now());
+
+const SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+ MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>';
+const themeBtn=()=>`<button class="themebtn" type="button" data-theme-toggle aria-label="${S.theme==='dark'?'Cambiar a modo claro':'Cambiar a modo oscuro'}">${S.theme==='dark'?SUN:MOON}</button>`;
+function header(title){
+  if(stack.length) TOP.innerHTML=`<button class="backbtn" type="button" data-back aria-label="Volver">‹</button><h1>${esc(title)}</h1>${themeBtn()}`;
+  else TOP.innerHTML=`<div class="brand">Autoescuela</div><div style="flex:1"></div>${S.profile?`<span class="chip acc">${S.profile.obj==='B'?'B':'A2'}</span>`:''}${themeBtn()}`;
+}
+function render(){
+  animToken++;stopSpeech();
+  if(!S.profile){NAV.parentElement.hidden=true;document.body.style.paddingBottom='0';header('');TOP.innerHTML=`<div class="brand">Autoescuela</div>`;viewOnboard();return;}
+  NAV.parentElement.hidden=false;document.body.style.paddingBottom='';
+  NAV.innerHTML=TABS.map(([k,l])=>`<button type="button" data-tab="${k}" class="${k===tab?'on':''}" aria-current="${k===tab?'page':'false'}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${l}</button>`).join('');
+  const v=stack.length?stack[stack.length-1]:{name:tab};
+  (VIEWS[v.name]||VIEWS.inicio)(v);
+  window.scrollTo(0,0);
+}
+function go(v){stack.push(v);render();}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-tab]');if(t){tab=t.dataset.tab;stack=[];render();return;}
+  const th=e.target.closest('[data-theme-toggle]');if(th){S.theme=S.theme==='dark'?'light':'dark';save();applyTheme();const y=window.scrollY;render();window.scrollTo(0,y);return;}
+  const b=e.target.closest('[data-back]');if(b){stack.pop();render();return;}
+  const g=e.target.closest('[data-go]');if(g&&!g.disabled){go({name:g.dataset.go,id:g.dataset.id||null,mode:g.dataset.mode||null});}
+});
+
+const ICN={
+ book:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20M9 8h6"/></svg>',
+ wheel:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M3.5 10.5h6M14.5 10.5h6M12 14.5V21"/></svg>',
+ redo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
+ pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16zM14 6l3 3"/></svg>',
+ bolt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
+ check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+};
+const mascot=(w)=>`<svg width="${w}" viewBox="0 0 120 100" role="img" aria-label="Mascota de la app"><ellipse cx="60" cy="92" rx="44" ry="6" fill="rgba(0,0,0,.12)"/><rect x="14" y="40" width="92" height="40" rx="18" fill="#4A94FF"/><path d="M32 42 Q38 14 60 14 Q82 14 88 42 Z" fill="#4A94FF"/><path d="M40 40 Q44 22 60 22 Q76 22 80 40 Z" fill="#CFE6FF"/><circle cx="48" cy="56" r="10" fill="#fff"/><circle cx="72" cy="56" r="10" fill="#fff"/><circle cx="50" cy="57" r="5" fill="#1A2230"/><circle cx="74" cy="57" r="5" fill="#1A2230"/><circle cx="52" cy="55" r="1.6" fill="#fff"/><circle cx="76" cy="55" r="1.6" fill="#fff"/><path d="M52 68 Q60 75 68 68" stroke="#1A2230" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="36" cy="66" r="4" fill="#FF8FA3" opacity=".7"/><circle cx="84" cy="66" r="4" fill="#FF8FA3" opacity=".7"/><circle cx="32" cy="82" r="11" fill="#2B2F36"/><circle cx="32" cy="82" r="4.5" fill="#B9C0C8"/><circle cx="88" cy="82" r="11" fill="#2B2F36"/><circle cx="88" cy="82" r="4.5" fill="#B9C0C8"/><rect x="100" y="52" width="7" height="8" rx="3" fill="#FFE27A"/><rect x="13" y="52" width="7" height="8" rx="3" fill="#FFE27A"/></svg>`;
+/* Celebraciones con emojis */
+const FX=document.createElement('div');FX.className='fx';FX.setAttribute('aria-hidden','true');document.body.appendChild(FX);
+function emo(ch,cls,x,y,r){const e=document.createElement('div');e.className='emo '+(cls||'');e.textContent=ch;e.style.left=x;e.style.top=y;if(r)e.style.setProperty('--r',r);FX.appendChild(e);setTimeout(()=>e.remove(),2300);}
+function celebrate(k){
+ if(k==='lesson')emo('👏','','50%','42%');
+ else if(k==='perfect'){emo('🎉','','50%','40%');['🎉','✨','⭐','✨','🎉'].forEach((c,i)=>setTimeout(()=>emo(c,'small',(10+i*19)+'%','80%',(i%2?20:-20)+'deg'),150+i*90));}
+ else if(k==='fail')emo('💪','','50%','42%');
+ else if(k==='streak'){emo('🔥','','50%','40%');[0,1,2].forEach(i=>setTimeout(()=>emo('🔥','small',(30+i*20)+'%','82%','0deg'),200+i*120));}
+ else if(k==='sim')emo('🚗','car','0','46%');
+ else if(k==='topic'){emo('🏁','','50%','40%');['🏆','⭐','🏆'].forEach((c,i)=>setTimeout(()=>emo(c,'small',(25+i*25)+'%','82%',(i-1)*15+'deg'),200+i*120));}
+}
+function item(o){return `<button class="item ${o.cls||''}" type="button" ${o.go?`data-go="${o.go}"`:''} ${o.id?`data-id="${o.id}"`:''} ${o.mode?`data-mode="${o.mode}"`:''} ${o.disabled?'disabled':''}><span class="ic ${o.tone||''}">${o.icon?ICN[o.icon]:o.ic}</span><span class="tx"><b>${esc(o.t)}</b>${o.s?`<span>${o.s}</span>`:''}</span>${o.right||(o.disabled?'':'<span class="chev">›</span>')}</button>`;}
+function ringSVG(p,size=72){const r=34,c=2*Math.PI*r;return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="${r}" fill="none" stroke="var(--accent-soft)" stroke-width="9"/><circle cx="42" cy="42" r="${r}" fill="none" stroke="var(--accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray="${c*p/100} ${c}" transform="rotate(-90 42 42)"/><text x="42" y="48" text-anchor="middle" font-family="Lexend,system-ui,sans-serif" font-weight="600" font-size="18" fill="currentColor">${p}%</text></svg>`;}
+
+function viewOnboard(){
+  let obj='B';
+  V.innerHTML=`<div class="card" style="margin-top:10px"><div class="mascot-c">${mascot(110)}</div><h2>¡Hola! Vamos a por el carné</h2><p class="muted">Te acompaño con lecciones claras, ejercicios explicados y simuladores de conducción. Tu progreso se guarda en este móvil.</p></div>
+  <div class="card"><label for="nm"><b>¿Cómo te llamas?</b></label><input type="text" id="nm" maxlength="24" placeholder="Tu nombre" autocomplete="given-name"></div>
+  <div class="card"><b>¿Qué permiso preparas?</b><div class="choice" id="objs">${Object.entries(OBJ).map(([k,l])=>`<button type="button" class="btn ghost ${k==='B'?'sel':''}" data-obj="${k}">${l}</button>`).join('')}</div>
+  <p class="small muted">Si ya tienes el B y vas a por el A2, estás exento de la teoría común: solo necesitas la específica de moto.</p></div>
+  <button class="btn primary" type="button" id="startBtn">Empezar</button>`;
+  V.querySelectorAll('[data-obj]').forEach(b=>b.onclick=()=>{obj=b.dataset.obj;V.querySelectorAll('[data-obj]').forEach(x=>x.classList.toggle('sel',x===b));});
+  document.getElementById('startBtn').onclick=()=>{const n=document.getElementById('nm').value.trim()||'';S.profile={name:n,obj};save();tab='inicio';stack=[];render();};
+}
+
+const VIEWS={
+ inicio(){header();
+  const st=topicStats(),nxt=LESSONS.find(l=>!S.lessons[l.id]),due=dueFallos().length,sk=streak();
+  const simTodo=Object.keys(SIMS).find(k=>!S.sims[k])||Object.keys(SIMS).sort((a,b)=>(S.sims[a].best/S.sims[a].total)-(S.sims[b].best/S.sims[b].total))[0];
+  const plan=[];
+  if(nxt) plan.push(item({go:'lesson',id:nxt.id,icon:'book',t:nxt.t,s:`Lección · ${nxt.min} min`}));
+  else plan.push(item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema 5',s:'15 preguntas con explicación'}));
+  if(due) plan.push(item({go:'quiz',mode:'fallos',icon:'redo',tone:'peach',t:`Repasa ${due} ${due===1?'pregunta':'preguntas'}`,s:'Las que fallaste hace unos días'}));
+  plan.push(item({go:'sim',id:simTodo,icon:'wheel',tone:'blue',t:'Simulador: '+SIMS[simTodo].name.toLowerCase(),s:S.sims[simTodo]?`Tu mejor marca: ${S.sims[simTodo].best} de ${S.sims[simTodo].total}`:'Todavía sin probar'}));
+  const d=new Date(),dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'],h=d.getHours(),saludo=h<14?'buenos días':h<21?'buenas tardes':'buenas noches';
+  const feel={'Por empezar':'listo para empezar','Aprendiendo':'vas cogiendo ritmo','Casi dominado':'vas por buen camino','Dominado':'¡tema dominado!'}[st.level];
+  const msg=sk>=2?`🔥 Llevas ${sk} días seguidos. Poco a poco se llega lejos.`:sk===1?'🌱 Hoy ya has estudiado. Mañana, otro poquito.':'🌱 Diez minutos al día bastan para avanzar.';
+  V.innerHTML=`<div class="hi"><div><p>${dias[d.getDay()]}, ${saludo}</p><h2>Hola${S.profile.name?', '+esc(S.profile.name):''}</h2></div><div class="av">${mascot(44)}</div></div>
+  <div class="prog">${ringSVG(st.pct)}<div><h3>Prioridad de paso</h3><p class="small muted">${st.done} de ${LESSONS.length} lecciones · ${feel}</p></div></div>
+  <div class="section-title">Para hoy, unos 20 minutos</div><div class="list">${plan.join('')}</div>
+  <div class="quote">${msg}</div>
+  <p class="note">Versión ${VERSION}: de momento está completo el tema 5. El resto del temario llegará en las próximas versiones.</p>`;
+ },
+ temario(){header();
+  const st=topicStats(),showMoto=S.profile.obj!=='B',exento=S.profile.obj==='A2B';
+  const comun=COMUN.map(([n,t])=>n==='5'?item({go:'tema',ic:n,t,s:`${st.done}/${LESSONS.length} lecciones · ${st.pct}% de aciertos`,right:`<span class="chip ${st.cls}">${st.level}</span>`}):item({ic:n,t,s:'Próximamente',disabled:true}));
+  V.innerHTML=`<div class="section-title">Teoría común${exento?' · opcional, estás exento':''}</div><div class="list">${comun.join('')}</div>
+  ${showMoto?`<div class="section-title">Teoría específica de moto</div><div class="list">${MOTO.map(([n,t])=>item({ic:n,t,s:'Próximamente',disabled:true})).join('')}</div>`:''}`;
+ },
+ tema(){header('Tema 5 · Prioridad de paso');
+  const st=topicStats();
+  V.innerHTML=`<div class="card"><div class="eyebrow">Tema 5</div><h2>Prioridad de paso</h2><p class="muted">Quién pasa primero en cruces, glorietas y estrechamientos, y cuándo ceder a peatones, ciclistas y emergencias.</p>
+   <div style="display:flex;justify-content:space-between;align-items:center"><span class="chip ${st.cls}">${st.level}</span><span class="small muted">${st.pct}% de aciertos</span></div><div class="bar"><i style="width:${st.pct}%"></i></div></div>
+   <div class="section-title">Lecciones</div><div class="list">${LESSONS.map((l,i)=>item({go:'lesson',id:l.id,cls:S.lessons[l.id]?'done':'',ic:i+1,icon:S.lessons[l.id]?'check':null,t:l.t,s:`${l.min} min${S.lessons[l.id]?' · leída':''}`})).join('')}</div>
+   <div class="section-title">Practicar</div><div class="list">${item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema',s:'15 preguntas al azar, con explicación'})}
+   ${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>`;
+ },
+ lesson(v){const l=LESSONS.find(x=>x.id===v.id),i=LESSONS.indexOf(l);header(`Lección ${i+1} de ${LESSONS.length}`);
+  V.innerHTML=`<div><div class="eyebrow">Tema 5 · ${l.min} min</div><h2>${esc(l.t)}</h2></div>
+  <button class="btn ghost listen" type="button" id="listen">${SPK_ICON} Escuchar la lección</button>
+  <div class="key"><small>Idea clave</small>${withSigns(l.key)}</div>
+  ${l.anim?explainerHTML(l.anim):ILL[l.ill]()}
+  <div class="card lesson">${withSigns(l.body)}</div>
+  <div class="tip"><b>Truco para recordar.</b> ${withSigns(l.tip)}</div>
+  <div class="errs"><b>Errores frecuentes en el examen</b><ul>${l.errs.map(e=>`<li>${withSigns(e)}</li>`).join('')}</ul></div>
+  <p class="ref">Referencia: ${withSigns(l.ref)}</p>
+  <div class="card"><h3>Comprueba lo aprendido</h3><p class="muted small">3 preguntas rápidas sobre esta lección.</p><button class="btn primary" type="button" data-go="quiz" data-mode="lesson" data-id="${l.id}">Empezar</button></div>
+  ${LESSONS[i+1]?`<button class="btn ghost" type="button" id="nextL">Siguiente lección: ${esc(LESSONS[i+1].t)}</button>`:''}`;
+  if(l.anim)startExplainer(l.anim);
+  const lb=document.getElementById('listen');let reading=false;
+  lb.onclick=()=>{if(reading){stopSpeech();reading=false;lb.innerHTML=SPK_ICON+' Escuchar la lección';return;}
+    const tmp=document.createElement('div');tmp.innerHTML=l.body;
+    const parts=[l.t+'.','Idea clave. '+l.key].concat(splitText(tmp.textContent)).concat(['Truco para recordar. '+l.tip]);
+    reading=true;lb.innerHTML=STOP_ICON+' Detener la lectura';
+    speakList(parts,()=>{reading=false;lb.innerHTML=SPK_ICON+' Escuchar la lección';},true);};
+  const n=document.getElementById('nextL');if(n)n.onclick=()=>{stack.pop();go({name:'lesson',id:LESSONS[i+1].id});};
+ },
+ quiz(v){
+  let ids,title;
+  if(v.mode==='lesson'){ids=shuffle(QS.filter(q=>q.l===v.id)).slice(0,3).map(q=>q.id);title='Comprobación';}
+  else if(v.mode==='fallos'){const d=dueFallos();ids=shuffle((d.length?d:fallos())).slice(0,15).map(q=>q.id);title='Repaso de fallos';}
+  else if(v.mode==='rapido'){ids=shuffle(QS).slice(0,5).map(q=>q.id);title='Test rápido';}
+  else {ids=shuffle(QS).slice(0,15).map(q=>q.id);title='Test del tema 5';}
+  header(title);
+  if(!ids.length){V.innerHTML=`<div class="card result"><h2>Nada que repasar</h2><p class="muted">No tienes preguntas falladas pendientes. ¡Buen trabajo!</p><button class="btn primary" type="button" data-back>Volver</button></div>`;return;}
+  runQuiz(ids,v);
+ },
+ practicar(){header();const fl=fallos().length;
+  V.innerHTML=`<div class="section-title">Tests</div><div class="list">
+   ${item({go:'quiz',mode:'rapido',icon:'bolt',tone:'peach',t:'Test rápido',s:'5 preguntas para un rato libre'})}
+   ${item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema 5',s:'Prioridad de paso, con explicación'})}
+   ${item({go:'quiz',mode:'fallos',icon:'redo',tone:'peach',t:'Test de fallos',s:fl?`${fl} preguntas que fallaste`:'Aún no tienes fallos',disabled:!fl})}</div>
+   <div class="section-title">Simuladores de conducción</div><div class="list">${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>
+   <p class="note">Más tipos de ejercicios y simuladores llegarán con el resto del temario.</p>`;
+ },
+ simulacros(){header();
+  V.innerHTML=`<div class="card"><div class="eyebrow">Próximamente</div><h2>Simulacros de examen</h2><p>Reproducirán el examen real de la DGT: preguntas de todos los temas, tiempo límite y corrección al final.</p>
+   <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px"><li>Teoría común: 30 preguntas, máximo 3 fallos</li><li>Específica de moto: máximo 2 fallos</li><li>Historial de notas e indicador de «Listo para el examen»</li></ul>
+   <p class="muted small">Llegarán cuando esté el resto del temario, para que mezclen preguntas de todos los temas.</p></div>
+   <div class="section-title">Mientras tanto</div><div class="list">${item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema 5',s:'15 preguntas al azar'})}</div>`;
+ },
+ progreso(){header();
+  const st=topicStats(),tot=Object.values(S.q).reduce((a,r)=>a+r.n,0),okc=Object.values(S.q).reduce((a,r)=>a+r.ok,0);
+  V.innerHTML=`<div class="grid2"><div class="stat"><b>${tot}</b><span>respuestas</span></div><div class="stat"><b>${tot?Math.round(okc/tot*100):0}%</b><span>de aciertos</span></div><div class="stat"><b>${streak()}</b><span>días seguidos</span></div><div class="stat"><b>${fallos().length}</b><span>por repasar</span></div></div>
+  <div class="section-title">Dominio por tema</div>
+  <div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>5 · Prioridad de paso</b><span class="chip ${st.cls}">${st.level}</span></div><div class="bar"><i style="width:${st.pct}%"></i></div><span class="small muted">${st.done}/${LESSONS.length} lecciones · ${st.ok} de ${QS.length} preguntas acertadas en su último intento</span></div>
+  <div class="section-title">Simuladores</div><div class="list">${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
+  <div class="section-title">Ajustes</div>
+  <div class="card"><label for="nm2"><b>Nombre</b></label><input type="text" id="nm2" maxlength="24" value="${esc(S.profile.name||'')}">
+   <b>Permiso</b><div class="choice" id="objs2">${Object.entries(OBJ).map(([k,l])=>`<button type="button" class="btn ghost ${k===S.profile.obj?'sel':''}" data-obj="${k}">${l}</button>`).join('')}</div></div>
+  <div class="card"><b>Aspecto</b><div class="choice"><button type="button" class="btn ghost ${S.theme!=='dark'?'sel':''}" data-set-theme="light">Claro</button><button type="button" class="btn ghost ${S.theme==='dark'?'sel':''}" data-set-theme="dark">Oscuro</button></div></div>
+  <div class="card"><b>Voz de la narración</b>
+   <p class="small muted">Las voces disponibles dependen de tu móvil. Las marcadas como naturales o de Google suelen sonar mejor.</p>
+   <select id="vsel" style="width:100%;font:inherit;padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--fg)"></select>
+   <label for="vrate" class="small">Velocidad: <span id="vrv"></span></label><input type="range" id="vrate" min="0.7" max="1.3" step="0.05" style="width:100%;accent-color:var(--accent)">
+   <label for="vpitch" class="small">Tono: <span id="vpv"></span></label><input type="range" id="vpitch" min="0.7" max="1.3" step="0.05" style="width:100%;accent-color:var(--accent)">
+   <button class="btn ghost" type="button" id="vtest">Probar voz</button>
+   <p class="small muted" id="vnote"></p></div>
+  <div class="card"><b>Copia de seguridad</b><p class="small muted">Copia este texto y guárdalo en tus notas. Para recuperar el progreso, pégalo abajo y pulsa Restaurar.</p>
+   <textarea id="bk" readonly>${esc(JSON.stringify(S))}</textarea><button class="btn ghost" type="button" id="cpBtn">Copiar</button>
+   <textarea id="rs" placeholder="Pega aquí una copia de seguridad"></textarea><button class="btn ghost" type="button" id="rsBtn">Restaurar</button><p class="small" id="rsMsg" aria-live="polite"></p></div>
+  <div class="card"><b>Borrar progreso</b><p class="small muted">Elimina respuestas, lecciones y simuladores de este móvil.</p><button class="btn danger" type="button" id="delBtn">Borrar todo el progreso</button><div id="delConf" hidden style="display:flex;flex-direction:column;gap:8px"><p class="small">¿Seguro? No se puede deshacer.</p><div class="grid2"><button class="btn ghost" type="button" id="delNo">Cancelar</button><button class="btn danger" type="button" id="delYes">Sí, borrar</button></div></div></div>
+  <p class="note">Autoescuela · versión ${VERSION}</p>`;
+  (function(){const sel=document.getElementById('vsel'),r=document.getElementById('vrate'),pi=document.getElementById('vpitch');
+   const fill=()=>{pickVoice();const v=esVoices().sort((a,b)=>voiceScore(b)-voiceScore(a));
+     if(!SPEECH||!v.length){sel.innerHTML='<option>No hay voces en español disponibles aquí</option>';sel.disabled=true;document.getElementById('vnote').textContent=SPEECH?'Instala una voz en español en los ajustes de tu móvil (Idioma > Salida de texto a voz).':'Esta vista no permite la voz. Funcionará al instalar la app.';return;}
+     sel.disabled=false;sel.innerHTML=v.map(x=>`<option value="${esc(x.name)}" ${esVoice&&x.name===esVoice.name?'selected':''}>${esc(x.name.replace(/Microsoft |Google /,''))} · ${esc(x.lang)}${voiceScore(x)>=8?' · natural':''}</option>`).join('');};
+   fill();if(SPEECH)try{SPEECH.addEventListener('voiceschanged',fill);}catch(e){}
+   r.value=S.rate||0.95;pi.value=S.pitch||1;
+   const lbl=()=>{document.getElementById('vrv').textContent=Math.round(r.value*100)+'%';document.getElementById('vpv').textContent=+pi.value<0.95?'más grave':+pi.value>1.05?'más agudo':'normal';};lbl();
+   sel.onchange=()=>{S.voice=sel.value;save();pickVoice();};
+   r.oninput=()=>{S.rate=+r.value;save();lbl();};pi.oninput=()=>{S.pitch=+pi.value;save();lbl();};
+   document.getElementById('vtest').onclick=()=>{stopSpeech();speak('Hola. Así sonarán las explicaciones de tus lecciones. En una glorieta, tienen preferencia los que ya circulan por ella.',null,true);};
+  })();
+  V.querySelectorAll('[data-set-theme]').forEach(b=>b.onclick=()=>{S.theme=b.dataset.setTheme;save();applyTheme();render();});
+  document.getElementById('nm2').onchange=e=>{S.profile.name=e.target.value.trim();save();};
+  V.querySelectorAll('[data-obj]').forEach(b=>b.onclick=()=>{S.profile.obj=b.dataset.obj;save();render();});
+  document.getElementById('cpBtn').onclick=()=>{const t=document.getElementById('bk');const done=()=>{document.getElementById('cpBtn').textContent='Copiado';};
+    try{navigator.clipboard.writeText(t.value).then(done,()=>{t.select();});}catch(e){t.select();}};
+  document.getElementById('rsBtn').onclick=()=>{const m=document.getElementById('rsMsg');try{const o=JSON.parse(document.getElementById('rs').value);if(!o||typeof o!=='object'||!o.q)throw 0;S=Object.assign({profile:null,q:{},lessons:{},sims:{},tests:[],days:[]},o);save();m.textContent='Progreso restaurado.';setTimeout(render,700);}catch(e){m.textContent='El texto no es una copia válida. Cópialo completo e inténtalo de nuevo.';}};
+  document.getElementById('delBtn').onclick=()=>{document.getElementById('delConf').hidden=false;};
+  document.getElementById('delNo').onclick=()=>{document.getElementById('delConf').hidden=true;};
+  document.getElementById('delYes').onclick=()=>{const p=S.profile;S={profile:p,q:{},lessons:{},sims:{},tests:[],days:[]};save();render();};
+ },
+ sim(v){const set=SIMS[v.id];header(set.name);runSim(v.id,set);}
+};
+
+/* ================= Test ================= */
+function runQuiz(ids,v){
+  let i=0,res=[];
+  const draw=()=>{
+    const q=QBY[ids[i]],order=shuffle([0,1,2]);
+    V.innerHTML=`<div class="qhead"><span class="small muted">Pregunta ${i+1} de ${ids.length}</span><div class="qprog">${ids.map((_,k)=>`<span class="${res[k]===true?'ok':res[k]===false?'bad':k===i?'now':''}"></span>`).join('')}</div></div>
+    <div class="card"><p class="qtext">${esc(q.q)}</p>${q.img?`<div class="qimg">${SIGN[q.img]}</div>`:''}</div>
+    <div class="opts">${order.map((o,k)=>`<button class="opt" type="button" data-o="${o}"><b>${'ABC'[k]}</b><span>${esc(q.o[o])}</span></button>`).join('')}</div>
+    <div id="qfb"></div>`;
+    V.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+      const o=+b.dataset.o,ok=o===q.c;res[i]=ok;record(q.id,ok);if(!ok)celebrate('fail');
+      V.querySelectorAll('.opt').forEach(x=>{x.disabled=true;const xo=+x.dataset.o;if(xo===q.c)x.classList.add('ok');else if(x===b)x.classList.add('bad');});
+      const last=i===ids.length-1;
+      document.getElementById('qfb').innerHTML=`<div class="fb ${ok?'ok':'bad'}"><span class="v">${ok?'¡Correcto!':'Casi. Fíjate en esto:'}</span><p>${withSigns(esc(q.e))}</p><span class="ref">${withSigns(esc(q.r))}</span><button class="btn primary" type="button" id="qn" style="margin-top:4px">${last?'Ver resultado':'Siguiente'}</button></div>`;
+      V.querySelectorAll('.qprog span')[i].className=ok?'ok':'bad';
+      document.getElementById('qn').onclick=()=>{if(last)finish();else{i++;draw();window.scrollTo(0,0);}};
+      document.getElementById('qfb').scrollIntoView({behavior:'smooth',block:'nearest'});
+    });
+  };
+  const finish=()=>{
+    const ok=res.filter(Boolean).length,n=ids.length;
+    if(v.mode==='lesson'){S.lessons[v.id]=true;}
+    S.tests.push({d:Date.now(),mode:v.mode,ok,n});S.tests=S.tests.slice(-50);save();
+    const wrong=ids.filter((_,k)=>!res[k]).map(id=>QBY[id]);
+    const msg=ok===n?'¡Perfecto, ni un fallo!':ok/n>=.7?'¡Bien! Echa un vistazo a las que fallaste.':'No pasa nada: repasa la lección y vuelve a intentarlo.';
+    const before=S.dom5;const stn=topicStats();if(stn.level==='Dominado'&&!before){S.dom5=true;save();setTimeout(()=>celebrate('topic'),300);}else if(ok===n)celebrate('perfect');else if(v.mode==='lesson')celebrate('lesson');
+    V.innerHTML=`<div class="card result"><div class="mascot-c">${mascot(80)}</div><div class="big">${ok}/${n}</div><p class="muted">${msg}</p>
+     ${wrong.length?`<div class="review">${wrong.map(q=>`<div><b>${esc(q.q)}</b><br>Respuesta correcta: ${esc(q.o[q.c])}</div>`).join('')}</div>`:''}
+     <div class="grid2" style="width:100%"><button class="btn ghost" type="button" data-back>Volver</button><button class="btn primary" type="button" id="again">Repetir</button></div></div>
+     ${v.mode==='lesson'?'<p class="note">Lección marcada como leída.</p>':''}`;
+    document.getElementById('again').onclick=()=>{const top=stack[stack.length-1];stack.pop();go(top);};
+  };
+  draw();
+}
+
+/* ================= Simulador ================= */
+function runSim(simId,set){
+  const L=set.list;let idx=0,score=0,results=[],busy=false,pos={},cars={};const token=animToken;
+  V.innerHTML=`<div class="qprog" id="sp"></div>
+   <div class="scene" id="scene"><svg viewBox="0 0 300 300" id="svg" role="img" aria-label="Vista aérea de la situación"></svg></div>
+   <div class="legend"><span><i style="background:#3A86F5"></i>Tu coche</span><span><i style="background:#F5A23A"></i>Otro vehículo</span></div>
+   <div><h3 id="st"></h3><p class="muted" id="sd"></p></div>
+   <div class="simopts" id="so"></div>
+   <div class="fb" id="sfb" hidden><span class="v" id="sv"></span><p id="se"></p><span class="ref" id="sn"></span><button class="btn primary" type="button" id="snext" style="margin-top:4px"></button></div>`;
+  const svg=document.getElementById('svg'),$=id=>document.getElementById(id);
+  const place=(c,pt)=>{pos[c]=pt;if(cars[c])cars[c].setAttribute('transform',`translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)}) rotate(${pt.h.toFixed(1)})`);};
+  function run(moves,done,fn=ease){
+    const end=Math.max(...moves.map(m=>m.s+m.d)),t0=performance.now();
+    (function f(now){if(token!==animToken)return;const t=now-t0;
+      moves.forEach(m=>{const k=Math.min(1,Math.max(0,(t-m.s)/m.d));if(t>=m.s)place(m.c,at(m.p,(m.fn||fn)(k)));});
+      t<end?requestAnimationFrame(f):done&&done();})(t0);
+  }
+  const prog=()=>{$('sp').innerHTML=L.map((_,k)=>`<span class="${results[k]===true?'ok':results[k]===false?'bad':k===idx?'now':''}" style="width:28px"></span>`).join('');};
+  function load(){
+    const s=L[idx];busy=true;
+    const specs=Object.entries(s.cars).map(([id,v])=>{const o=Array.isArray(v)?{p:v}:v;return [id,{p:o.p,lin:o.lin,kind:o.kind||(id==='you'?'you':id==='oth'?'oth':'grey')}];});
+    svg.innerHTML=DEFS+bg(s.scene)+specs.filter(([id])=>id!=='you').map(([id,o])=>`<g id="car-${id}">${carBody(o.kind)}</g>`).join('')+`<g id="car-you">${carBody('you')}</g><g id="fx"></g>`;
+    cars={};specs.forEach(([id])=>cars[id]=document.getElementById('car-'+id));
+    specs.forEach(([id,o])=>place(id,at(o.p,0)));
+    $('st').textContent=s.title;$('sd').textContent=s.desc;$('sfb').hidden=true;
+    $('so').innerHTML=s.opts.map((o,k)=>`<button class="btn" type="button" data-k="${k}" disabled>${esc(o.label)}</button>`).join('');
+    $('so').querySelectorAll('button').forEach(b=>b.onclick=()=>answer(+b.dataset.k));
+    prog();
+    run(specs.map(([id,o])=>({c:id,p:o.p,s:0,d:1300,fn:o.lin?lin:decel})),()=>{busy=false;$('so').querySelectorAll('button').forEach(b=>b.disabled=false);});
+  }
+  function boom(x,y){const pts=[];for(let i=0;i<16;i++){const r=i%2?9:20,a=i*Math.PI/8;pts.push((x+r*Math.cos(a)).toFixed(1)+','+(y+r*Math.sin(a)).toFixed(1));}
+    $('fx').innerHTML=`<polygon points="${pts.join(' ')}" fill="#FFD23F" stroke="#D0302B" stroke-width="3"/>`;
+    const sc=$('scene');sc.classList.remove('shake');void sc.offsetWidth;sc.classList.add('shake');}
+  function bubble(c,ch){const p=pos[c];if(!p)return;const x=Math.min(285,Math.max(15,p.x)),y=Math.max(40,p.y);
+    $('fx').innerHTML=`<circle cx="${x}" cy="${y-28}" r="11" fill="#fff" stroke="#333"/><text x="${x}" y="${y-23.5}" font-family="Arial,sans-serif" font-weight="700" font-size="14" text-anchor="middle" fill="#333">${ch}</text>`;}
+  function answer(k){
+    if(busy)return;busy=true;$('so').querySelectorAll('button').forEach(b=>b.disabled=true);
+    const s=L[idx],o=s.opts[k],ok=o.ok;results[idx]=ok;if(ok)score++;
+    const show=()=>{
+      $('sfb').className='fb '+(ok?'ok':'bad');
+      $('sv').textContent=ok?'¡Bien hecho!':o.type==='crash'?'¡Colisión!':(s.badTitle||'No es correcto');
+      $('se').textContent=(ok?s.okMsg+' ':'')+s.expl;$('sn').innerHTML=withSigns(esc(s.norma));
+      $('snext').textContent=idx<L.length-1?'Siguiente situación':'Ver resultado';
+      $('sfb').hidden=false;prog();$('sfb').scrollIntoView({behavior:'smooth',block:'nearest'});
+    };
+    if(o.type==='go')run(o.moves,show);
+    else if(o.type==='hesitate'){bubble(o.bubble,'?');setTimeout(()=>{if(token!==animToken)return;$('fx').innerHTML='';run(o.moves,show);},1300);}
+    else if(o.type==='block')run(o.moves,()=>{bubble(o.bubble,'!');setTimeout(show,500);});
+    else run(Object.entries(o.p).map(([c,p])=>({c,p,s:0,d:800})),()=>{boom(o.at[0],o.at[1]);setTimeout(show,350);},lin);
+  }
+  $('snext').onclick=()=>{idx++;if(idx<L.length){load();window.scrollTo(0,0);}else finish();};
+  function finish(){
+    const prev=S.sims[simId];S.sims[simId]={best:Math.max(score,prev?prev.best:0),last:score,total:L.length};markDay();save();celebrate('sim');if(score===L.length)setTimeout(()=>celebrate('perfect'),1500);
+    V.innerHTML=`<div class="card result"><div class="mascot-c">${mascot(80)}</div><div class="big">${score}/${L.length}</div><p class="muted">${score===L.length?'Perfecto. Dominas estas situaciones.':score>=L.length*.6?'Vas bien. Repite para afianzar las que fallaste.':'Repasa las lecciones del tema y vuelve a intentarlo.'}</p>
+     <div class="grid2" style="width:100%"><button class="btn ghost" type="button" data-back>Volver</button><button class="btn primary" type="button" id="again">Repetir</button></div></div>`;
+    document.getElementById('again').onclick=()=>{animToken++;runSim(simId,set);};
+  }
+  load();
+}
+
+render();
+</script>
+
+<script>
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
+</script>
+</body>
+</html>
