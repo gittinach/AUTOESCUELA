@@ -7,8 +7,8 @@
 <meta name="description" content="Prepara el teórico de la DGT de coche y moto: lecciones, tests y simuladores.">
 <meta name="theme-color" content="#FBF8F2">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
@@ -228,14 +228,66 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.6';
+const VERSION='0.6.5';
 /* ================= Guardado ================= */
 const KEY='autoescuela_v1';
 let S={profile:null,q:{},lessons:{},sims:{},tests:[],days:[]};
-try{const v=localStorage.getItem(KEY);if(v){const o=JSON.parse(v);if(o&&typeof o==='object')S=Object.assign(S,o);}}catch(e){}
+const isObject=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+const isCount=v=>Number.isSafeInteger(v)&&v>=0;
+const isBool=v=>typeof v==='boolean';
+function validProgress(v){
+  return isObject(v)&&
+    (v.profile===null||(isObject(v.profile)&&typeof v.profile.name==='string'&&['B','A2','A2B'].includes(v.profile.obj)))&&
+    isObject(v.q)&&Object.values(v.q).every(r=>isObject(r)&&isCount(r.n)&&isCount(r.ok)&&r.ok<=r.n&&
+      isCount(r.streak)&&r.streak<=r.ok&&isCount(r.due)&&isBool(r.last)&&isBool(r.wrong))&&
+    isObject(v.lessons)&&Object.values(v.lessons).every(isBool)&&
+    isObject(v.sims)&&Object.values(v.sims).every(r=>isObject(r)&&isCount(r.total)&&r.total>0&&
+      isCount(r.best)&&r.best<=r.total&&isCount(r.last)&&r.last<=r.best)&&
+    Array.isArray(v.tests)&&v.tests.every(r=>isObject(r)&&isCount(r.d)&&isCount(r.n)&&isCount(r.ok)&&r.ok<=r.n&&typeof r.mode==='string')&&
+    Array.isArray(v.days)&&v.days.every(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d))&&
+    (v.theme===undefined||['light','dark'].includes(v.theme))&&
+    (v.voice===undefined||typeof v.voice==='string')&&
+    (v.mute===undefined||isBool(v.mute))&&
+    ['rate','pitch'].every(k=>v[k]===undefined||(Number.isFinite(v[k])&&v[k]>0&&v[k]<=2));
+}
+const storageNotice=document.createElement('p');
+storageNotice.className='card';
+storageNotice.setAttribute('role','status');
+storageNotice.hidden=true;
+document.querySelector('main').before(storageNotice);
+function storageStatus(message=''){
+  storageNotice.textContent=message;
+  storageNotice.hidden=!message;
+}
+let invalidSavedProgress=false;
+try{
+  const raw=localStorage.getItem(KEY);
+  if(raw!==null){
+    invalidSavedProgress=true;
+    const data=JSON.parse(raw);
+    if(!validProgress(data))throw new Error('Progreso no válido');
+    S=data;
+    invalidSavedProgress=false;
+  }
+}catch(e){
+  storageStatus(invalidSavedProgress?'El progreso guardado no se puede leer. Se conservará al guardar los datos de esta sesión.':'El navegador no permite leer el progreso guardado.');
+}
 function applyTheme(){document.documentElement.classList.toggle('dk',S.theme==='dark');}
 applyTheme();
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function save(data=S){
+  try{
+    if(invalidSavedProgress){
+      localStorage.setItem(KEY+'_previous',localStorage.getItem(KEY));
+      invalidSavedProgress=false;
+    }
+    localStorage.setItem(KEY,JSON.stringify(data));
+    storageStatus();
+    return true;
+  }catch(e){
+    storageStatus('No se ha podido guardar el progreso. Copia tus datos desde Progreso antes de cerrar.');
+    return false;
+  }
+}
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 function markDay(){const t=today();if(!S.days.includes(t)){S.days.push(t);S.days=S.days.slice(-90);if(streak()>=2)setTimeout(()=>celebrate('streak'),1900);}}
 function streak(){if(!S.days.length)return 0;const set=new Set(S.days);let n=0;const d=new Date();if(!set.has(today()))d.setDate(d.getDate()-1);
@@ -329,7 +381,7 @@ const SIGN={
   r3:`<svg viewBox="0 0 60 60" aria-label="Señal de calzada con prioridad"><polygon points="30,2 58,30 30,58 2,30" fill="#fff" stroke="#888" stroke-width="1"/><polygon points="30,11 49,30 30,49 11,30" fill="#F2C230"/></svg>`,
   r5:`<svg viewBox="0 0 60 60" aria-label="Señal de prioridad en sentido contrario"><circle cx="30" cy="30" r="27" fill="#fff" stroke="#C8262B" stroke-width="6"/>${arw(23,14,47,4.4,'#1A1A1A')}${arw(37,46,15,3.6,'#C8262B')}</svg>`,
   r6:`<svg viewBox="0 0 60 60" aria-label="Señal de prioridad respecto al sentido contrario"><rect x="3" y="3" width="54" height="54" rx="5" fill="#1E5BB8" stroke="#fff" stroke-width="2"/>${arw(23,14,46,3.6,'#D8262B')}${arw(37,47,14,4.4,'#fff')}</svg>`,
-  r4:`<svg viewBox="0 0 60 60" aria-label="Señal de fin de prioridad"><polygon points="30,2 58,30 30,58 2,30" fill="#fff" stroke="#888" stroke-width="1"/><polygon points="30,11 49,30 30,49 11,30" fill="#D9D9D9"/><g stroke="#222" stroke-width="2.6"><line x1="22" y1="19" x2="41" y2="38"/><line x1="18" y1="24" x2="36" y2="42"/><line x1="26" y1="15" x2="45" y2="34"/></g></svg>`
+  r4:`<svg viewBox="0 0 60 60" aria-label="Señal de fin de prioridad"><polygon points="30,2 58,30 30,58 2,30" fill="#fff" stroke="#888" stroke-width="1"/><polygon points="30,11 49,30 30,49 11,30" fill="#F2C230"/><path d="M16 16L44 44" stroke="#222" stroke-width="5"/></svg>`
 };
 
 const SIGNCODE={'R-1':'ceda','R-2':'stop','R-3':'r3','R-4':'r4','R-5':'r5','R-6':'r6'};
@@ -340,8 +392,8 @@ const ILL={
   signs:()=>`<figure class="fig"><div class="signs"><div>${SIGN.ceda}R-1<br>Ceda el paso</div><div>${SIGN.stop}R-2<br>STOP</div><div>${SIGN.r3}R-3<br>Calzada con prioridad</div><div>${SIGN.r4}R-4<br>Fin de prioridad</div></div><figcaption>Las cuatro señales de prioridad que más salen en el examen.</figcaption></figure>`,
   cross:()=>`<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Cruce sin señales con un coche por la derecha">${DEFS}${bg({scene:'cross'})}<path d="M200 135 L118 135" stroke="#FFB547" stroke-width="3" stroke-dasharray="6 5" fill="none"/><polygon points="110,135 120,129 120,141" fill="#FFB547"/>${carAt('oth',222,135,-90)}${carAt('you',165,222,0)}${pill(240,106,'Viene por tu derecha')}${pill(165,268,'Tú cedes el paso')}</svg><figcaption>Sin señales: el coche naranja llega por tu derecha, así que pasa primero.</figcaption></figure>`,
   round:()=>{const p=exitEast();p[p.length-1]=[290,165];return `<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Glorieta con la trayectoria para la primera salida">${DEFS}${bg({scene:'round'})}<path d="${polyD(p)}" stroke="#4A94FF" stroke-width="3.5" stroke-dasharray="7 5" fill="none" stroke-linecap="round"/><polygon points="298,165 287,159 287,171" fill="#4A94FF"/>${carAt('you',165,262,0)}${pill(84,262,'Cede a los de dentro')}${pill(240,200,'Primera salida')}</svg><figcaption>Para la primera salida entra y circula por el carril exterior, y señaliza con el intermitente derecho.</figcaption></figure>`;},
-  narrow:()=>`<figure class="fig"><div class="signs" style="grid-template-columns:1fr 1fr"><div>${SIGN.r5}R-5<br>Prioridad en sentido contrario: cedes</div><div>${SIGN.r6}R-6<br>Prioridad respecto al sentido contrario: pasas tú</div></div><svg viewBox="0 0 300 170" role="img" aria-label="Estrechamiento por obras con dos coches">${DEFS}<rect width="300" height="170" fill="url(#gGrass)"/>${tree(30,22,12)}${tree(270,24,10)}${tree(250,150,12)}<rect x="0" y="50" width="300" height="64" fill="url(#gRoad)"/><line x1="0" y1="82" x2="300" y2="82" stroke="#F2F2EC" stroke-width="2" stroke-dasharray="11 8"/><rect x="128" y="86" width="64" height="24" fill="#E8E2D2"/><g fill="#E26B1C"><rect x="128" y="86" width="64" height="5"/><rect x="128" y="105" width="64" height="5"/></g><g>${[134,150,166,182].map(x=>`<circle cx="${x}" cy="84" r="3.5" fill="#F07A20" stroke="#fff" stroke-width="1"/>`).join('')}</g>${carAt('you',96,98,90)}${carAt('oth',226,66,-90)}${pill(150,140,'Sin señal: pasa primero quien entró antes')}</svg><figcaption>Las obras dejan un solo carril útil. Si no hay señal, espera fuera quien llegó después.</figcaption></figure>`,
-  peat:()=>`<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Giro a la derecha con peatones cruzando">${DEFS}${bg({scene:'cross'})}${[124,133,142,151,160,169].map(y=>`<rect x="194" y="${y}" width="16" height="5" fill="#F2F2EC"/>`).join('')}<path d="M165 196 Q165 165 196 165 L258 165" stroke="#4A94FF" stroke-width="3.5" stroke-dasharray="7 5" fill="none"/><polygon points="268,165 257,159 257,171" fill="#4A94FF"/>${[[202,140,'#7A4EA8'],[200,158,'#2E8B6E']].map(([x,y,c])=>`<ellipse cx="${x}" cy="${y}" rx="6" ry="4" fill="${c}"/><circle cx="${x}" cy="${y}" r="3.2" fill="#3A2A20"/>`).join('')}${carAt('you',165,214,0)}${pill(232,226,'Cede a los peatones')}</svg><figcaption>Al girar, los peatones que cruzan la calle a la que entras tienen preferencia, aunque no haya paso de peatones.</figcaption></figure>`
+  narrow:()=>`<figure class="fig"><div class="signs" style="grid-template-columns:1fr 1fr"><div>${SIGN.r5}R-5<br>Prioridad en sentido contrario: cedes</div><div>${SIGN.r6}R-6<br>Prioridad respecto al sentido contrario: pasas tú</div></div><svg viewBox="0 0 300 170" role="img" aria-label="Estrechamiento por obras con dos coches">${DEFS}<rect width="300" height="170" fill="url(#gGrass)"/>${tree(30,22,12)}${tree(270,24,10)}${tree(250,150,12)}<rect x="0" y="50" width="300" height="64" fill="url(#gRoad)"/><line x1="0" y1="82" x2="300" y2="82" stroke="#F2F2EC" stroke-width="2" stroke-dasharray="11 8"/><rect x="128" y="86" width="64" height="24" fill="#E8E2D2"/><g fill="#E26B1C"><rect x="128" y="86" width="64" height="5"/><rect x="128" y="105" width="64" height="5"/></g><g>${[134,150,166,182].map(x=>`<circle cx="${x}" cy="84" r="3.5" fill="#F07A20" stroke="#fff" stroke-width="1"/>`).join('')}</g>${carAt('you',96,98,90)}${carAt('oth',226,66,-90)}${pill(150,140,'Sin señal: pasa primero quien entró antes')}</svg><figcaption>Las obras dejan un solo carril útil. Si no hay señal, quien aún no ha entrado espera fuera.</figcaption></figure>`,
+  peat:()=>`<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Giro a la derecha con peatones cruzando">${DEFS}${bg({scene:'cross'})}<path d="M165 196 Q165 165 196 165 L258 165" stroke="#4A94FF" stroke-width="3.5" stroke-dasharray="7 5" fill="none"/><polygon points="268,165 257,159 257,171" fill="#4A94FF"/>${[[202,140,'#7A4EA8'],[200,158,'#2E8B6E']].map(([x,y,c])=>`<ellipse cx="${x}" cy="${y}" rx="6" ry="4" fill="${c}"/><circle cx="${x}" cy="${y}" r="3.2" fill="#3A2A20"/>`).join('')}${carAt('you',165,214,0)}${pill(232,226,'Cede a los peatones')}</svg><figcaption>Al girar, los peatones que cruzan la calle a la que entras tienen preferencia, aunque no haya paso de peatones.</figcaption></figure>`
 };
 
 const LESSONS=[
@@ -351,58 +403,58 @@ const LESSONS=[
   <p>La señalización circunstancial es la que cambia temporalmente las normas de una vía: conos, balizas, señales de obras o paneles luminosos.</p>
   <p>Si no hay agentes, semáforos ni señales, se aplican las normas generales que verás en la lección 3.</p>
   <p><b>Cómo se cede el paso.</b> Quien debe ceder tiene que dejarlo claro con antelación, reduciendo la velocidad de forma visible y deteniéndose si hace falta. Quien tiene prioridad tampoco puede pasar sin mirar: debe comprobar que el otro le ha visto y va a cederle.</p>`,
-  tip:'Primero la persona, luego lo que está de pie y por último lo pintado: agente, semáforo, señal, suelo.',
+  tip:'Recuerda el orden: agente, señalización y balizamiento circunstanciales, semáforo, señal vertical y marca vial. Entre señales contradictorias del mismo tipo, prevalece la más restrictiva.',
   errs:['Obedecer al semáforo en verde cuando un agente te ordena parar.','Creer que tener prioridad te permite entrar en un cruce sin mirar.'],
   ref:'Reglamento General de Circulación, arts. 56, 58 y 133'},
  {id:'L2',t:'Cruces con señales',min:7,ill:'signs',
   key:'Ceda el paso (R-1): cede, y para solo si hace falta. STOP (R-2): para siempre por completo y después cede.',
   body:`<ul><li><b>R-1 Ceda el paso.</b> Reduce, mira y cede a quien circula por la vía a la que llegas. Si no viene nadie, no hace falta parar.</li>
-  <li><b>R-2 STOP.</b> Detención obligatoria. Paras por completo ante la línea de detención o, si no la hay, justo antes de la intersección, aunque no venga nadie. Después cedes el paso.</li>
+  <li><b>R-2 STOP.</b> Detención obligatoria. Paras por completo ante la línea de detención o, si no la hay, justo antes de la intersección, aunque no venga nadie. Después cedes el paso. Si desde la primera parada no ves lo suficiente, avanza con cuidado y detente de nuevo donde puedas ver sin poner a nadie en peligro.</li>
   <li><b>R-3 Calzada con prioridad.</b> En las intersecciones de esa vía tienes preferencia.</li>
-  <li><b>R-4 Fin de prioridad.</b> Desde ahí vuelven a aplicarse las normas generales.</li></ul>
+  <li><b>R-4 Fin de prioridad.</b> Avisa de que se acerca el punto donde tu calzada pierde la prioridad. Allí, fíjate en la señalización que regula el paso.</li></ul>
   <p><b>Marcas viales.</b> Una línea blanca continua atravesando tu carril es una línea de detención (STOP, semáforo, agente). Una línea discontinua de trazos anchos es de ceda el paso, y a menudo va acompañada de un triángulo pintado en el suelo.</p>
   <p><b>Semáforo en amarillo intermitente.</b> No da preferencia a nadie: cruza con precaución aplicando las señales o las normas de prioridad de ese cruce.</p>`,
   tip:'El STOP siempre para: aunque veas que no viene nadie, las ruedas tienen que detenerse del todo.',
   errs:['Hacer un "STOP rodando", reduciendo mucho pero sin llegar a detenerse.','Parar en un ceda el paso sin necesidad y frenar a los que vienen detrás.'],
-  ref:'RGC, arts. 56, 146 y 151; marcas viales de detención y de ceda el paso'},
+  ref:'RGC, art. 56 y anexo I, apartado 4.2.d. Catálogo oficial, R-1 a R-4 y marcas M-4.1 y M-4.2'},
  {id:'L3',t:'Cruces sin señales',min:7,ill:'cross',
   key:'Sin señales ni semáforos, cede el paso a quien venga por tu derecha.',
-  body:`<p>La regla general tiene tres excepciones. Tienen preferencia, aunque vengan por la izquierda:</p>
+  body:`<p>La regla general tiene cuatro excepciones. Tienen preferencia:</p>
   <ol><li>Los vehículos que circulan por una vía <b>pavimentada</b> frente a los que salen de un camino sin pavimentar.</li>
   <li>Los vehículos que circulan sobre <b>raíles</b>, como el tranvía.</li>
-  <li>En las <b>glorietas</b>, los que ya circulan dentro frente a los que quieren entrar.</li></ol>
+  <li>En las <b>glorietas</b>, los que ya circulan dentro frente a los que quieren entrar.</li><li>En <b>autopistas y autovías</b>, los que ya circulan por ellas frente a quienes quieren incorporarse.</li></ol>
   <p><b>Incorporarse a la circulación.</b> Si sales de un garaje, una gasolinera, una vía de servicio o un carril de aceleración, debes ceder el paso a los que ya circulan por la vía.</p>
   <p><b>Cruce atascado.</b> Aunque tengas preferencia, no entres en un cruce ni en un paso de peatones si es previsible que te quedes parado dentro y bloquees a los demás.</p>`,
-  tip:'Mira a tu derecha: si alguien llega por ahí, va primero. Luego repasa las tres excepciones: asfalto, tranvía y glorieta.',
+  tip:'Mira a tu derecha: si alguien llega por ahí, va primero. Comprueba si hay una excepción: pavimento, raíles, glorieta o acceso a autopista o autovía.',
   errs:['Pensar que tiene preferencia el que va más rápido o la calle más ancha.','Entrar en un cruce con atasco porque "tengo preferencia".'],
   ref:'RGC, arts. 57, 59 y 72'},
  {id:'L4',t:'Glorietas',min:7,ill:'round',anim:'glorieta',
   key:'Dentro de la glorieta tienen preferencia los que ya circulan por ella. Se gira dejando la isleta a tu izquierda.',
   body:`<ul><li>Al llegar, reduce, cede el paso a los que circulan por el anillo y entra cuando haya hueco. Si está libre, entra sin pararte.</li>
   <li>Se circula en sentido contrario a las agujas del reloj, dejando la isleta central a la izquierda.</li>
-  <li>Para la <b>primera salida</b>, entra y circula por el carril exterior.</li>
-  <li>Para salidas más lejanas puedes usar el carril interior, pero debes pasar al exterior <b>con antelación</b>, cediendo el paso a quien circule por él.</li>
+  <li>En una glorieta convencional, el <b>carril exterior</b> suele ser la mejor opción para la primera salida.</li>
+  <li>En poblado, cuando proceda, puedes usar el carril más adecuado a tu destino. Fuera de poblado, circula normalmente por el derecho. Si vas por dentro en una glorieta convencional, pasa al exterior <b>con antelación</b> antes de salir y cede a quien ya circule por él.</li>
   <li>Señaliza la salida con el intermitente derecho.</li>
-  <li>Si no puedes pasar al exterior con seguridad, sigue y sal por la siguiente salida o da otra vuelta. Nunca salgas cruzando desde el interior.</li></ul>`,
+  <li>Si no puedes pasar al exterior con seguridad, sigue y sal por la siguiente salida o da otra vuelta. Si hay flechas o carriles guiados, sigue el recorrido que indiquen.</li></ul>`,
   tip:'Dentro manda el de dentro. Para salir, primero al exterior.',
   errs:['Salir directamente desde el carril interior cortando el paso al de fuera.','Detenerte dentro de la glorieta para dejar entrar a alguien.'],
   ref:'RGC, arts. 57.1 c) y 74; recomendaciones de la DGT sobre glorietas'},
  {id:'L5',t:'Estrechamientos y pendientes',min:5,ill:'narrow',
   key:'En un estrechamiento sin señal pasa primero quien entró antes. Si hay señal R-5 o R-6, manda la señal.',
   body:`<p>Un <b>estrechamiento</b> es un tramo donde no caben dos vehículos a la vez, por obras, un puente estrecho o vehículos aparcados.</p>
-  <ul><li><b>Sin señal:</b> tiene preferencia quien haya entrado primero. El otro espera fuera, sin meterse.</li>
+  <ul><li><b>Sin señal:</b> tiene preferencia quien haya entrado primero. El otro espera fuera. Si hay duda sobre quién entró primero, se aplica el orden del artículo 62 según la dificultad de maniobra.</li>
   <li><b>R-5, prioridad en sentido contrario</b> (redonda, borde rojo): debes ceder el paso a los que vienen de frente.</li>
   <li><b>R-6, prioridad respecto al sentido contrario</b> (cuadrada, fondo azul): tienes preferencia sobre los que vienen de frente.</li></ul>
-  <p><b>Tramos estrechos de gran pendiente.</b> Tiene preferencia el vehículo que sube, salvo que pueda llegar antes a un apartadero.</p>`,
+  <p><b>Tramos estrechos con pendiente del 7 % o más.</b> Tiene preferencia el vehículo que sube, salvo que pueda llegar antes a un apartadero.</p>`,
   tip:'Redonda con borde rojo (R-5): el otro va primero. Cuadrada azul (R-6): vas tú.',
   errs:['Meterte en el estrechamiento a la vez que el que viene de frente.','Pensar que en una cuesta estrecha tiene preferencia el que baja.'],
-  ref:'RGC, arts. 60, 62 y 151'},
+  ref:'RGC, arts. 60 a 63. Catálogo oficial, R-5 y R-6'},
  {id:'L6',t:'Peatones, ciclistas, animales y emergencias',min:7,ill:'peat',
-  key:'Al girar, cede el paso a los peatones y ciclistas que crucen la calle a la que entras. Los vehículos de emergencia en servicio pasan siempre primero.',
-  body:`<p><b>Peatones.</b> Tienen preferencia en los pasos de peatones señalizados, cuando giras y cruzan la calzada a la que te incorporas (aunque no haya paso) y cuando cruzas un arcén por el que circulan.</p>
-  <p><b>Ciclistas.</b> Tienen preferencia cuando circulan por un carril bici, un paso para ciclistas o el arcén, y cuando giras y cruzan o circulan cerca. Un grupo de ciclistas que ya ha empezado a cruzar cuenta como uno solo: deja pasar a todo el grupo.</p>
+  key:'Al girar, cede el paso a los peatones y ciclistas que crucen la calle a la que entras. Facilita el paso con seguridad a los vehículos prioritarios en servicio urgente.',
+  body:`<p><b>Peatones.</b> Tienen preferencia en los pasos de peatones señalizados, cuando giras y cruzan la calzada a la que te incorporas (aunque no haya paso) y cuando cruzas un arcén por el que circulan y carecen de zona peatonal. También debes ceder a quienes suben o bajan de un transporte colectivo en una parada señalizada, entre el vehículo y la zona peatonal más próxima.</p>
+  <p><b>Ciclistas.</b> Tienen preferencia cuando circulan por un carril bici, un paso para ciclistas o un arcén debidamente señalizados, y cuando giras y cruzan o circulan cerca. Si el primer ciclista de un grupo ya ha iniciado el cruce o entrado en la glorieta, deja pasar a todo el grupo.</p>
   <p><b>Animales.</b> Tienen preferencia en las cañadas señalizadas y cuando giras y cruzan la vía a la que te incorporas.</p>
-  <p><b>Vehículos de emergencia.</b> Ambulancias, bomberos y policía en servicio, con las señales luminosas y acústicas, tienen prioridad sobre todos. Facilita su paso: apártate hacia la derecha y detente si hace falta. No los sigas aprovechando el hueco.</p>`,
+  <p><b>Vehículos de emergencia.</b> Los vehículos prioritarios tienen preferencia en servicio urgente. Normalmente lo advierten con luz y sirena. Pueden usar solo la luz si prescindir de la sirena es seguro. Facilita su paso normalmente apartándote a la derecha cuando sea seguro y deteniéndote si hace falta. Las órdenes de los agentes siguen siendo obligatorias. No los sigas aprovechando el hueco.</p>`,
   tip:'Antes de girar, mira la calle a la que vas a entrar: si alguien la está cruzando, espera.',
   errs:['Pensar que sin paso de peatones el peatón nunca tiene preferencia.','Dejar pasar solo al primer ciclista de un grupo que ya está cruzando.'],
   ref:'RGC, arts. 64 a 69'}
@@ -413,30 +465,30 @@ const QS=[
  {id:'q1',l:'L1',q:'Un agente te indica que avances, pero el semáforo está en rojo. ¿Qué haces?',o:['Avanzo, obedeciendo al agente','Espero a que el semáforo se ponga en verde','Me detengo y pido instrucciones'],c:0,e:'Las indicaciones de los agentes prevalecen sobre cualquier otra señal, incluidos los semáforos.',r:'RGC, art. 133'},
  {id:'q2',l:'L1',q:'¿Cuál es el orden de prioridad correcto entre las indicaciones de la vía?',o:['Agentes, señalización circunstancial, semáforos, señales verticales y marcas viales','Semáforos, agentes, señales verticales y marcas viales','Señales verticales, semáforos, agentes y marcas viales'],c:0,e:'Primero los agentes; después las señales que cambian temporalmente el régimen de la vía; luego semáforos, señales verticales y, por último, marcas viales.',r:'RGC, art. 133'},
  {id:'q3',l:'L1',q:'El conductor que debe ceder el paso…',o:['Debe mostrar con antelación, reduciendo la velocidad, que va a ceder','Solo debe ceder si el otro le hace señales','Debe detenerse siempre, venga o no venga alguien'],c:0,e:'Quien cede debe dejarlo claro con tiempo, reduciendo de forma visible y parando si hace falta. No siempre es obligatorio detenerse.',r:'RGC, art. 58'},
- {id:'q4',l:'L1',q:'¿Qué significa ceder el paso?',o:['No obligar al que tiene prioridad a cambiar bruscamente su trayectoria o velocidad','Detenerse siempre por completo','Pasar primero haciendo una señal con la mano'],c:0,e:'Ceder el paso es no forzar al vehículo con prioridad a frenar, desviarse o cambiar bruscamente de velocidad.',r:'RGC, art. 56'},
- {id:'q5',l:'L2',img:'stop',q:'Ante esta señal, y sin vehículos a la vista, ¿qué debes hacer?',o:['Detenerte por completo y después continuar','Reducir mucho la velocidad y pasar sin detenerte','Continuar, porque no viene nadie'],c:0,e:'El STOP obliga a detenerse siempre, aunque no venga nadie. Después hay que ceder el paso.',r:'RGC, art. 151 · Señal R-2'},
- {id:'q6',l:'L2',q:'Hay una señal de STOP pero no hay línea de detención pintada. ¿Dónde te detienes?',o:['Inmediatamente antes de la intersección','Justo debajo de la señal, aunque no veas bien','Dentro de la intersección, para ver mejor'],c:0,e:'Si no hay línea de detención, debes parar inmediatamente antes de la intersección.',r:'RGC, art. 151 · Señal R-2'},
+ {id:'q4',l:'L1',q:'¿Qué significa ceder el paso?',o:['No obligar al que tiene prioridad a cambiar bruscamente su trayectoria o velocidad','Detenerse siempre por completo','Pasar primero haciendo una señal con la mano'],c:0,e:'Ceder el paso es no forzar al vehículo con prioridad a frenar, desviarse o cambiar bruscamente de velocidad.',r:'RGC, art. 58.1'},
+ {id:'q5',l:'L2',img:'stop',q:'Ante esta señal, y sin vehículos a la vista, ¿qué debes hacer?',o:['Detenerte por completo y después continuar','Reducir mucho la velocidad y pasar sin detenerte','Continuar, porque no viene nadie'],c:0,e:'El STOP obliga a detenerse siempre, aunque no venga nadie. Después hay que ceder el paso.',r:'Catálogo oficial, señal R-2'},
+ {id:'q6',l:'L2',q:'Hay una señal de STOP pero no hay línea de detención pintada. ¿Dónde te detienes?',o:['Inmediatamente antes de la intersección','Justo debajo de la señal, aunque no veas bien','Dentro de la intersección, para ver mejor'],c:0,e:'Sin línea, haz la primera parada justo antes de la intersección. Si desde allí no ves lo suficiente, debes detenerte de nuevo donde puedas ver sin crear peligro.',r:'Catálogo oficial, señal R-2'},
  {id:'q7',l:'L2',img:'ceda',q:'Esta señal te obliga a…',o:['Ceder el paso, deteniéndote solo si es necesario','Detenerte siempre por completo','Nada: indica que tienes preferencia'],c:0,e:'La señal de ceda el paso obliga a ceder a los que circulan por la vía a la que llegas. Solo hay que parar si hace falta.',r:'Señal R-1'},
  {id:'q8',l:'L2',img:'r3',q:'¿Qué indica esta señal?',o:['Que circulas por una calzada con prioridad en las intersecciones','Peligro por obras','El final de la prioridad'],c:0,e:'El rombo amarillo con borde blanco es la señal R-3: calzada con prioridad. En sus intersecciones tienes preferencia.',r:'Señal R-3'},
- {id:'q9',l:'L2',q:'Un semáforo está en amarillo intermitente. ¿Qué significa?',o:['Precaución: se aplican las señales o normas de prioridad del cruce','Prohibido pasar','Tienes preferencia sobre todos'],c:0,e:'El amarillo intermitente obliga a extremar la precaución. La prioridad se decide por las señales o, si no hay, por las normas generales.',r:'RGC, art. 146'},
- {id:'q10',l:'L2',img:'r4',q:'Después de esta señal…',o:['Vuelven a aplicarse las normas generales de prioridad','Sigues teniendo prioridad en todos los cruces','Debes detenerte en el siguiente cruce'],c:0,e:'La señal R-4 indica el fin de la calzada con prioridad. A partir de ahí, rigen las normas generales.',r:'Señal R-4'},
- {id:'q11',l:'L2',q:'Una línea blanca continua que atraviesa tu carril antes de un cruce indica…',o:['El lugar donde debes detenerte si hay STOP, semáforo en rojo o un agente lo ordena','Que debes ceder el paso sin detenerte','Un paso para ciclistas'],c:0,e:'Es la línea de detención. La línea de ceda el paso es discontinua.',r:'Marcas viales transversales'},
- {id:'q12',l:'L3',q:'Llegas a un cruce sin señales. Un coche se acerca por tu derecha. ¿Quién pasa primero?',o:['El coche que viene por la derecha','Yo, porque he llegado antes','El que vaya más rápido'],c:0,e:'Sin señales ni semáforos, la preferencia es de quien se acerca por la derecha.',r:'RGC, art. 57.1'},
+ {id:'q9',l:'L2',q:'Un semáforo está en amarillo intermitente. ¿Qué significa?',o:['Precaución: se aplican las señales o normas de prioridad del cruce','Prohibido pasar','Tienes preferencia sobre todos'],c:0,e:'El amarillo intermitente obliga a extremar la precaución. Cede cuando corresponda y respeta las señales que obliguen a parar, como un STOP.',r:'RGC, anexo I, apartado 4.2.d'},
+ {id:'q10',l:'L2',img:'r4',q:'¿Qué anuncia esta señal?',o:['Que se acerca el lugar donde tu calzada pierde la prioridad','Sigues teniendo prioridad en todos los cruces','Debes detenerte en el siguiente cruce'],c:0,e:'La R-4 anuncia que se acerca el fin de la prioridad de tu calzada. Allí, aplica la señalización o, si no la hay, las reglas generales.',r:'Señal R-4'},
+ {id:'q11',l:'L2',q:'Una línea blanca continua que atraviesa tu carril antes de un cruce indica…',o:['El lugar donde debes detenerte si hay STOP, semáforo en rojo o un agente lo ordena','Que debes ceder el paso sin detenerte','Un paso para ciclistas'],c:0,e:'Es la línea de detención. La línea de ceda el paso es discontinua.',r:'Catálogo oficial, marca M-4.1'},
+ {id:'q12',l:'L3',q:'Llegas a un cruce ordinario de dos vías pavimentadas sin señales. Un coche se acerca por tu derecha. ¿Quién pasa primero?',o:['El coche que viene por la derecha','Yo, porque he llegado antes','Yo, porque sigo recto'],c:0,e:'En este cruce, la prioridad corresponde al vehículo que viene por la derecha, tanto si tú continúas recto como si giras.',r:'RGC, art. 57.1'},
  {id:'q13',l:'L3',q:'Circulas por una carretera asfaltada. Por tu derecha sale un coche de un camino de tierra. ¿Quién tiene preferencia?',o:['Tú, porque circulas por una vía pavimentada','El otro coche, porque viene por tu derecha','El que llegue primero al cruce'],c:0,e:'Es una excepción a la regla de la derecha: la vía pavimentada tiene preferencia sobre la no pavimentada.',r:'RGC, art. 57.1 a)'},
  {id:'q14',l:'L3',q:'En un cruce sin señales se acerca un tranvía por tu izquierda. ¿Quién pasa primero?',o:['El tranvía','Yo, porque vengo por su derecha','El que llegue antes'],c:0,e:'Los vehículos que circulan sobre raíles tienen preferencia, vengan por donde vengan.',r:'RGC, art. 57.1 b)'},
- {id:'q15',l:'L3',q:'Tienes preferencia, pero la calle de salida del cruce está atascada. ¿Qué haces?',o:['No entro en el cruce hasta que haya sitio al otro lado','Entro, porque tengo preferencia','Entro y uso el claxon para que avancen'],c:0,e:'Aun con preferencia, no debes entrar si es previsible que te quedes parado dentro bloqueando la circulación transversal.',r:'RGC, art. 59'},
- {id:'q16',l:'L3',q:'Sales de una gasolinera a la carretera. ¿Quién tiene preferencia?',o:['Los vehículos que circulan por la carretera','Tú, si vienes por su derecha','El vehículo más grande'],c:0,e:'Quien se incorpora a la circulación desde una gasolinera, un garaje o una vía de acceso debe ceder el paso a los que ya circulan.',r:'RGC, art. 72'},
- {id:'q17',l:'L4',q:'En una glorieta, ¿quién tiene preferencia?',o:['Los vehículos que ya circulan por ella','Los que quieren entrar por la derecha','El vehículo más grande'],c:0,e:'Dentro de la glorieta tienen preferencia los que ya circulan por el anillo.',r:'RGC, art. 57.1 c)'},
- {id:'q18',l:'L4',q:'¿En qué sentido se circula por una glorieta?',o:['Dejando la isleta central a la izquierda','Dejando la isleta central a la derecha','Por el lado con menos tráfico'],c:0,e:'Se circula en sentido contrario a las agujas del reloj, con la isleta a la izquierda.',r:'Normas de circulación en glorietas'},
- {id:'q19',l:'L4',q:'Vas a tomar la primera salida de una glorieta de dos carriles. ¿Por qué carril circulas?',o:['Por el carril exterior','Por el carril interior','Por cualquiera'],c:0,e:'Para la primera salida se usa el carril exterior. Desde el interior tendrías que cruzar el exterior para salir.',r:'Recomendaciones de la DGT sobre glorietas'},
- {id:'q20',l:'L4',q:'Vas por el carril interior de una glorieta y quieres salir. ¿Qué haces?',o:['Paso al carril exterior con antelación, cediendo a quien circule por él','Salgo directamente cruzando el carril exterior','Me detengo dentro hasta que el carril exterior quede libre'],c:0,e:'Antes de salir debes situarte en el carril exterior, y para cambiar de carril hay que ceder a quien ya circula por él.',r:'RGC, art. 74'},
+ {id:'q15',l:'L3',q:'Tienes preferencia, pero la calle de salida del cruce está atascada. ¿Qué haces?',o:['No entro en el cruce hasta que haya sitio al otro lado','Entro, porque tengo preferencia','Entro hasta la mitad y espero a que avance la cola'],c:0,e:'Aun con preferencia, no debes entrar si es previsible que te quedes parado dentro bloqueando la circulación transversal.',r:'RGC, art. 59'},
+ {id:'q16',l:'L3',q:'Sales de una gasolinera a la carretera. ¿Quién tiene preferencia?',o:['Los vehículos que circulan por la carretera','Tú, si vienes por su derecha','Tú, si has señalizado la incorporación con antelación'],c:0,e:'Quien se incorpora a la circulación desde una gasolinera, un garaje o una vía de acceso debe ceder el paso a los que ya circulan. Poner el intermitente avisa de tu intención y la obligación de ceder se mantiene.',r:'RGC, art. 72'},
+ {id:'q17',l:'L4',q:'En el acceso a una glorieta convencional con ceda el paso, ¿quién tiene preferencia?',o:['Los vehículos que ya circulan por ella','Los que quieren entrar por la derecha','Los de dentro solo si circulan por el carril exterior'],c:0,e:'Al acceder, cede a los vehículos que ya circulan por el anillo. Comprueba qué trayectorias pueden cruzarse, incluso si el otro coche está por el interior.',r:'RGC, art. 57.1 c)'},
+ {id:'q18',l:'L4',q:'¿En qué sentido se circula por una glorieta?',o:['Dejando la isleta central a la izquierda','Dejando la isleta central a la derecha','Por el lado con menos tráfico'],c:0,e:'Se circula en sentido contrario a las agujas del reloj, con la isleta a la izquierda.',r:'RGC, art. 43.2'},
+ {id:'q19',l:'L4',q:'Vas a tomar la primera salida de una glorieta convencional de dos carriles. ¿Qué carril es el más recomendable?',o:['Por el carril exterior','Por el carril interior','Por cualquiera'],c:0,e:'El exterior te sitúa junto a la salida. Si estás en el interior, primero tendrías que cambiar de carril con seguridad y luego salir.',r:'Recomendaciones de la DGT sobre glorietas'},
+ {id:'q20',l:'L4',q:'Vas por el carril interior de una glorieta convencional y quieres salir. ¿Qué haces?',o:['Paso al carril exterior con antelación, cediendo a quien circule por él','Salgo directamente cruzando el carril exterior','Me detengo dentro hasta que el carril exterior quede libre'],c:0,e:'Colócate en el carril exterior con antelación, cediendo a quien ya circule por él. Si no tienes hueco a tiempo, continúa por el anillo y vuelve a intentarlo.',r:'RGC, art. 74'},
  {id:'q21',l:'L4',q:'¿Cómo señalizas que vas a abandonar una glorieta?',o:['Con el intermitente derecho, antes de la salida','Con el intermitente izquierdo','No hace falta señalizarlo'],c:0,e:'La salida de la glorieta es un desplazamiento a la derecha y se señaliza con el intermitente derecho con antelación.',r:'RGC, art. 109'},
- {id:'q22',l:'L5',q:'En un estrechamiento sin señalizar, ¿quién pasa primero?',o:['El que haya entrado antes en el estrechamiento','El que venga por la derecha','El vehículo más grande'],c:0,e:'Sin señal, tiene preferencia quien entró primero. El otro debe esperar fuera.',r:'RGC, art. 60'},
- {id:'q23',l:'L5',img:'r5',q:'Antes de un estrechamiento ves una señal redonda con borde rojo de prioridad en sentido contrario. Significa que…',o:['Debes ceder el paso a los que vienen de frente','Tienes preferencia sobre los que vienen de frente','Está prohibido el paso'],c:0,e:'La señal R-5 obliga a ceder el paso a los vehículos que circulan en sentido contrario.',r:'Señal R-5'},
+ {id:'q22',l:'L5',q:'Si está claro quién entró primero en un estrechamiento sin señalizar, ¿quién tiene preferencia?',o:['El que haya entrado antes en el estrechamiento','El que venga por la derecha','El vehículo más grande'],c:0,e:'Sin señal, tiene preferencia quien entró primero. El otro debe esperar fuera.',r:'RGC, art. 60'},
+ {id:'q23',l:'L5',img:'r5',q:'Antes de un estrechamiento ves una señal redonda con borde rojo de prioridad en sentido contrario. Significa que…',o:['Debes ceder el paso a los que vienen de frente','Tienes preferencia sobre los que vienen de frente','Está prohibido el paso'],c:0,e:'Con la R-5 debes esperar fuera si al entrar obligarías a detenerse a un vehículo que viene de frente.',r:'Señal R-5'},
  {id:'q24',l:'L5',img:'r6',q:'Una señal cuadrada azul de prioridad respecto al sentido contrario indica que…',o:['Tienes preferencia sobre los que vienen de frente','Debes ceder el paso a los que vienen de frente','Es una calle de sentido único'],c:0,e:'La señal R-6 te da preferencia en el estrechamiento frente a los que vienen en sentido contrario.',r:'Señal R-6'},
- {id:'q25',l:'L5',q:'En un tramo estrecho de gran pendiente, sin señales, ¿quién tiene preferencia?',o:['El que sube, salvo que pueda llegar antes a un apartadero','El que baja','El vehículo más pesado'],c:0,e:'Tiene preferencia el vehículo que circula en sentido ascendente, salvo que pueda llegar antes a un apartadero.',r:'RGC, art. 62'},
+ {id:'q25',l:'L5',q:'En un tramo estrecho de gran pendiente, sin señales, ¿quién tiene preferencia?',o:['El que sube, salvo que pueda llegar antes a un apartadero','El que baja','El vehículo más pesado'],c:0,e:'Tiene preferencia el vehículo que circula en sentido ascendente, salvo que pueda llegar antes a un apartadero. La gran pendiente empieza en el 7 %.',r:'RGC, art. 63'},
  {id:'q26',l:'L6',q:'Giras a la derecha y unos peatones cruzan la calle a la que entras, sin paso de peatones. ¿Quién tiene preferencia?',o:['Los peatones','Tú, porque no hay paso de peatones','El que llegue primero'],c:0,e:'Al girar, los peatones que cruzan la calzada a la que te incorporas tienen preferencia aunque no haya paso de peatones.',r:'RGC, art. 65'},
- {id:'q27',l:'L6',q:'Un peatón espera para cruzar en un paso de peatones sin semáforo. ¿Qué haces?',o:['Me detengo y le cedo el paso','Paso si voy despacio','Toco el claxon para avisarle'],c:0,e:'En un paso de peatones señalizado y sin semáforo, los peatones tienen preferencia.',r:'RGC, art. 65'},
+ {id:'q27',l:'L6',q:'Un peatón está a punto de cruzar por un paso de peatones sin semáforo. ¿Qué haces?',o:['Me detengo y le cedo el paso','Paso si voy despacio','Toco el claxon para avisarle'],c:0,e:'En un paso de peatones señalizado y sin semáforo, los peatones tienen preferencia.',r:'RGC, art. 65'},
  {id:'q28',l:'L6',q:'Vas a girar y un ciclista circula por el carril bici que cruzas. ¿Quién tiene preferencia?',o:['El ciclista','Tú, porque el ciclista es más lento','El que vaya por la derecha'],c:0,e:'Los ciclistas que circulan por un carril bici tienen preferencia sobre los vehículos que lo cruzan.',r:'RGC, art. 64'},
  {id:'q29',l:'L6',q:'Un grupo de ciclistas está cruzando un cruce; el primero ya ha entrado. ¿Qué haces?',o:['Dejo pasar a todo el grupo, porque cuenta como una unidad','Paso en cuanto cruce el primero','Paso entre dos ciclistas si hay hueco'],c:0,e:'Un grupo de ciclistas que ya ha iniciado el cruce se considera una sola unidad a efectos de preferencia.',r:'RGC, art. 64'},
  {id:'q30',l:'L6',q:'Oyes una ambulancia con sirena y luces que se acerca por detrás. ¿Qué haces?',o:['Facilito su paso apartándome a la derecha y deteniéndome si hace falta','Acelero para no estorbar','Sigo igual, porque no puedo apartarme'],c:0,e:'Ante un vehículo de emergencia en servicio, debes facilitarle el paso, apartándote hacia la derecha y deteniéndote si es necesario.',r:'RGC, arts. 67 a 69'},
@@ -471,7 +523,7 @@ const SIMS={
    cars:{you:[[165,320],[165,202]],oth:{p:[[-40,165],[60,165]],lin:true,kind:'amb'}},
    opts:[{label:'Paso yo',ok:false,type:'crash',p:{you:[[165,202],[165,182]],oth:[[60,165],[148,165]]},at:[160,168]},
          {label:'Cedo el paso',ok:true,type:'go',moves:[{c:'oth',p:[[60,165],[340,165]],s:0,d:1500},{c:'you',p:[[165,202],[165,-40]],s:1300,d:1600}]}],
-   okMsg:'Dejas pasar a la ambulancia aunque venga por tu izquierda.',expl:'Un vehículo de emergencia en servicio, con las señales luminosas y acústicas, tiene prioridad sobre todos. Facilita su paso y no arranques hasta que haya pasado.',norma:'RGC, arts. 67 a 69'},
+   okMsg:'Dejas pasar a la ambulancia aunque venga por tu izquierda.',expl:'La ambulancia va en servicio urgente. Facilita su paso y espera a que despeje el cruce. Su conductor debe comprobar que puede cruzar con seguridad.',norma:'RGC, arts. 67 a 69'},
   {title:'Cruce atascado',desc:'No viene nadie por tu derecha, pero la calle de enfrente tiene cola y apenas queda sitio.',scene:{scene:'cross'},
    cars:{you:[[165,320],[165,202]],e1:{p:[[165,107],[165,104]],kind:'grey'},e2:{p:[[165,73],[165,70]],kind:'grey'},oth:[[380,135],[379,135]]},
    opts:[{label:'Entro en el cruce',ok:false,type:'block',bubble:'oth',moves:[{c:'you',p:[[165,202],[165,134]],s:0,d:1100},{c:'oth',p:[[379,135],[200,135]],s:700,d:1300}]},
@@ -496,8 +548,8 @@ const SIMS={
    okMsg:'Para la primera salida entras y circulas por el carril exterior.',expl:'Si vas a tomar la primera salida, usa el carril exterior. Desde el interior tendrías que cruzar el exterior para salir y cortarías el paso a quien circula por él.',norma:'RGC, art. 74 · Recomendaciones de la DGT sobre glorietas'},
   {title:'Salir desde el interior',desc:'Vas por el carril interior y quieres tomar la próxima salida, abajo. Un coche circula a tu lado por el exterior.',scene:{scene:'round'},
    cars:{you:{p:arc(RI,250,190),lin:true},oth:{p:arc(RE,250,190),lin:true}},
-   opts:[{label:'Me paso al exterior y salgo',ok:false,type:'crash',p:{you:arc(RI,190,150).concat([[114.5,206.8]]),oth:arc(RE,190,122)},at:[115,205]},
-         {label:'Dejo pasar y salgo después',ok:true,type:'go',moves:[{c:'oth',p:arc(RE,190,102.9).concat([[135,340]]),s:0,d:1500},{c:'you',p:arc(RI,190,45).concat([[211,178],[215.3,165],[340,165]]),s:0,d:3200}]}],
+   opts:[{label:'Cambio ahora, con el exterior ocupado',ok:false,type:'crash',p:{you:arc(RI,190,150).concat([[114.5,206.8]]),oth:arc(RE,190,122)},at:[115,205]},
+         {label:'Sigo dentro y cambio cuando haya hueco',ok:true,type:'go',moves:[{c:'oth',p:arc(RE,190,102.9).concat([[135,340]]),s:0,d:1500},{c:'you',p:arc(RI,190,105).concat(arc(50,94,88),arc(59,82,76),arc(RE,70,12.9),[[340,165]]),s:0,d:5000}]}],
    okMsg:'Dejas pasar al coche del exterior, cambias de carril cuando es seguro y sales por la siguiente salida.',expl:'Para salir desde el carril interior debes pasar antes al exterior, cediendo el paso a quien circula por él. Si no puedes hacerlo a tiempo, sigue y sal por la siguiente o da otra vuelta.',norma:'RGC, art. 74 (cambio de carril)'},
   {title:'Ya estás dentro',desc:'Circulas por la glorieta. En la entrada de la izquierda espera un coche para entrar.',scene:{scene:'round'},
    cars:{you:{p:arc(RE,270,215),lin:true},oth:[[-40,165],[56,165]]},
@@ -510,7 +562,14 @@ const SIMS={
 /* ================= Motor de animación ================= */
 let animToken=0;
 function measure(p){const L=[0];for(let i=1;i<p.length;i++)L.push(L[i-1]+Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]));return L;}
-function at(p,f){const L=measure(p),T=L[L.length-1]*f;let i=1;while(i<p.length-1&&L[i]<T)i++;
+const pathLengths=new WeakMap();
+function at(p,f){
+  let L=pathLengths.get(p);
+  if(!L){
+    L=measure(p);
+    pathLengths.set(p,L);
+  }
+  const T=L[L.length-1]*f;let i=1;while(i<p.length-1&&L[i]<T)i++;
   const a=p[i-1],b=p[i],seg=(L[i]-L[i-1])||1,k=Math.min(1,Math.max(0,(T-L[i-1])/seg));
   return{x:a[0]+(b[0]-a[0])*k,y:a[1]+(b[1]-a[1])*k,h:Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI+90};}
 const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2, lin=t=>t, decel=t=>1-Math.pow(1-t,2);
@@ -519,7 +578,7 @@ const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2, lin=t=>t, decel=t=>1-Math.pow(1
 const SPEECH=(()=>{try{return ('speechSynthesis' in window)?window.speechSynthesis:null;}catch(e){return null;}})();
 let esVoice=null;
 function esVoices(){try{return SPEECH.getVoices().filter(x=>/^es/i.test(x.lang));}catch(e){return [];}}
-function voiceScore(x){let n=0;if(/^es[-_]ES/i.test(x.lang))n+=4;if(/natural|neural|online|enhanced|premium|mejorad/i.test(x.name))n+=6;if(/google/i.test(x.name))n+=3;if(x.localService===false)n+=2;return n;}
+function voiceScore(x){let n=0;if(/^es[-_]ES/i.test(x.lang))n+=4;if(/natural|neural|online|enhanced|premium|mejorad/i.test(x.name))n+=6;if(/google/i.test(x.name))n+=3;if(x.localService===true)n+=20;return n;}
 function pickVoice(){const v=esVoices();esVoice=(S.voice&&v.find(x=>x.name===S.voice))||v.slice().sort((a,b)=>voiceScore(b)-voiceScore(a))[0]||null;}
 if(SPEECH){pickVoice();try{SPEECH.addEventListener('voiceschanged',pickVoice);}catch(e){}}
 let speechGen=0;
@@ -565,7 +624,7 @@ function explainerHTML(k){const a=ANIMS[k];
   <div class="xdots" id="xdots">${a.steps.map((_,i)=>`<button type="button" data-xs="${i}" aria-label="Paso ${i+1}"></button>`).join('')}</div></div>`;}
 function startExplainer(k){
   const a=ANIMS[k],svg=document.getElementById('xsvg'),$=id=>document.getElementById(id),token=animToken;
-  let cur=0,playing=false,gen=0,cars={};
+  let cur=0,playing=false,gen=0,cars={},completeVoice=null;
   svg.innerHTML=DEFS+bg(a.scene)+['e1','oth'].map(id=>`<g id="x-${id}">${carBody(id==='oth'?'oth':'grey')}</g>`).join('')+
     `<g id="x-you">${carBody('you')}<g class="ind" id="x-ind" style="display:none"><circle cx="9" cy="-12" r="2.6" fill="#FFB300"/><circle cx="9" cy="12" r="2.6" fill="#FFB300"/></g></g>`;
   ['you','oth','e1'].forEach(id=>cars[id]=document.getElementById('x-'+id));
@@ -574,14 +633,22 @@ function startExplainer(k){
   function setup(i){const st=a.steps[i];cur=i;Object.entries(st.cars).forEach(([c,p])=>place(c,at(p,0)));
     $('x-ind').style.display='none';$('xstep').textContent=`Paso ${i+1} de ${a.steps.length}`;$('xtext').textContent=st.text;
     $('xdots').querySelectorAll('button').forEach((b,k)=>b.className=k===i?'on':k<i?'past':'');}
-  function ui(){$('xplay').innerHTML=playing?PAUSE_ICON+' Pausa':(cur===a.steps.length-1&&ended?REPLAY_ICON+' Volver a ver':PLAY_ICON+(started?' Continuar':' Ver la explicación'));
+  function ui(){$('xplay').innerHTML=playing?PAUSE_ICON+' Pausa':(cur===a.steps.length-1&&ended?REPLAY_ICON+' Volver a ver':PLAY_ICON+(started?' Reproducir este paso':' Ver la explicación'));
     $('xmute').innerHTML=S.mute?MUTE_ICON:SPK_ICON;$('xmute').setAttribute('aria-label',S.mute?'Activar la voz':'Silenciar la voz');}
   let started=false,ended=false;
   function play(i){const g=++gen;playing=true;started=true;ended=false;setup(i);ui();const st=a.steps[i];
     if(st.ind)$('x-ind').style.display='';
     let animDone=false,voiceDone=false;const check=()=>{if(!alive(g)||!animDone||!voiceDone)return;
       setTimeout(()=>{if(!alive(g))return;if(i<a.steps.length-1)play(i+1);else{playing=false;ended=true;ui();}},700);};
-    stopSpeech();speak(st.text,()=>{voiceDone=true;check();});
+    completeVoice=()=>{if(voiceDone)return;voiceDone=true;check();};
+    stopSpeech();
+    if(S.mute)completeVoice();else speak(st.text,completeVoice);
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      st.moves.forEach(m=>place(m.c,at(m.p,1)));
+      animDone=true;
+      check();
+      return;
+    }
     const end=Math.max(...st.moves.map(m=>m.s+m.d)),t0=performance.now();
     (function f(now){if(!alive(g))return;const t=now-t0;
       st.moves.forEach(m=>{const kk=Math.min(1,Math.max(0,(t-m.s)/m.d));if(t>=m.s)place(m.c,at(m.p,FNS[m.fn||'ease'](kk)));});
@@ -589,7 +656,7 @@ function startExplainer(k){
   function pause(){gen++;playing=false;stopSpeech();setup(cur);ui();}
   $('xplay').onclick=()=>{if(playing)pause();else play(ended?0:cur);};
   $('xre').onclick=()=>{play(0);};
-  $('xmute').onclick=()=>{S.mute=!S.mute;save();if(S.mute)stopSpeech();ui();};
+  $('xmute').onclick=()=>{S.mute=!S.mute;save();if(S.mute){stopSpeech();if(playing)completeVoice?.();}ui();};
   $('xdots').querySelectorAll('button').forEach(b=>b.onclick=()=>{const i=+b.dataset.xs;if(playing)play(i);else{gen++;setup(i);started=true;ended=false;ui();}});
   setup(0);ui();
 }
@@ -632,11 +699,26 @@ function render(){
   (VIEWS[v.name]||VIEWS.inicio)(v);
   window.scrollTo(0,0);
 }
-function go(v){stack.push(v);render();}
+function rememberView(push){
+  history[push?'pushState':'replaceState']({autoescuela:true,tab,stack},'');
+}
+window.addEventListener('popstate',e=>{
+  const state=e.state;
+  if(!state?.autoescuela)return;
+  tab=state.tab;
+  stack=state.stack;
+  render();
+});
+function go(v){stack.push(v);rememberView(true);render();}
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tab]');if(t){tab=t.dataset.tab;stack=[];render();return;}
-  const th=e.target.closest('[data-theme-toggle]');if(th){S.theme=S.theme==='dark'?'light':'dark';save();applyTheme();const y=window.scrollY;render();window.scrollTo(0,y);return;}
-  const b=e.target.closest('[data-back]');if(b){stack.pop();render();return;}
+  const t=e.target.closest('[data-tab]');if(t){if(tab!==t.dataset.tab||stack.length){tab=t.dataset.tab;stack=[];rememberView(true);render();}return;}
+  const th=e.target.closest('[data-theme-toggle]');if(th){
+    S.theme=S.theme==='dark'?'light':'dark';save();applyTheme();
+    th.innerHTML=S.theme==='dark'?SUN:MOON;
+    th.setAttribute('aria-label',S.theme==='dark'?'Cambiar a modo claro':'Cambiar a modo oscuro');
+    return;
+  }
+  const b=e.target.closest('[data-back]');if(b){if(stack.length)history.back();return;}
   const g=e.target.closest('[data-go]');if(g&&!g.disabled){go({name:g.dataset.go,id:g.dataset.id||null,mode:g.dataset.mode||null});}
 });
 
@@ -769,13 +851,14 @@ const VIEWS={
    <p class="small muted" id="vnote"></p></div>
   <div class="card"><b>Copia de seguridad</b><p class="small muted">Copia este texto y guárdalo en tus notas. Para recuperar el progreso, pégalo abajo y pulsa Restaurar.</p>
    <textarea id="bk" readonly>${esc(JSON.stringify(S))}</textarea><button class="btn ghost" type="button" id="cpBtn">Copiar</button>
-   <textarea id="rs" placeholder="Pega aquí una copia de seguridad"></textarea><button class="btn ghost" type="button" id="rsBtn">Restaurar</button><p class="small" id="rsMsg" aria-live="polite"></p></div>
+   <textarea id="rs" aria-label="Copia de seguridad para restaurar" placeholder="Pega aquí una copia de seguridad"></textarea><button class="btn ghost" type="button" id="rsBtn">Restaurar</button><p class="small" id="rsMsg" aria-live="polite"></p>
+   <button class="btn ghost" type="button" id="rsPrevious" hidden>Recuperar copia anterior</button></div>
   <div class="card"><b>Borrar progreso</b><p class="small muted">Elimina respuestas, lecciones y simuladores de este móvil.</p><button class="btn danger" type="button" id="delBtn">Borrar todo el progreso</button><div id="delConf" hidden style="display:flex;flex-direction:column;gap:8px"><p class="small">¿Seguro? No se puede deshacer.</p><div class="grid2"><button class="btn ghost" type="button" id="delNo">Cancelar</button><button class="btn danger" type="button" id="delYes">Sí, borrar</button></div></div></div>
   <p class="note">Autoescuela · versión ${VERSION}</p>`;
   (function(){const sel=document.getElementById('vsel'),r=document.getElementById('vrate'),pi=document.getElementById('vpitch');
    const fill=()=>{pickVoice();const v=esVoices().sort((a,b)=>voiceScore(b)-voiceScore(a));
      if(!SPEECH||!v.length){sel.innerHTML='<option>No hay voces en español disponibles aquí</option>';sel.disabled=true;document.getElementById('vnote').textContent=SPEECH?'Instala una voz en español en los ajustes de tu móvil (Idioma > Salida de texto a voz).':'Esta vista no permite la voz. Funcionará al instalar la app.';return;}
-     sel.disabled=false;sel.innerHTML=v.map(x=>`<option value="${esc(x.name)}" ${esVoice&&x.name===esVoice.name?'selected':''}>${esc(x.name.replace(/Microsoft |Google /,''))} · ${esc(x.lang)}${voiceScore(x)>=8?' · natural':''}</option>`).join('');};
+     sel.disabled=false;sel.innerHTML=v.map(x=>`<option value="${esc(x.name)}" ${esVoice&&x.name===esVoice.name?'selected':''}>${esc(x.name.replace(/Microsoft |Google /,''))} · ${esc(x.lang)}${x.localService===true?' · local':x.localService===false?' · puede requerir internet':''}</option>`).join('');};
    fill();if(SPEECH)try{SPEECH.addEventListener('voiceschanged',fill);}catch(e){}
    r.value=S.rate||0.95;pi.value=S.pitch||1;
    const lbl=()=>{document.getElementById('vrv').textContent=Math.round(r.value*100)+'%';document.getElementById('vpv').textContent=+pi.value<0.95?'más grave':+pi.value>1.05?'más agudo':'normal';};lbl();
@@ -788,7 +871,45 @@ const VIEWS={
   V.querySelectorAll('[data-obj]').forEach(b=>b.onclick=()=>{S.profile.obj=b.dataset.obj;save();render();});
   document.getElementById('cpBtn').onclick=()=>{const t=document.getElementById('bk');const done=()=>{document.getElementById('cpBtn').textContent='Copiado';};
     try{navigator.clipboard.writeText(t.value).then(done,()=>{t.select();});}catch(e){t.select();}};
-  document.getElementById('rsBtn').onclick=()=>{const m=document.getElementById('rsMsg');try{const o=JSON.parse(document.getElementById('rs').value);if(!o||typeof o!=='object'||!o.q)throw 0;S=Object.assign({profile:null,q:{},lessons:{},sims:{},tests:[],days:[]},o);save();m.textContent='Progreso restaurado.';setTimeout(render,700);}catch(e){m.textContent='El texto no es una copia válida. Cópialo completo e inténtalo de nuevo.';}};
+  const previous=document.getElementById('rsPrevious');
+  try{previous.hidden=!localStorage.getItem(KEY+'_before_restore');}catch(e){}
+  previous.onclick=()=>{
+    try{
+      const field=document.getElementById('rs');
+      field.value=localStorage.getItem(KEY+'_before_restore')||'';
+      field.focus();
+      document.getElementById('rsMsg').textContent='Copia anterior cargada. Pulsa Restaurar para recuperarla.';
+    }catch(e){
+      document.getElementById('rsMsg').textContent='No se pudo leer la copia anterior.';
+    }
+  };
+  document.getElementById('rsBtn').onclick=()=>{
+    const m=document.getElementById('rsMsg');
+    let data;
+    try{data=JSON.parse(document.getElementById('rs').value);}catch(e){}
+    if(!validProgress(data)||!data.profile){
+      m.textContent='El texto no es una copia válida. Cópialo completo e inténtalo de nuevo.';
+      return;
+    }
+    const name=data.profile.name||'Sin nombre';
+    if(!window.confirm(`¿Restaurar la copia de ${name} (${data.profile.obj}, ${Object.keys(data.q).length} preguntas practicadas)? Sustituirá tu progreso actual.`))return;
+    try{
+      localStorage.setItem(KEY+'_before_restore',JSON.stringify(S));
+    }catch(e){
+      m.textContent='No se pudo conservar una copia del progreso actual. La restauración se ha cancelado.';
+      return;
+    }
+    if(!save(data)){
+      m.textContent='No se pudo guardar la copia. Se mantiene tu progreso actual.';
+      return;
+    }
+    S=data;
+    applyTheme();
+    pickVoice();
+    document.getElementById('bk').value=JSON.stringify(S);
+    m.textContent='Progreso restaurado.';
+    setTimeout(render,700);
+  };
   document.getElementById('delBtn').onclick=()=>{document.getElementById('delConf').hidden=false;};
   document.getElementById('delNo').onclick=()=>{document.getElementById('delConf').hidden=true;};
   document.getElementById('delYes').onclick=()=>{const p=S.profile;S={profile:p,q:{},lessons:{},sims:{},tests:[],days:[]};save();render();};
@@ -804,12 +925,18 @@ function runQuiz(ids,v){
     V.innerHTML=`<div class="qhead"><span class="small muted">Pregunta ${i+1} de ${ids.length}</span><div class="qprog">${ids.map((_,k)=>`<span class="${res[k]===true?'ok':res[k]===false?'bad':k===i?'now':''}"></span>`).join('')}</div></div>
     <div class="card"><p class="qtext">${esc(q.q)}</p>${q.img?`<div class="qimg">${SIGN[q.img]}</div>`:''}</div>
     <div class="opts">${order.map((o,k)=>`<button class="opt" type="button" data-o="${o}"><b>${'ABC'[k]}</b><span>${esc(q.o[o])}</span></button>`).join('')}</div>
-    <div id="qfb"></div>`;
+    <div id="qfb" tabindex="-1" aria-live="polite"></div>`;
     V.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
       const o=+b.dataset.o,ok=o===q.c;res[i]=ok;record(q.id,ok);if(!ok)celebrate('fail');
       V.querySelectorAll('.opt').forEach(x=>{x.disabled=true;const xo=+x.dataset.o;if(xo===q.c)x.classList.add('ok');else if(x===b)x.classList.add('bad');});
       const last=i===ids.length-1;
       document.getElementById('qfb').innerHTML=`<div class="fb ${ok?'ok':'bad'}"><span class="v">${ok?'¡Correcto!':'Casi. Fíjate en esto:'}</span><p>${withSigns(esc(q.e))}</p><span class="ref">${withSigns(esc(q.r))}</span><button class="btn primary" type="button" id="qn" style="margin-top:4px">${last?'Ver resultado':'Siguiente'}</button></div>`;
+      if(!ok){
+        const correct=document.createElement('p');
+        correct.textContent='Respuesta correcta: '+q.o[q.c];
+        document.querySelector('#qfb .v').after(correct);
+      }
+      document.getElementById('qfb').focus();
       V.querySelectorAll('.qprog span')[i].className=ok?'ok':'bad';
       document.getElementById('qn').onclick=()=>{if(last)finish();else{i++;draw();window.scrollTo(0,0);}};
       document.getElementById('qfb').scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -835,14 +962,19 @@ function runQuiz(ids,v){
 function runSim(simId,set){
   const L=set.list;let idx=0,score=0,results=[],busy=false,pos={},cars={};const token=animToken;
   V.innerHTML=`<div class="qprog" id="sp"></div>
-   <div class="scene" id="scene"><svg viewBox="0 0 300 300" id="svg" role="img" aria-label="Vista aérea de la situación"></svg></div>
+   <div class="scene" id="scene"><svg viewBox="0 0 300 300" id="svg" role="img" aria-labelledby="st sd"></svg></div>
    <div class="legend"><span><i style="background:#3A86F5"></i>Tu coche</span><span><i style="background:#F5A23A"></i>Otro vehículo</span></div>
    <div><h3 id="st"></h3><p class="muted" id="sd"></p></div>
    <div class="simopts" id="so"></div>
-   <div class="fb" id="sfb" hidden><span class="v" id="sv"></span><p id="se"></p><span class="ref" id="sn"></span><button class="btn primary" type="button" id="snext" style="margin-top:4px"></button></div>`;
+   <div class="fb" id="sfb" tabindex="-1" hidden><span class="v" id="sv"></span><p id="se"></p><span class="ref" id="sn"></span><button class="btn primary" type="button" id="snext" style="margin-top:4px"></button></div>`;
   const svg=document.getElementById('svg'),$=id=>document.getElementById(id);
   const place=(c,pt)=>{pos[c]=pt;if(cars[c])cars[c].setAttribute('transform',`translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)}) rotate(${pt.h.toFixed(1)})`);};
   function run(moves,done,fn=ease){
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      moves.forEach(m=>place(m.c,at(m.p,1)));
+      done?.();
+      return;
+    }
     const end=Math.max(...moves.map(m=>m.s+m.d)),t0=performance.now();
     (function f(now){if(token!==animToken)return;const t=now-t0;
       moves.forEach(m=>{const k=Math.min(1,Math.max(0,(t-m.s)/m.d));if(t>=m.s)place(m.c,at(m.p,(m.fn||fn)(k)));});
@@ -874,7 +1006,8 @@ function runSim(simId,set){
       $('sv').textContent=ok?'¡Bien hecho!':o.type==='crash'?'¡Colisión!':(s.badTitle||'No es correcto');
       $('se').textContent=(ok?s.okMsg+' ':'')+s.expl;$('sn').innerHTML=withSigns(esc(s.norma));
       $('snext').textContent=idx<L.length-1?'Siguiente situación':'Ver resultado';
-      $('sfb').hidden=false;prog();$('sfb').scrollIntoView({behavior:'smooth',block:'nearest'});
+      $('sfb').hidden=false;prog();$('sfb').focus({preventScroll:true});
+      $('sfb').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'nearest'});
     };
     if(o.type==='go')run(o.moves,show);
     else if(o.type==='hesitate'){bubble(o.bubble,'?');setTimeout(()=>{if(token!==animToken)return;$('fx').innerHTML='';run(o.moves,show);},1300);}
@@ -891,6 +1024,7 @@ function runSim(simId,set){
   load();
 }
 
+rememberView(false);
 render();
 </script>
 
