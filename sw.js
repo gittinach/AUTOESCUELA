@@ -1,13 +1,27 @@
 // Autoescuela · funcionamiento sin conexión
-const CACHE='autoescuela-0.6';
-const FILES=['./','index.html','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/icon-maskable-512.png'];
-self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()));});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(n=>n!==CACHE).map(n=>caches.delete(n)))).then(()=>self.clients.claim()));});
-self.addEventListener('fetch',e=>{
-  if(e.request.method!=='GET')return;
-  e.respondWith(caches.open(CACHE).then(async c=>{
-    const hit=await c.match(e.request,{ignoreSearch:true});
-    const net=fetch(e.request).then(r=>{if(r&&(r.ok||r.type==='opaque'))c.put(e.request,r.clone());return r;}).catch(()=>hit);
-    return hit||net;
-  }));
+const SCOPE=self.registration.scope;
+const PREFIX=`autoescuela:${SCOPE}:`;
+const CACHE=PREFIX+'0.6.7';
+const FILES=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable-512.png'];
+const URLS=new Set(FILES.map(file=>new URL(file,SCOPE).href));
+
+self.addEventListener('install',event=>{
+  const files=Array.from(URLS,url=>new Request(url,{cache:'reload'}));
+  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(files)));
+});
+
+self.addEventListener('activate',event=>{
+  event.waitUntil(caches.keys().then(names=>Promise.all(
+    names.filter(name=>name.startsWith(PREFIX)&&name!==CACHE).map(name=>caches.delete(name))
+  )).then(()=>self.clients.claim()));
+});
+
+self.addEventListener('fetch',event=>{
+  if(event.request.method!=='GET')return;
+  const url=new URL(event.request.url);
+  url.search='';
+  if(!URLS.has(url.href))return;
+  event.respondWith(caches.open(CACHE).then(async cache=>
+    await cache.match(url.href)||fetch(event.request)
+  ));
 });

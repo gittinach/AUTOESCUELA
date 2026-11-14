@@ -228,7 +228,10 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.6.5';
+const VERSION='0.6.7';
+const TUTOR_URL=location.hostname==='gittinach.github.io'
+  ?'https://autoescuela-tutor.onrender.com/api/tutor'
+  :location.protocol==='file:'?'':'/api/tutor';
 /* ================= Guardado ================= */
 const KEY='autoescuela_v1';
 let S={profile:null,q:{},lessons:{},sims:{},tests:[],days:[]};
@@ -918,6 +921,52 @@ const VIEWS={
 };
 
 /* ================= Test ================= */
+let tutorCode='';
+function addTutor(feedback,q,choice){
+  const panel=document.createElement('details');
+  panel.className='card';
+  panel.innerHTML=`<summary>Preguntar al tutor IA</summary>
+    <form>
+      <label for="tutor-doubt">¿Qué duda tienes sobre esta pregunta?</label>
+      <textarea id="tutor-doubt" maxlength="500" required></textarea>
+      <label for="tutor-code">Código del tutor</label>
+      <input id="tutor-code" type="password" maxlength="128" required>
+      <p class="small muted">Necesita internet. La consulta se envía al proveedor de IA.</p>
+      <button class="btn ghost" type="submit">Enviar duda</button>
+      <p role="status" style="white-space:pre-wrap"></p>
+    </form>`;
+  const form=panel.querySelector('form'),status=panel.querySelector('[role="status"]');
+  const button=form.querySelector('button'),code=form.querySelector('#tutor-code');
+  code.value=tutorCode;
+  if(!TUTOR_URL){
+    button.disabled=true;
+    status.textContent='El tutor aún no está conectado.';
+  }
+  form.onsubmit=async event=>{
+    event.preventDefault();
+    if(!TUTOR_URL||button.disabled)return;
+    const doubt=form.querySelector('textarea').value.trim();
+    if(!doubt)return;
+    tutorCode=code.value.trim();
+    button.disabled=true;
+    status.textContent='Consultando al tutor… Si llevaba un rato sin usarse, puede tardar alrededor de un minuto.';
+    try{
+      const response=await fetch(TUTOR_URL,{
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+tutorCode},
+        signal:AbortSignal.timeout(110000),
+        body:JSON.stringify({id:q.id,choice,doubt})
+      });
+      const result=await response.json();
+      status.textContent=response.ok?result.answer:result.error||'El tutor no está disponible.';
+    }catch{
+      status.textContent='No se pudo conectar con el tutor. Puedes seguir con el test.';
+    }finally{
+      button.disabled=false;
+    }
+  };
+  feedback.after(panel);
+}
 function runQuiz(ids,v){
   let i=0,res=[];
   const draw=()=>{
@@ -936,6 +985,7 @@ function runQuiz(ids,v){
         correct.textContent='Respuesta correcta: '+q.o[q.c];
         document.querySelector('#qfb .v').after(correct);
       }
+      addTutor(document.getElementById('qfb'),q,o);
       document.getElementById('qfb').focus();
       V.querySelectorAll('.qprog span')[i].className=ok?'ok':'bad';
       document.getElementById('qn').onclick=()=>{if(last)finish();else{i++;draw();window.scrollTo(0,0);}};
