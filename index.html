@@ -148,6 +148,16 @@ input[type=text]{width:100%;font:inherit;font-size:17px;padding:12px 14px;border
 .choice button.sel{border-color:var(--accent);background:var(--accent-soft)}
 .note{font-size:13px;color:var(--muted);text-align:center}
 @media (prefers-reduced-motion: reduce){.scene.shake,.lb1,.lb2{animation:none}.btn{transition:none}}
+.tutor-chat textarea{font:inherit;line-height:1.5}
+.tutor-answer{font-family:var(--body);font-size:16px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.tutor-wait{display:flex;align-items:center;gap:8px;min-height:56px;padding:6px 12px;border-radius:16px;background:var(--accent-soft);color:var(--fg);font-size:14px}
+.tutor-wait[hidden]{display:none}
+.tutor-wait-mascot{position:relative;display:grid;place-items:center;width:52px;height:48px;flex:none;animation:tutor-bounce .8s ease-in-out infinite alternate}
+.tutor-wait-mascot::after{content:'✨';position:absolute;right:-2px;top:0;font-size:15px;animation:tutor-sparkle .8s ease-in-out infinite alternate}
+.tutor-wait-mascot svg{width:52px;height:auto}
+@keyframes tutor-bounce{to{transform:translateY(-5px) rotate(-4deg)}}
+@keyframes tutor-sparkle{to{transform:translateY(-4px) scale(1.2);opacity:.55}}
+@media (prefers-reduced-motion: reduce){.tutor-wait-mascot,.tutor-wait-mascot::after{animation:none}}
 
 /* ===== Estilo cálido ===== */
 body{padding-bottom:calc(100px + env(safe-area-inset-bottom,0px));line-height:1.55}
@@ -228,7 +238,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.6.7';
+const VERSION='0.6.9';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -921,23 +931,39 @@ const VIEWS={
 };
 
 /* ================= Test ================= */
+const TUTOR_CODE_KEY='autoescuela_tutor_code';
 let tutorCode='';
+let rememberTutor=false;
+try{
+  tutorCode=localStorage.getItem(TUTOR_CODE_KEY)||'';
+  rememberTutor=Boolean(tutorCode);
+}catch(e){}
 function addTutor(feedback,q,choice){
   const panel=document.createElement('details');
-  panel.className='card';
+  panel.className='card tutor-chat';
   panel.innerHTML=`<summary>Preguntar al tutor IA</summary>
     <form>
       <label for="tutor-doubt">¿Qué duda tienes sobre esta pregunta?</label>
       <textarea id="tutor-doubt" maxlength="500" required></textarea>
       <label for="tutor-code">Código del tutor</label>
       <input id="tutor-code" type="password" maxlength="128" required>
+      <label><input id="tutor-remember" type="checkbox"> Recordar el código en este dispositivo</label>
       <p class="small muted">Necesita internet. La consulta se envía al proveedor de IA.</p>
       <button class="btn ghost" type="submit">Enviar duda</button>
-      <p role="status" style="white-space:pre-wrap"></p>
+      <div class="tutor-wait" hidden aria-hidden="true"><span class="tutor-wait-mascot">${mascot(52)}</span><span>La mascota busca una explicación…</span></div>
+      <p class="tutor-answer" role="status" aria-live="polite"></p>
     </form>`;
   const form=panel.querySelector('form'),status=panel.querySelector('[role="status"]');
   const button=form.querySelector('button'),code=form.querySelector('#tutor-code');
+  const remember=form.querySelector('#tutor-remember');
   code.value=tutorCode;
+  remember.checked=rememberTutor;
+  remember.onchange=()=>{
+    rememberTutor=remember.checked;
+    if(!rememberTutor){
+      try{localStorage.removeItem(TUTOR_CODE_KEY);}catch(e){}
+    }
+  };
   if(!TUTOR_URL){
     button.disabled=true;
     status.textContent='El tutor aún no está conectado.';
@@ -947,21 +973,31 @@ function addTutor(feedback,q,choice){
     if(!TUTOR_URL||button.disabled)return;
     const doubt=form.querySelector('textarea').value.trim();
     if(!doubt)return;
-    tutorCode=code.value.trim();
+    const submittedCode=code.value.trim();
+    if(!submittedCode)return;
     button.disabled=true;
-    status.textContent='Consultando al tutor… Si llevaba un rato sin usarse, puede tardar alrededor de un minuto.';
+    status.textContent='El tutor está preparando la explicación. La primera respuesta puede tardar un poco.';
+    panel.querySelector('.tutor-wait').hidden=false;
     try{
       const response=await fetch(TUTOR_URL,{
         method:'POST',
-        headers:{'Content-Type':'application/json',Authorization:'Bearer '+tutorCode},
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+submittedCode},
         signal:AbortSignal.timeout(110000),
         body:JSON.stringify({id:q.id,choice,doubt})
       });
       const result=await response.json();
       status.textContent=response.ok?result.answer:result.error||'El tutor no está disponible.';
+      if(response.ok){
+        tutorCode=submittedCode;
+        if(rememberTutor){
+          try{localStorage.setItem(TUTOR_CODE_KEY,tutorCode);}
+          catch(e){status.textContent+='\nNo se pudo recordar el código en este dispositivo.';}
+        }
+      }
     }catch{
       status.textContent='No se pudo conectar con el tutor. Puedes seguir con el test.';
     }finally{
+      panel.querySelector('.tutor-wait').hidden=true;
       button.disabled=false;
     }
   };
