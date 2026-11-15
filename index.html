@@ -117,6 +117,8 @@ figure{margin:0}
 .signs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px}
 .signs div{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:12px;line-height:1.25}
 .signs svg{width:54px;height:54px}
+.lesson-gallery{grid-template-columns:repeat(3,minmax(0,1fr))}
+.lesson-ref a{color:var(--accent)}
 .ladder{list-style:none;margin:0;padding:14px;display:flex;flex-direction:column;gap:6px;counter-reset:l}
 .ladder li{counter-increment:l;background:var(--accent);color:var(--accent-fg);border-radius:10px;padding:8px 12px;font-weight:700;font-size:15px;display:flex;gap:10px;align-items:center}
 .ladder li::before{content:counter(l);font-family:var(--display);font-size:20px;opacity:.8;width:16px}
@@ -291,7 +293,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.6.23';
+const VERSION='0.7.0';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -312,6 +314,7 @@ function validProgress(v){
     Array.isArray(v.tests)&&v.tests.every(r=>isObject(r)&&isCount(r.d)&&isCount(r.n)&&isCount(r.ok)&&r.ok<=r.n&&typeof r.mode==='string')&&
     Array.isArray(v.days)&&v.days.every(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d))&&
     (v.savedQuestions===undefined||(Array.isArray(v.savedQuestions)&&v.savedQuestions.every(id=>typeof id==='string')))&&
+    (v.masteredTopics===undefined||(Array.isArray(v.masteredTopics)&&v.masteredTopics.every(id=>typeof id==='string')))&&
     (v.theme===undefined||['light','dark'].includes(v.theme))&&
     (v.voice===undefined||typeof v.voice==='string')&&
     (v.mute===undefined||isBool(v.mute))&&
@@ -443,6 +446,9 @@ const exitEast=()=>[[165,244],[165,215.3]].concat(arc(RE,77.1,12.9)).concat([[34
 
 const arw=(x,y1,y2,w,col)=>{const up=y2<y1,hd=w*1.9,hy=up?y2+hd:y2-hd;return `<rect x="${x-w/2}" y="${Math.min(y1,hy)}" width="${w}" height="${Math.abs(hy-y1)}" fill="${col}"/><polygon points="${x-w*1.6},${hy} ${x+w*1.6},${hy} ${x},${y2}" fill="${col}"/>`;};
 const SIGN={
+  entry:'<svg viewBox="0 0 60 60" role="img" aria-label="Círculo rojo con rectángulo blanco horizontal"><circle cx="30" cy="30" r="28" fill="#C8262B"/><rect x="11" y="25" width="38" height="10" fill="#fff"/></svg>',
+  speed:'<svg viewBox="0 0 60 60" role="img" aria-label="Círculo blanco con borde rojo y el número 50"><circle cx="30" cy="30" r="26" fill="#fff" stroke="#C8262B" stroke-width="6"/><text x="30" y="39" text-anchor="middle" font-family="Arial,sans-serif" font-size="27" font-weight="bold">50</text></svg>',
+  parking:'<svg viewBox="0 0 60 60" role="img" aria-label="Cuadrado azul con una P blanca"><rect x="3" y="3" width="54" height="54" rx="3" fill="#1E5BB8" stroke="#fff" stroke-width="2"/><text x="30" y="45" text-anchor="middle" font-family="Arial,sans-serif" font-size="43" fill="#fff">P</text></svg>',
   ceda:`<svg viewBox="0 0 60 56" aria-label="Señal de ceda el paso"><polygon points="5,5 55,5 30,50" fill="#fff" stroke="#C8262B" stroke-width="7" stroke-linejoin="round"/></svg>`,
   stop:`<svg viewBox="0 0 60 60" aria-label="Señal de STOP"><polygon points="${octagon(30,30,28)}" fill="#C8262B" stroke="#fff" stroke-width="2.5"/><text x="30" y="36.5" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="17" fill="#fff">STOP</text></svg>`,
   r3:`<svg viewBox="0 0 60 60" aria-label="Señal de calzada con prioridad"><polygon points="30,2 58,30 30,58 2,30" fill="#fff" stroke="#888" stroke-width="1"/><polygon points="30,11 49,30 30,49 11,30" fill="#F2C230"/></svg>`,
@@ -453,9 +459,14 @@ const SIGN={
 
 const SIGNCODE={'R-1':'ceda','R-2':'stop','R-3':'r3','R-4':'r4','R-5':'r5','R-6':'r6'};
 const withSigns=h=>String(h).replace(/R-([1-6])(?![0-9])/g,m=>`<span class="sg">${SIGN[SIGNCODE[m]]}<b>${m}</b></span>`);
+const RGC='https://www.boe.es/buscar/act.php?id=BOE-A-2003-23514';
+const lightIcon=lights=>`<svg viewBox="0 0 54 72" aria-hidden="true"><rect x="11" y="2" width="32" height="68" rx="7" fill="#272D30"/>${lights.map((color,index)=>`<circle cx="27" cy="${16+20*index}" r="7" fill="${color}"/>`).join('')}</svg>`;
 /* ================= Tema 5: lecciones ================= */
 const ILL={
-  order:()=>`<figure class="fig"><ol class="ladder"><li>Agentes de tráfico</li><li>Señalización circunstancial</li><li>Semáforos</li><li>Señales verticales</li><li>Marcas viales</li></ol><figcaption>De más a menos importante: si dos indicaciones se contradicen, manda la de arriba.</figcaption></figure>`,
+  trafficLights:()=>`<figure class="fig"><div class="signs lesson-gallery"><div>${lightIcon(['#FF6661','#6C6963','#6C6963'])}Rojo fijo</div><div>${lightIcon(['#6C6963','#FFD150','#6C6963'])}Amarillo fijo</div><div>${lightIcon(['#6C6963','#6C6963','#62DB85'])}Verde fijo</div></div><figcaption>En un semáforo circular, fíjate en la posición de la luz y en si está fija o parpadea.</figcaption></figure>`,
+  verticalSigns:()=>`<figure class="fig"><div class="signs lesson-gallery"><div>${SIGN.entry}R-101<br>Entrada prohibida</div><div>${SIGN.speed}R-301<br>Velocidad máxima</div><div>${SIGN.parking}S-17<br>Estacionamiento</div></div></figure>`,
+  roadMarks:()=>`<figure class="fig"><div class="signs lesson-gallery"><div><svg viewBox="0 0 54 54" aria-hidden="true"><rect width="54" height="54" rx="6" fill="#46535d"/><path d="M27 2v50" stroke="#fff" stroke-width="3"/></svg>Longitudinal continua</div><div><svg viewBox="0 0 54 54" aria-hidden="true"><rect width="54" height="54" rx="6" fill="#46535d"/><path d="M2 27h50" stroke="#fff" stroke-width="4"/></svg>Línea de detención</div><div><svg viewBox="0 0 54 54" aria-hidden="true"><rect width="54" height="54" rx="6" fill="#46535d"/><path d="M2 27h50" stroke="#fff" stroke-width="4" stroke-dasharray="7 4"/></svg>Línea de ceda el paso</div></div></figure>`,
+  order:()=>`<figure class="fig"><ol class="ladder"><li>Agentes de tráfico</li><li>Señalización circunstancial y balizamiento aplicable</li><li>Semáforos</li><li>Señales verticales</li><li>Marcas viales</li></ol><figcaption>Si dos indicaciones de distinto tipo se contradicen, prevalece la que está más arriba.</figcaption></figure>`,
   signs:()=>`<figure class="fig"><div class="signs"><div>${SIGN.ceda}R-1<br>Ceda el paso</div><div>${SIGN.stop}R-2<br>STOP</div><div>${SIGN.r3}R-3<br>Calzada con prioridad</div><div>${SIGN.r4}R-4<br>Fin de prioridad</div></div><figcaption>Las cuatro señales de prioridad que más salen en el examen.</figcaption></figure>`,
   cross:()=>`<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Cruce sin señales con un coche por la derecha">${DEFS}${bg({scene:'cross'})}<path d="M200 135 L118 135" stroke="#FFB547" stroke-width="3" stroke-dasharray="6 5" fill="none"/><polygon points="110,135 120,129 120,141" fill="#FFB547"/>${carAt('oth',222,135,-90)}${carAt('you',165,222,0)}${pill(240,106,'Viene por tu derecha')}${pill(165,268,'Tú cedes el paso')}</svg><figcaption>Sin señales: el coche naranja llega por tu derecha, así que pasa primero.</figcaption></figure>`,
   round:()=>{const p=exitEast();p[p.length-1]=[290,165];return `<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Glorieta con la trayectoria para la primera salida">${DEFS}${bg({scene:'round'})}<path d="${polyD(p)}" stroke="#4A94FF" stroke-width="3.5" stroke-dasharray="7 5" fill="none" stroke-linecap="round"/><polygon points="298,165 287,159 287,171" fill="#4A94FF"/>${carAt('you',165,262,0)}${pill(84,262,'Cede a los de dentro')}${pill(240,200,'Primera salida')}</svg><figcaption>Para la primera salida entra y circula por el carril exterior, y señaliza con el intermitente derecho.</figcaption></figure>`;},
@@ -463,7 +474,7 @@ const ILL={
   peat:()=>`<figure class="fig"><svg viewBox="0 0 300 300" role="img" aria-label="Giro a la derecha con peatones cruzando">${DEFS}${bg({scene:'cross'})}<path d="M165 196 Q165 165 196 165 L258 165" stroke="#4A94FF" stroke-width="3.5" stroke-dasharray="7 5" fill="none"/><polygon points="268,165 257,159 257,171" fill="#4A94FF"/>${[[202,140,'#7A4EA8'],[200,158,'#2E8B6E']].map(([x,y,c])=>`<ellipse cx="${x}" cy="${y}" rx="6" ry="4" fill="${c}"/><circle cx="${x}" cy="${y}" r="3.2" fill="#3A2A20"/>`).join('')}${carAt('you',165,214,0)}${pill(232,226,'Cede a los peatones')}</svg><figcaption>Al girar, los peatones que cruzan la calle a la que entras tienen preferencia, aunque no haya paso de peatones.</figcaption></figure>`
 };
 
-const LESSONS=[
+const PRIORITY_LESSONS=[
  {id:'L1',t:'Cómo se regula la prioridad',min:6,ill:'order',
   key:'Si varias indicaciones se contradicen, manda el agente. Después, por este orden: señalización circunstancial, semáforos, señales verticales y marcas viales.',
   body:`<p><b>Prioridad de paso</b> es el derecho de un vehículo a pasar antes que otro cuando sus trayectorias se cruzan. Quien no la tiene debe <b>ceder el paso</b>: no obligar al que tiene prioridad a frenar, desviarse o cambiar bruscamente de velocidad.</p>
@@ -528,7 +539,7 @@ const LESSONS=[
 ];
 
 /* ================= Tema 5: preguntas (redacción propia) ================= */
-const QS=[
+const PRIORITY_QUESTIONS=[
  {id:'q1',l:'L1',q:'Un agente te indica que avances, pero el semáforo está en rojo. ¿Qué haces?',o:['Avanzo, obedeciendo al agente','Espero a que el semáforo se ponga en verde','Me detengo y pido instrucciones'],c:0,e:'Las indicaciones de los agentes prevalecen sobre cualquier otra señal, incluidos los semáforos.',r:'RGC, art. 133'},
  {id:'q2',l:'L1',q:'¿Cuál es el orden de prioridad correcto entre las indicaciones de la vía?',o:['Agentes, señalización circunstancial, semáforos, señales verticales y marcas viales','Semáforos, agentes, señales verticales y marcas viales','Señales verticales, semáforos, agentes y marcas viales'],c:0,e:'Primero los agentes; después las señales que cambian temporalmente el régimen de la vía; luego semáforos, señales verticales y, por último, marcas viales.',r:'RGC, art. 133'},
  {id:'q3',l:'L1',q:'El conductor que debe ceder el paso…',o:['Debe mostrar con antelación, reduciendo la velocidad, que va a ceder','Solo debe ceder si el otro le hace señales','Debe detenerse siempre, venga o no venga alguien'],c:0,e:'Quien cede debe dejarlo claro con tiempo, reduciendo de forma visible y parando si hace falta. No siempre es obligatorio detenerse.',r:'RGC, art. 58'},
@@ -561,6 +572,108 @@ const QS=[
  {id:'q30',l:'L6',q:'Oyes una ambulancia con sirena y luces que se acerca por detrás. ¿Qué haces?',o:['Facilito su paso apartándome a la derecha y deteniéndome si hace falta','Acelero para no estorbar','Sigo igual, porque no puedo apartarme'],c:0,e:'Ante un vehículo de emergencia en servicio, debes facilitarle el paso, apartándote hacia la derecha y deteniéndote si es necesario.',r:'RGC, arts. 67 a 69'},
  {id:'q31',l:'L6',q:'En una cañada señalizada cruza un rebaño. ¿Quién tiene preferencia?',o:['El ganado','Tú, porque circulas por la carretera','El que llegue antes'],c:0,e:'Los animales tienen preferencia en las cañadas debidamente señalizadas.',r:'RGC, art. 66'}
 ];
+/* ================= Tema 3: señalización ================= */
+const SIGN_LESSONS=[
+ {id:'T3L1',t:'Qué señal debes obedecer',min:5,ill:'order',
+  key:'Cuando dos indicaciones aplicables se contradicen, comprueba primero cuál tiene preferencia. Si son del mismo tipo, aplica la más restrictiva.',
+  body:`<p>La señalización sirve para advertir, informar o indicar cómo debes circular. Antes de comparar dos señales, comprueba que ambas se dirigen a ti y a la maniobra que vas a realizar.</p>
+  <p>El orden es: <b>agentes</b>; <b>señalización y balizamiento circunstancial, dispositivos delimitadores y señales de balizamiento</b>; <b>semáforos</b>; <b>señales verticales</b>; y <b>marcas viales</b>.</p>
+  <p>Dos indicaciones compatibles se cumplen juntas. Por ejemplo, un semáforo verde permite el paso, pero puedes seguir teniendo prohibido girar a la izquierda.</p>
+  <p>Para semáforos y señales verticales, fíjate en los situados inmediatamente a tu derecha, sobre la calzada o sobre tu carril. Si no hay ninguno en esas posiciones y vas de frente o a la izquierda, atiende a los de la izquierda. Si las indicaciones de ambos lados difieren, quienes siguen de frente o giran a la izquierda obedecen las situadas inmediatamente a la izquierda.</p>`,
+  tip:'Primero comprueba si la señal se aplica a tu carril o maniobra. Después resuelve el conflicto.',
+  errs:['Elegir siempre la señal más restrictiva, aunque sea de menor rango.','Creer que el verde anula una prohibición de giro compatible.'],
+  ref:'RGC, arts. 131 a 133',source:'#a132'},
+ {id:'T3L2',t:'Gestos y órdenes de los agentes',min:6,
+  key:'El brazo levantado ordena parar. Los brazos extendidos en horizontal obligan a parar a quienes se acercan en una dirección que corta la línea de los brazos.',
+  body:`<p><b>Brazo hacia arriba:</b> detente si te acercas al agente y puedes hacerlo con seguridad. Usa la línea de detención más próxima o, si falta, detente justo antes del agente. En un cruce, detente antes de entrar. Quien ya está dentro no tiene que detenerse por ese gesto.</p>
+  <p><b>Brazos extendidos:</b> imagina una barrera en su dirección. Quien se acerca cruzando esa dirección debe detenerse. La orden sigue aunque el agente baje los brazos, hasta que cambie de posición o haga otra señal.</p>
+  <p>Si el agente mueve un brazo extendido arriba y abajo, deben reducir la velocidad quienes se acercan por ese lado y en dirección perpendicular al brazo. Si balancea una luz roja o amarilla hacia ti, detente.</p>
+  <p>Varios silbidos breves seguidos ordenan parar. Un silbido largo ordena reanudar la marcha. Si un agente que va detrás dirige hacia ti una luz roja intermitente o destellante, detente a la derecha, delante de su vehículo, en un lugar seguro, y sigue sus instrucciones.</p>`,
+  tip:'Brazo arriba: alto. Brazo que sube y baja: reduce si la orden va dirigida a ti.',
+  errs:['Pararte dentro del cruce por el gesto de brazo levantado cuando ya habías entrado.','Reanudar la marcha solo porque el agente ha bajado los brazos.'],
+  ref:'RGC, art. 141 y anexo I, apartados 1.1 y 1.2',source:'#A1'},
+ {id:'T3L3',t:'Obras, paneles y balizamiento',min:5,
+  key:'Los dispositivos que cierran una zona marcan un límite. Sigue el itinerario abierto sin atravesar la línea de conos o balizas que delimita el cierre.',
+  body:`<p>Las obras o una incidencia pueden cambiar temporalmente qué carriles puedes usar y por dónde debes circular. Atiende a las indicaciones de los paneles variables y a los desvíos habilitados. La regulación habitual vuelve cuando termina la modificación temporal.</p>
+  <p>Una barrera o un panel direccional provisional puede cerrar el paso. El panel provisional señala también el sentido en el que debes continuar. Un tramo puede estar delimitado por conos o balizas: respeta la línea que forman, aunque haya huecos entre ellos. En estos dispositivos, una luz roja fija indica el cierre total de la calzada y una fila de luces amarillas prohíbe cruzar la línea que forman.</p>
+  <p>Los <b>dispositivos de guía</b> cumplen otra función. Un hito de arista ayuda a reconocer el borde de la calzada y un panel direccional permanente advierte del trazado de una curva.</p>
+  <p>Las marcas nuevas pintadas durante las obras son amarillas. Las blancas anteriores pueden permanecer si todavía son aplicables. La señal P-18 advierte de obras y lleva fondo amarillo.</p>`,
+  tip:'Un panel que advierte de una curva y un panel provisional que cierra el paso se interpretan según su función y su contexto.',
+  errs:['Cruzar entre dos conos porque hay espacio.','Suponer que toda marca blanca deja de aplicarse al entrar en una obra.'],
+  ref:'RGC, arts. 133, 142 y 149 y anexo I, apartados 2, 3.1 y 5.2',source:'#a142'},
+ {id:'T3L4',t:'Semáforos y luces de carril',min:7,ill:'trafficLights',
+  key:'Amarillo fijo: detente si puedes hacerlo con seguridad. Amarillo intermitente: extrema la precaución, cede cuando corresponda y respeta las señales que obliguen a parar.',
+  body:`<p>El <b>rojo fijo</b> prohíbe pasar. El <b>verde fijo</b> permite el paso con prioridad, pero debes esperar si el atasco de salida puede dejarte parado dentro y bloquear la circulación transversal. Ante el <b>amarillo fijo</b>, detente como ante el rojo, excepto si se enciende cuando ya estás demasiado cerca para parar con seguridad.</p>
+  <p>Como regla general, en un paso con semáforo propio para peatones, el amarillo intermitente para vehículos va precedido del rojo fijo y no coincide con el verde fijo de peatones.</p>
+  <p>Una <b>flecha verde</b> sobre fondo negro permite la maniobra que indica aunque se mantenga encendido el rojo. Debes realizarla con precaución, dejar pasar a quienes circulen por el carril al que te incorporas y proteger a quienes cruzan. Si estás en el carril que esa maniobra debe utilizar, la flecha te obliga a avanzar en esa dirección.</p>
+  <p>Los <b>semáforos cuadrados de carril</b> afectan al carril indicado. Un aspa roja prohíbe ocuparlo y, si ya estás en él, debes abandonarlo lo antes posible. La flecha verde hacia abajo permite usarlo, respetando las demás señales. Una flecha blanca o amarilla oblicua hacia abajo avisa de un cierre próximo: incorpórate con seguridad al carril que señala.</p>
+  <p>El peatón con verde intermitente dispone de poco tiempo para terminar de cruzar. Para vehículos, el rojo intermitente prohíbe temporalmente el paso en casos como un paso a nivel. Las luces con silueta de ciclo se aplican a los ciclos. Las franjas blancas pueden regular tranvías, autobuses de línea o a quienes usan un carril reservado: horizontal significa alto, vertical permite seguir de frente y oblicua autoriza el giro indicado. Si la franja vertical u oblicua parpadea, se aplica la regla del amarillo fijo.</p>`,
+  tip:'Distingue el semáforo circular del semáforo cuadrado. Uno regula el paso y el otro el uso de un carril.',
+  errs:['Acelerar al ver amarillo fijo aunque puedas parar con seguridad.','Considerar una flecha verde un permiso para girar con prioridad sobre todos.'],
+  ref:'RGC, arts. 59.1 y 143 y anexo I, apartado 4',source:'#A4'},
+ {id:'T3L5',t:'Señales verticales y paneles',min:7,ill:'verticalSigns',
+  key:'Identifica el símbolo y su función. Si hay un panel debajo, léelo junto con la señal para entender su alcance.',
+  body:`<p>Las señales verticales forman tres familias: <b>advertencia de peligro</b>, <b>reglamentación</b> e <b>indicación</b>. Un triángulo con borde rojo suele advertir de un peligro. La señal R-1 es un triángulo invertido y ordena ceder el paso. El octógono R-2 ordena detenerse y ceder.</p>
+  <p>La <b>reglamentación</b> incluye prioridad, prohibición de entrada, restricciones de paso, otras prohibiciones y restricciones, obligaciones y final de prohibiciones, restricciones u obligaciones. Por ejemplo, la R-101 impide entrar desde ese sentido y la R-301 fija una velocidad máxima.</p>
+  <p>Las señales de <b>indicación</b> te ayudan a circular: incluyen información general, dirección, carriles, servicios y localización, entre otros grupos. La S-17 señala un lugar autorizado para estacionar. Un color por sí solo no basta: comprueba la forma y el símbolo.</p>
+  <p>Un <b>panel complementario</b> puede indicar a qué distancia empieza un peligro (S-800), a lo largo de cuánto tramo se extiende (S-810) o a qué usuarios afecta la señal. El catálogo oficial del anexo I incluye los significados y dibujos de las señales individuales.</p>`,
+  tip:'Lee de arriba abajo: identifica la señal principal y después qué aclara el panel.',
+  errs:['Confundir la velocidad máxima con una velocidad que debes alcanzar.','Interpretar como longitud del tramo una distancia que solo avisa de cuándo empieza el peligro.'],
+  ref:'RGC, arts. 134 y 144 a 146 y anexo I, apartado 5.1',source:'#A5'},
+ {id:'T3L6',t:'Líneas, flechas y marcas viales',min:7,ill:'roadMarks',
+  key:'Una línea a lo largo de la vía separa o guía. Una línea que atraviesa tu carril puede marcar dónde detenerte o ceder el paso.',
+  body:`<p>Una <b>línea longitudinal continua</b> que separa carriles o sentidos no debe pisarse ni atravesarse como regla general. Hay excepciones previstas en el Reglamento, y una línea de borde no cumple esa misma función. Con dos líneas adosadas, una continua y otra discontinua, para iniciar la maniobra fíjate en la de tu lado. Si comenzaste a adelantar desde el lado discontinuo en ese tramo, puedes cruzar la continua para volver a tu carril.</p>
+  <p>La <b>línea transversal continua</b> indica dónde parar cuando te lo exige una señal como el STOP o un semáforo rojo. La <b>transversal discontinua</b> marca el lugar donde ceder el paso cuando existe esa obligación. El STOP pintado también puede imponer una detención.</p>
+  <p>Las <b>flechas de carril</b> señalan los movimientos permitidos u obligatorios. Una flecha de fin de carril avisa de que tendrás que cambiarte, respetando la prioridad de quien ya circula por el otro carril. Deja paso a los peatones en un paso señalizado sin semáforo y a los ciclistas que cruzan por un paso ciclista.</p>
+  <p>En el bordillo o junto a él, una <b>línea amarilla continua</b> prohíbe parar y estacionar. La <b>amarilla discontinua</b> prohíbe estacionar. Si la prohibición tiene un horario, se indica en una señal vertical.</p>`,
+  tip:'Comprueba la orientación de la línea, su color y dónde está pintada antes de decidir qué significa.',
+  errs:['Leer la línea del otro sentido cuando hay continua y discontinua juntas.','Confundir la prohibición de estacionar con la de parar y estacionar.'],
+  ref:'RGC, arts. 64, 65 y 147 y anexo I, apartado 5.2',source:'#A5'}
+];
+
+const SIGN_QUESTIONS=[
+ {id:'q32',l:'T3L1',q:'Dos señales verticales aplicables a tu carril indican a la vez 50 y 70 km/h como límite. ¿Cuál prevalece?',o:['50 km/h','70 km/h','La situada más alta'],c:0,e:'Cuando dos indicaciones del mismo tipo se contradicen y ambas se aplican, prevalece la más restrictiva.',r:'RGC, art. 133.2'},
+ {id:'q33',l:'T3L1',q:'Un semáforo está verde y una señal vertical prohíbe girar a la izquierda. ¿Puedes girar a la izquierda?',o:['Sí, porque el semáforo tiene más rango','No, el verde y la prohibición de giro son compatibles','Sí, si cedes a los que vienen de frente'],c:1,e:'El verde permite el paso, pero no transforma en permitido un giro prohibido por una señal compatible.',r:'RGC, arts. 132 y 133 y anexo I, apartado 4.2.e'},
+ {id:'q34',l:'T3L1',q:'En un cruce, una señal vertical a la derecha y otra a la izquierda tienen indicaciones distintas. Quieres seguir de frente. ¿Cuál obedeces?',o:['La de la derecha','La que se vea desde más lejos','La situada inmediatamente a tu izquierda'],c:2,e:'Si las indicaciones de ambos lados son distintas, quien sigue de frente o gira a la izquierda obedece la de la izquierda.',r:'RGC, art. 132.3'},
+ {id:'q35',l:'T3L1',q:'Un agente te ordena detenerte aunque el semáforo esté verde. ¿Qué haces?',o:['Avanzo despacio hasta el cruce','Me detengo según la orden del agente','Sigo si los otros vehículos avanzan'],c:1,e:'La orden del agente es la primera en el orden de preferencia. Debes detenerte aunque la luz sea verde.',r:'RGC, art. 133.1'},
+ {id:'q36',l:'T3L1',q:'En unas obras, un panel provisional y sus conos cierran tu carril, pero su semáforo está verde. ¿Qué indicación prevalece?',o:['El cierre indicado por la señalización de las obras','El semáforo verde','La línea blanca del carril'],c:0,e:'La señalización circunstancial y los dispositivos delimitadores prevalecen sobre los semáforos en caso de contradicción.',r:'RGC, art. 133.1'},
+ {id:'q37',l:'T3L2',q:'Un agente levanta un brazo en vertical cuando ya estás dentro de la intersección. Sin ninguna orden adicional, ¿te obliga ese gesto a detenerte dentro?',o:['Sí, de inmediato','No, el gesto no obliga a detenerse a quien ya ha entrado','Sí, pero solo si hay línea de detención en la salida'],c:1,e:'La señal de brazo levantado no obliga a detenerse a los conductores que ya han entrado en la intersección.',r:'RGC, anexo I, apartado 1.1.a'},
+ {id:'q38',l:'T3L2',q:'El agente mantiene los brazos en horizontal. Te acercas en una dirección que corta la línea de sus brazos. ¿Qué haces?',o:['Me detengo','Paso si circulo despacio','Sigo si no me señala directamente'],c:0,e:'La orden se dirige a quienes se acercan en una dirección que corta la marcada por el brazo o los brazos.',r:'RGC, anexo I, apartado 1.1.b'},
+ {id:'q39',l:'T3L2',q:'Un agente te detuvo con los brazos en horizontal. Después los baja sin moverse ni hacer otro gesto. ¿Puedes avanzar?',o:['Sí, porque ha terminado la orden','Sí, si el semáforo está verde','No, la orden de detención sigue vigente'],c:2,e:'Bajar los brazos no revoca la orden si el agente conserva su posición y no realiza otra señal.',r:'RGC, anexo I, apartado 1.1.b'},
+ {id:'q40',l:'T3L2',q:'¿Qué indica un toque largo de silbato del agente tras haber detenido el tráfico?',o:['Que reanudes la marcha','Que detengas el vehículo','Que cambies de carril'],c:0,e:'El silbido largo ordena reanudar la marcha. Los toques breves y frecuentes ordenan detenerse.',r:'RGC, anexo I, apartado 1.1.e'},
+ {id:'q41',l:'T3L2',q:'Un agente balancea una luz amarilla dirigida hacia ti. ¿Qué debes hacer?',o:['Reducir la velocidad sin detenerme','Detenerme','Continuar si puedo incorporarme sin peligro'],c:1,e:'El balanceo de una luz amarilla o roja ordena detenerse al usuario hacia quien se dirige.',r:'RGC, anexo I, apartado 1.1.c'},
+ {id:'q42',l:'T3L3',q:'Hay una fila de conos que delimita una zona cerrada por obras. ¿Puedes atravesarla si cabes entre dos conos?',o:['Sí, si la carretera está despejada','Sí, si vuelvo a salir antes de llegar a la obra','No, debo respetar la línea que forman los conos'],c:2,e:'Está prohibido atravesar la línea de los dispositivos delimitadores, aunque no sea una barrera continua.',r:'RGC, art. 142.4 y anexo I, apartado 3.1.1'},
+ {id:'q43',l:'T3L3',q:'¿Qué función tiene un hito de arista situado al borde de la carretera?',o:['Ayuda a reconocer el borde con poca visibilidad','Cierra el arcén de forma temporal','Señala el lugar exacto para detenerse'],c:0,e:'Es un dispositivo de guía que ayuda a distinguir el borde de la carretera, especialmente de noche o con baja visibilidad.',r:'RGC, anexo I, apartado 3.1.2'},
+ {id:'q44',l:'T3L3',q:'¿De qué color se pintan las marcas viales nuevas que se usan en un tramo en obras?',o:['Del mismo color que todas las marcas anteriores','Amarillo','Rojo'],c:1,e:'Las nuevas marcas de obra se pintan en amarillo. Las anteriores pueden seguir en blanco si todavía se aplican.',r:'RGC, anexo I, apartado 5.2, características generales'},
+ {id:'q45',l:'T3L3',q:'¿Qué indica un panel direccional provisional colocado para cerrar parte de la vía?',o:['El sentido del paso habilitado y la prohibición de entrar en lo cerrado','Solo la cercanía de una curva','Que se puede cruzar por ambos lados si no hay tráfico'],c:0,e:'El panel provisional prohíbe pasar por la parte cerrada e informa del sentido de la circulación.',r:'RGC, anexo I, apartado 3.1.1'},
+ {id:'q46',l:'T3L3',q:'¿Cuándo vuelven a aplicarse las reglas habituales tras un cambio temporal de señalización?',o:['En cuanto dejas de ver el primer panel','Al anochecer','Cuando lo indique la señalización o terminen las circunstancias que causaron el cambio'],c:2,e:'El fin de la modificación depende de lo que establezca la señalización o del fin de las causas que motivaron el cambio.',r:'RGC, art. 142.1'},
+ {id:'q47',l:'T3L4',q:'Se enciende la luz amarilla fija y puedes parar antes de la línea con seguridad. ¿Qué haces?',o:['Sigo, porque todavía no está en rojo','Me detengo','Cedo únicamente si se acerca un vehículo por la derecha'],c:1,e:'Con amarillo fijo debes detenerte si tienes espacio suficiente para hacerlo con seguridad.',r:'RGC, anexo I, apartado 4.2.c'},
+ {id:'q48',l:'T3L4',q:'Hay amarillo intermitente y un STOP que se aplica a tu carril. ¿Debes detenerte?',o:['Sí, el STOP sigue obligando a parar','Solo si hay tráfico en la otra vía','No, la luz sustituye al STOP'],c:0,e:'El amarillo intermitente obliga a extremar la precaución y no elimina las señales que obligan a detenerse.',r:'RGC, anexo I, apartado 4.2.d'},
+ {id:'q49',l:'T3L4',q:'El semáforo general está rojo y hay una flecha verde a la derecha. Vas a girar a la derecha. ¿Qué implica la flecha?',o:['Puedes girar con prioridad sobre quienes ya circulan por la vía de destino','Solo podrás girar cuando la luz general cambie','Permite girar con precaución, dejando pasar a los vehículos de tu carril de destino y sin poner en peligro a quienes cruzan'],c:2,e:'La flecha autoriza la dirección indicada, pero debes dejar pasar a quienes ya circulan por el carril al que entras y proteger a los demás usuarios que cruzan.',r:'RGC, anexo I, apartado 4.2.g'},
+ {id:'q50',l:'T3L4',q:'Circulas por un carril y se enciende un aspa roja sobre él. ¿Qué debes hacer?',o:['Abandonar ese carril lo antes posible','Esperar detenido bajo el aspa','Seguir por el carril hasta la próxima salida'],c:0,e:'El aspa roja prohíbe ocupar el carril indicado. Quien ya esté circulando por él debe salir de ese carril lo antes posible.',r:'RGC, anexo I, apartado 4.3.a'},
+ {id:'q51',l:'T3L4',q:'Mientras cruzas como peatón, la luz verde empieza a parpadear. ¿Qué anuncia?',o:['Que los vehículos seguirán parados durante otro ciclo','Que queda poco tiempo para terminar de cruzar y aparecerá la luz roja','Que el semáforo ha dejado de funcionar'],c:1,e:'El verde intermitente avisa de que está a punto de terminar el tiempo disponible para completar el cruce.',r:'RGC, anexo I, apartado 4.1.b'},
+ {id:'q52',l:'T3L5',img:'entry',q:'¿Qué indica esta señal?',o:['Vía reservada para vehículos de emergencia','Calzada cerrada en ambos sentidos','Prohibición de entrar desde el sentido en que está colocada'],c:2,e:'La R-101 prohíbe el acceso a los vehículos desde el sentido por el que llegan a la señal.',r:'RGC, anexo I, apartado 5.1, señal R-101'},
+ {id:'q53',l:'T3L5',img:'speed',q:'¿Qué indica el número de esta señal?',o:['La velocidad máxima permitida, en km/h','La velocidad mínima que debes mantener','La velocidad recomendada para el tramo'],c:0,e:'La R-301 fija un límite máximo. Puedes circular más despacio cuando lo exijan las circunstancias.',r:'RGC, anexo I, apartado 5.1, señal R-301'},
+ {id:'q54',l:'T3L5',q:'¿Cuál es la función de una señal de advertencia de peligro?',o:['Reservar una vía a una clase de vehículos','Avisar con antelación de un riesgo y de su naturaleza','Confirmar siempre un itinerario o destino'],c:1,e:'Estas señales advierten con tiempo de un riesgo, como una curva o la proximidad de obras.',r:'RGC, art. 144'},
+ {id:'q55',l:'T3L5',q:'Debajo de una señal de peligro hay un panel S-800 que indica 200 m. ¿Cómo debes interpretar esa distancia?',o:['Como la longitud del tramo peligroso','Como la distancia hasta la siguiente señal de velocidad','Como la distancia que falta hasta donde comienza el peligro'],c:2,e:'El S-800 indica cuánto falta hasta el inicio del peligro. El S-810 indica la longitud del tramo en el que existe.',r:'RGC, art. 144.2 y 144.3 y anexo I, apartado 5.1'},
+ {id:'q56',l:'T3L5',img:'ceda',q:'¿A qué familia pertenece esta señal?',o:['Reglamentación: prioridad','Indicación: servicios','Advertencia de peligro'],c:0,e:'Aunque es triangular, la R-1 es una señal de prioridad, que pertenece a la familia de reglamentación.',r:'RGC, art. 145.2.a y anexo I, apartado 5.1, señal R-1'},
+ {id:'q57',l:'T3L6',q:'Hay una línea continua junto a una discontinua separando los dos sentidos. Quieres iniciar un adelantamiento y la continua está de tu lado. ¿Puedes atravesarla en condiciones ordinarias?',o:['Sí, si la discontinua está al otro lado','No, para iniciar la maniobra cuenta la línea de tu lado','Sí, si el vehículo adelantado circula por debajo del límite'],c:1,e:'Para iniciar la maniobra debes tener en cuenta la línea más próxima a tu carril. La continua de tu lado impide atravesarla como regla general.',r:'RGC, anexo I, apartado 5.2, marcas M-3.1 a M-3.3'},
+ {id:'q58',l:'T3L6',q:'El semáforo está rojo y hay una línea transversal continua antes del cruce. ¿Dónde debes detenerte?',o:['Delante de la línea, sin rebasarla','A la altura del poste, aunque rebases la línea','Justo después de la línea'],c:0,e:'La marca M-4.1 establece el límite que no debes sobrepasar cuando el semáforo ordena detenerse.',r:'RGC, anexo I, apartados 4.2.a y 5.2, marca M-4.1'},
+ {id:'q59',l:'T3L6',q:'¿Qué indica una línea amarilla discontinua pintada en el bordillo?',o:['Prohibición de parar y estacionar','Obligación de estacionar junto al bordillo','Prohibición de estacionar'],c:2,e:'La amarilla discontinua prohíbe estacionar. La continua prohíbe tanto la parada como el estacionamiento.',r:'RGC, anexo I, apartado 5.2, marcas M-7.7 y M-7.8'},
+ {id:'q60',l:'T3L6',q:'Una flecha de fin de carril te indica cambiar a la izquierda. Por el carril izquierdo ya circula un vehículo. ¿Qué haces?',o:['Cambio, porque la flecha me da prioridad','Espero un hueco y respeto la prioridad del vehículo de la izquierda','Me detengo donde está pintada la flecha'],c:1,e:'La flecha avisa de que tu carril termina. Al cambiar, debe pasar primero quien ya circula por el carril que quieres ocupar.',r:'RGC, anexo I, apartado 5.2, marca M-5.4'},
+ {id:'q61',l:'T3L6',q:'En un cruce sin señal vertical ni semáforo hay un STOP pintado y una línea de detención. ¿Qué debes hacer?',o:['Detenerte antes de la línea y después ceder el paso','Reducir la velocidad y seguir si no hay vehículos','Detenerte solo si una señal vertical refuerza la marca'],c:0,e:'La marca vial de STOP puede ordenar por sí misma detenerse y después ceder el paso.',r:'RGC, anexo I, apartado 5.2, marcas M-6.3 y M-6.4'}
+];
+
+const TOPIC_CONTENT={
+ '3':{desc:'Aprende a interpretar las señales, las órdenes de los agentes, los semáforos y las marcas de la calzada.',lessons:SIGN_LESSONS,questions:SIGN_QUESTIONS,sims:[]},
+ '5':{desc:'Quién pasa primero en cruces, glorietas y estrechamientos, y cuándo ceder a peatones, ciclistas y emergencias.',lessons:PRIORITY_LESSONS,questions:PRIORITY_QUESTIONS,sims:['cruces','glorietas']}
+};
+const TOPICS=[...COMUN,...MOTO].map(([id,name])=>({id,name,...TOPIC_CONTENT[id]}));
+const TOPIC_BY_ID=Object.fromEntries(TOPICS.map(topic=>[topic.id,topic]));
+const ACTIVE_TOPICS=TOPICS.filter(topic=>topic.lessons?.length);
+const LESSONS=ACTIVE_TOPICS.flatMap(topic=>topic.lessons);
+const TOPIC_BY_LESSON=Object.fromEntries(ACTIVE_TOPICS.flatMap(topic=>topic.lessons.map(lesson=>[lesson.id,topic])));
+const QS=ACTIVE_TOPICS.flatMap(topic=>topic.questions);
 const QBY=Object.fromEntries(QS.map(q=>[q.id,q]));
 
 /* ================= Simuladores ================= */
@@ -751,10 +864,10 @@ function questionStats(questions){
   questions.forEach(q=>{const r=S.q[q.id];if(r&&r.n){seen++;if(r.last)ok++;}});
   return {seen,ok};
 }
-function topicStats(){const {seen,ok}=questionStats(QS);
-  const done=LESSONS.filter(l=>S.lessons[l.id]).length,pct=Math.round(ok/QS.length*100);
+function topicStats(topic){const {seen,ok}=questionStats(topic.questions);
+  const done=topic.lessons.filter(l=>S.lessons[l.id]).length,pct=Math.round(ok/topic.questions.length*100);
   let level='Por empezar',cls='';
-  if(seen||done){if(pct>=85&&done===LESSONS.length){level='Dominado';cls='ok';}else if(pct>=50){level='Casi dominado';cls='acc';}else{level='Aprendiendo';cls='warn';}}
+  if(seen||done){if(pct>=85&&done===topic.lessons.length){level='Dominado';cls='ok';}else if(pct>=50){level='Casi dominado';cls='acc';}else{level='Aprendiendo';cls='warn';}}
   return{seen,ok,done,pct,level,cls};}
 const fallos=()=>QS.filter(q=>isFallo(q.id));
 const dueFallos=()=>fallos().filter(q=>(S.q[q.id].due||0)<=Date.now());
@@ -867,47 +980,63 @@ function viewOnboard(){
 
 const VIEWS={
  inicio(){header();
-  const st=topicStats(),nxt=LESSONS.find(l=>!S.lessons[l.id]),due=dueFallos().length,sk=streak();
+  const suggested=ACTIVE_TOPICS.map(topic=>({topic,stats:topicStats(topic)}));
+  const {topic,stats:st}=suggested.find(({topic,stats})=>stats.done>0&&stats.done<topic.lessons.length)||
+    suggested.find(({topic,stats})=>stats.done<topic.lessons.length)||suggested[0];
+  const nxt=topic.lessons.find(l=>!S.lessons[l.id]),due=dueFallos().length,sk=streak();
   const simTodo=Object.keys(SIMS).find(k=>!S.sims[k])||Object.keys(SIMS).sort((a,b)=>(S.sims[a].best/S.sims[a].total)-(S.sims[b].best/S.sims[b].total))[0];
   const plan=[];
-  if(nxt) plan.push(item({go:'lesson',id:nxt.id,icon:'book',t:nxt.t,s:`Lección · ${nxt.min} min`}));
-  else plan.push(item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema 5',s:'15 preguntas con explicación'}));
+  if(nxt) plan.push(item({go:'lesson',id:nxt.id,icon:'book',t:nxt.t,s:`${esc(topic.name)} · ${nxt.min} min`}));
+  else plan.push(item({go:'quiz',mode:'tema',id:topic.id,icon:'pen',t:`Test de ${topic.name.toLowerCase()}`,s:'Preguntas con explicación'}));
   if(due) plan.push(item({go:'quiz',mode:'repaso-programado',icon:'redo',tone:'peach',t:`Repasa ${due} ${due===1?'pregunta':'preguntas'}`,s:'Repaso programado · disponibles ahora'}));
   plan.push(item({go:'sim',id:simTodo,icon:'wheel',tone:'blue',t:'Simulador: '+SIMS[simTodo].name.toLowerCase(),s:S.sims[simTodo]?`Tu mejor marca: ${S.sims[simTodo].best} de ${S.sims[simTodo].total}`:'Todavía sin probar'}));
   const d=new Date(),dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'],h=d.getHours(),saludo=h<14?'buenos días':h<21?'buenas tardes':'buenas noches';
   const feel={'Por empezar':'listo para empezar','Aprendiendo':'vas cogiendo ritmo','Casi dominado':'vas por buen camino','Dominado':'¡tema dominado!'}[st.level];
   const msg=sk>=2?`🔥 Llevas ${sk} días seguidos. Poco a poco se llega lejos.`:sk===1?'🌱 Hoy ya has estudiado. Mañana, otro poquito.':'🌱 Diez minutos al día bastan para avanzar.';
   V.innerHTML=`<div class="hi"><div><p>${dias[d.getDay()]}, ${saludo}</p><h2>Hola${S.profile.name?', '+esc(S.profile.name):''}</h2></div><div class="av">${mascot(44)}</div></div>
-  <div class="prog">${ringSVG(st.pct)}<div><h3>Prioridad de paso</h3><p class="small muted">${st.done} de ${LESSONS.length} lecciones · ${feel}</p></div></div>
+  <div class="prog">${ringSVG(st.pct)}<div><h3>${esc(topic.name)}</h3><p class="small muted">${st.done} de ${topic.lessons.length} lecciones · ${feel}</p></div></div>
   <div class="section-title">Para hoy, unos 20 minutos</div><div class="list">${plan.join('')}</div>
   <div class="quote">${msg}</div>
-  <p class="note">Versión ${VERSION}: de momento está completo el tema 5. El resto del temario llegará en las próximas versiones.</p>`;
+  <p class="note">Autoescuela · versión ${VERSION}</p>`;
  },
  temario(){header();
-  const st=topicStats(),showMoto=S.profile.obj!=='B',exento=S.profile.obj==='A2B';
-  const comun=COMUN.map(([n,t])=>n==='5'?item({go:'tema',ic:n,t,s:`${st.done}/${LESSONS.length} lecciones · ${st.pct}% de aciertos`,right:`<span class="chip ${st.cls}">${st.level}</span>`}):item({ic:n,t,s:'Próximamente',disabled:true}));
-  V.innerHTML=`<div class="section-title">Teoría común${exento?' · opcional, estás exento':''}</div><div class="list">${comun.join('')}</div>
-  ${showMoto?`<div class="section-title">Teoría específica de moto</div><div class="list">${MOTO.map(([n,t])=>item({ic:n,t,s:'Próximamente',disabled:true})).join('')}</div>`:''}`;
+  const showMoto=S.profile.obj!=='B',exento=S.profile.obj==='A2B';
+  const topicRow=([id])=>{
+    const topic=TOPIC_BY_ID[id];
+    if(!topic.lessons?.length)return item({ic:id,t:topic.name,s:'Próximamente',disabled:true});
+    const st=topicStats(topic);
+    return item({go:'tema',id,ic:id,t:topic.name,s:`${st.done}/${topic.lessons.length} lecciones · ${st.pct}% de aciertos`,right:`<span class="chip ${st.cls}">${st.level}</span>`});
+  };
+  V.innerHTML=`<div class="section-title">Teoría común${exento?' · opcional, estás exento':''}</div><div class="list">${COMUN.map(topicRow).join('')}</div>
+  ${showMoto?`<div class="section-title">Teoría específica de moto</div><div class="list">${MOTO.map(topicRow).join('')}</div>`:''}`;
  },
- tema(){header('Tema 5 · Prioridad de paso');
-  const st=topicStats();
-  V.innerHTML=`<div class="card"><div class="eyebrow">Tema 5</div><h2>Prioridad de paso</h2><p class="muted">Quién pasa primero en cruces, glorietas y estrechamientos, y cuándo ceder a peatones, ciclistas y emergencias.</p>
+ tema(v){
+  const topic=TOPIC_BY_ID[v.id||'5'];
+  if(!topic?.lessons?.length){VIEWS.temario();return;}
+  header(`Tema ${topic.id} · ${topic.name}`);
+  const st=topicStats(topic);
+  V.innerHTML=`<div class="card"><div class="eyebrow">Tema ${topic.id}</div><h2>${esc(topic.name)}</h2><p class="muted">${esc(topic.desc)}</p>
    <div style="display:flex;justify-content:space-between;align-items:center"><span class="chip ${st.cls}">${st.level}</span><span class="small muted">${st.pct}% de aciertos</span></div><div class="bar"><i style="width:${st.pct}%"></i></div></div>
-   <div class="section-title">Lecciones</div><div class="list">${LESSONS.map((l,i)=>item({go:'lesson',id:l.id,cls:S.lessons[l.id]?'done':'',ic:i+1,icon:S.lessons[l.id]?'check':null,t:l.t,s:`${l.min} min${S.lessons[l.id]?' · leída':''}`})).join('')}</div>
-   <div class="section-title">Practicar</div><div class="list">${item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema',s:'15 preguntas al azar, con explicación'})}
-   ${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>`;
+   <div class="section-title">Lecciones</div><div class="list">${topic.lessons.map((l,i)=>item({go:'lesson',id:l.id,cls:S.lessons[l.id]?'done':'',ic:i+1,icon:S.lessons[l.id]?'check':null,t:l.t,s:`${l.min} min${S.lessons[l.id]?' · leída':''}`})).join('')}</div>
+   <div class="section-title">Practicar</div><div class="list">${item({go:'quiz',mode:'tema',id:topic.id,icon:'pen',t:'Test del tema',s:`${Math.min(15,topic.questions.length)} preguntas al azar, con explicación`})}
+   ${topic.sims.map(id=>{const sim=SIMS[id];return item({go:'sim',id,icon:'wheel',tone:'blue',t:sim.name,s:S.sims[id]?`Mejor resultado: ${S.sims[id].best}/${S.sims[id].total}`:sim.desc});}).join('')}</div>`;
  },
- lesson(v){const l=LESSONS.find(x=>x.id===v.id),i=LESSONS.indexOf(l);header(`Lección ${i+1} de ${LESSONS.length}`);
-  V.innerHTML=`<div><div class="eyebrow">Tema 5 · ${l.min} min</div><h2>${esc(l.t)}</h2></div>
+ lesson(v){
+  const topic=TOPIC_BY_LESSON[v.id];
+  if(!topic){VIEWS.temario();return;}
+  const i=topic.lessons.findIndex(l=>l.id===v.id),l=topic.lessons[i],next=topic.lessons[i+1];
+  const questionCount=Math.min(3,topic.questions.filter(q=>q.l===l.id).length);
+  header(`Lección ${i+1} de ${topic.lessons.length}`);
+  V.innerHTML=`<div><div class="eyebrow">Tema ${topic.id} · ${l.min} min</div><h2>${esc(l.t)}</h2></div>
   <button class="btn ghost listen" type="button" id="listen">${SPK_ICON} Escuchar la lección</button>
   <div class="key"><small>Idea clave</small>${withSigns(l.key)}</div>
-  ${l.anim?explainerHTML(l.anim):ILL[l.ill]()}
+  ${l.anim?explainerHTML(l.anim):ILL[l.ill]?.()||''}
   <div class="card lesson">${withSigns(l.body)}</div>
   <div class="tip"><b>Truco para recordar.</b> ${withSigns(l.tip)}</div>
   <div class="errs"><b>Errores frecuentes en el examen</b><ul>${l.errs.map(e=>`<li>${withSigns(e)}</li>`).join('')}</ul></div>
-  <p class="ref">Referencia: ${withSigns(l.ref)}</p>
-  <div class="card"><h3>Comprueba lo aprendido</h3><p class="muted small">3 preguntas rápidas sobre esta lección.</p><button class="btn primary" type="button" data-go="quiz" data-mode="lesson" data-id="${l.id}">Empezar</button></div>
-  ${LESSONS[i+1]?`<button class="btn ghost" type="button" id="nextL">Siguiente lección: ${esc(LESSONS[i+1].t)}</button>`:''}`;
+  <p class="ref lesson-ref">Referencia: ${l.source?`<a href="${RGC+l.source}" target="_blank" rel="noopener">${esc(l.ref)}</a>`:withSigns(l.ref)}</p>
+  ${questionCount?`<div class="card"><h3>Comprueba lo aprendido</h3><p class="muted small">${questionCount} ${questionCount===1?'pregunta rápida':'preguntas rápidas'} sobre esta lección.</p><button class="btn primary" type="button" data-go="quiz" data-mode="lesson" data-id="${l.id}">Empezar</button></div>`:''}
+  ${next?`<button class="btn ghost" type="button" id="nextL">Siguiente lección: ${esc(next.t)}</button>`:''}`;
   if(l.anim)startExplainer(l.anim);
   const lb=document.getElementById('listen');let reading=false;
   lb.onclick=()=>{if(reading){stopSpeech();reading=false;lb.innerHTML=SPK_ICON+' Escuchar la lección';return;}
@@ -915,7 +1044,7 @@ const VIEWS={
     const parts=[l.t+'.','Idea clave. '+l.key].concat(splitText(tmp.textContent)).concat(['Truco para recordar. '+l.tip]);
     reading=true;lb.innerHTML=STOP_ICON+' Detener la lectura';
     speakList(parts,()=>{reading=false;lb.innerHTML=SPK_ICON+' Escuchar la lección';},true);};
-  const n=document.getElementById('nextL');if(n)n.onclick=()=>{stack.pop();go({name:'lesson',id:LESSONS[i+1].id});};
+  const n=document.getElementById('nextL');if(n)n.onclick=()=>{stack[stack.length-1]={name:'lesson',id:next.id};rememberView(false);render();};
  },
  quiz(v){
   let ids,title;
@@ -932,7 +1061,7 @@ const VIEWS={
     else{ids=shuffle(savedQuestions()).map(q=>q.id);title='Preguntas guardadas';}
   }
   else if(v.mode==='rapido'){ids=shuffle(QS).slice(0,5).map(q=>q.id);title='Test rápido';}
-  else {ids=shuffle(QS).slice(0,15).map(q=>q.id);title='Test del tema 5';}
+  else {const topic=TOPIC_BY_ID[v.id||'5'];ids=shuffle(topic?.questions||[]).slice(0,15).map(q=>q.id);title=`Test del tema ${topic?.id||''}`;}
   header(title);
   if(!ids.length){
     const message=v.mode==='guardadas'?'Pulsa «Guardar pregunta» durante un test para encontrarla aquí.':
@@ -957,7 +1086,7 @@ const VIEWS={
   </section>
   <div class="section-title">Tests</div><div class="list">
    ${item({go:'quiz',mode:'rapido',icon:'bolt',tone:'peach',t:'Test rápido',s:'5 preguntas para un rato libre'})}
-   ${item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema 5',s:'Prioridad de paso, con explicación'})}
+   ${ACTIVE_TOPICS.map(topic=>item({go:'quiz',mode:'tema',id:topic.id,icon:'pen',t:`Test del tema ${topic.id}`,s:esc(topic.name)})).join('')}
    ${item({go:'guardadas',icon:'bookmark',t:'Preguntas guardadas',s:savedCount?`${savedCount} ${savedCount===1?'pregunta':'preguntas'} para practicar`:'Guarda preguntas durante un test'})}
    ${item({go:'quiz',mode:'fallos',icon:'redo',tone:'peach',t:'Test de fallos',s:pending.length?'Practica tus fallos cuando quieras':'Aún no tienes fallos',disabled:!pending.length})}</div>
    <div class="section-title">Simuladores de conducción</div><div class="list">${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>
@@ -1024,21 +1153,22 @@ const VIEWS={
   V.innerHTML=`<div class="card"><div class="eyebrow">Próximamente</div><h2>Simulacros de examen</h2><p>Reproducirán el examen real de la DGT: preguntas de todos los temas, tiempo límite y corrección al final.</p>
    <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px"><li>Teoría común: 30 preguntas, máximo 3 fallos</li><li>Específica de moto: máximo 2 fallos</li><li>Historial de notas e indicador de «Listo para el examen»</li></ul>
    <p class="muted small">Llegarán cuando esté el resto del temario, para que mezclen preguntas de todos los temas.</p></div>
-   <div class="section-title">Mientras tanto</div><div class="list">${item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema 5',s:'15 preguntas al azar'})}</div>`;
+   <div class="section-title">Mientras tanto</div><div class="list">${ACTIVE_TOPICS.map(topic=>item({go:'quiz',mode:'tema',id:topic.id,icon:'pen',t:`Test del tema ${topic.id}`,s:esc(topic.name)})).join('')}</div>`;
  },
  progreso(){header();
-  const st=topicStats(),tot=Object.values(S.q).reduce((a,r)=>a+r.n,0),okc=Object.values(S.q).reduce((a,r)=>a+r.ok,0);
-  const lessonRows=LESSONS.map((lesson,index)=>{
-    const questions=QS.filter(q=>q.l===lesson.id);
+  const tot=Object.values(S.q).reduce((a,r)=>a+r.n,0),okc=Object.values(S.q).reduce((a,r)=>a+r.ok,0);
+  const lessonGroups=ACTIVE_TOPICS.map(topic=>`<h3 class="section-title">${topic.id} · ${esc(topic.name)}</h3><div class="list">${topic.lessons.map((lesson,index)=>{
+    const questions=topic.questions.filter(q=>q.l===lesson.id);
     const {seen,ok}=questionStats(questions);
     const stats=seen?`Practicadas ${seen}/${questions.length} · Aciertos ${ok}/${seen}`:`Sin practicar · ${questions.length} preguntas`;
     return item({go:'quiz',mode:'practica-leccion',id:lesson.id,ic:index+1,t:lesson.t,s:stats,disabled:!questions.length});
-  });
-  const testNames={lesson:'Comprobación de lección','practica-leccion':'Práctica de lección',tema:'Test del tema 5',rapido:'Test rápido',fallos:'Test de fallos',repaso:'Repaso del último intento','repaso-programado':'Repaso programado',guardadas:'Preguntas guardadas'};
+  }).join('')}</div>`);
+  const testNames={lesson:'Comprobación de lección','practica-leccion':'Práctica de lección',rapido:'Test rápido',fallos:'Test de fallos',repaso:'Repaso del último intento','repaso-programado':'Repaso programado',guardadas:'Preguntas guardadas'};
   const testDate=new Intl.DateTimeFormat('es-ES',{dateStyle:'medium',timeStyle:'short'});
   const recentTests=S.tests.slice().reverse().sort((a,b)=>b.d-a.d).slice(0,50);
-  const historyRows=recentTests.map(({mode,d,ok,n})=>{
-    const name=Object.hasOwn(testNames,mode)?testNames[mode]:'Test';
+  const historyRows=recentTests.map(({mode,d,ok,n,topic})=>{
+    const name=mode==='tema'?`Test del tema ${typeof topic==='string'&&Object.hasOwn(TOPIC_BY_ID,topic)?topic:'5'}`:
+      Object.hasOwn(testNames,mode)?testNames[mode]:'Test';
     const date=new Date(d);
     const when=Number.isFinite(date.getTime())?`<time class="small muted" datetime="${date.toISOString()}">${testDate.format(date)}</time>`:
       '<span class="small muted">Fecha no disponible</span>';
@@ -1046,10 +1176,10 @@ const VIEWS={
   });
   V.innerHTML=`<div class="grid2"><div class="stat"><b>${tot}</b><span>respuestas</span></div><div class="stat"><b>${tot?Math.round(okc/tot*100):0}%</b><span>de aciertos</span></div><div class="stat"><b>${streak()}</b><span>días seguidos</span></div><div class="stat"><b>${fallos().length}</b><span>por repasar</span></div></div>
   <div class="section-title">Dominio por tema</div>
-  <div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>5 · Prioridad de paso</b><span class="chip ${st.cls}">${st.level}</span></div><div class="bar"><i style="width:${st.pct}%"></i></div><span class="small muted">${st.done}/${LESSONS.length} lecciones · ${st.ok} de ${QS.length} preguntas acertadas en su último intento</span></div>
+  ${ACTIVE_TOPICS.map(topic=>{const st=topicStats(topic);return `<div class="card" data-topic-progress="${topic.id}"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center"><b>${topic.id} · ${esc(topic.name)}</b><span class="chip ${st.cls}">${st.level}</span></div><div class="bar"><i style="width:${st.pct}%"></i></div><span class="small muted">${st.done}/${topic.lessons.length} lecciones · ${st.ok} de ${topic.questions.length} preguntas acertadas en su último intento</span></div>`;}).join('')}
   <details class="card progress-details lesson-progress"><summary>Progreso por lección</summary>
    <p class="small muted">Los aciertos se calculan con tu última respuesta a cada pregunta. Toca una lección para practicar todas sus preguntas.</p>
-   <div class="list">${lessonRows.join('')}</div>
+   ${lessonGroups.join('')}
   </details>
   <details class="card progress-details test-history"><summary>Historial de tests</summary>
    ${historyRows.length?`<ol class="list" role="list">${historyRows.join('')}</ol>`:'<p class="small muted">Aquí aparecerán los tests y repasos que termines.</p>'}
@@ -1298,12 +1428,15 @@ function runQuiz(ids,v){
   const finish=()=>{
     const ok=res.filter(Boolean).length,n=ids.length;
     if(v.mode==='lesson'){S.lessons[v.id]=true;}
-    S.tests.push({d:Date.now(),mode:v.mode,ok,n});S.tests=S.tests.slice(-50);save();
+    S.tests.push({d:Date.now(),mode:v.mode,ok,n,...(v.mode==='tema'?{topic:v.id||'5'}:{})});S.tests=S.tests.slice(-50);
     const wrongIds=ids.filter((_,k)=>!res[k]);
     const wrong=wrongIds.map(id=>QBY[id]);
     const repeatLabel=v.mode==='guardadas'&&v.id?'Repetir pregunta':v.mode==='repaso'?'Repetir repaso':'Repetir test';
     const msg=ok===n?'¡Perfecto, ni un fallo!':ok/n>=.7?'¡Bien! Echa un vistazo a las que fallaste.':'No pasa nada: repasa la lección y vuelve a intentarlo.';
-    const before=S.dom5;const stn=topicStats();if(stn.level==='Dominado'&&!before){S.dom5=true;save();setTimeout(()=>celebrate('topic'),300);}else if(ok===n)celebrate('perfect');else if(v.mode==='lesson')celebrate('lesson');
+    const mastered=ACTIVE_TOPICS.find(topic=>!S.masteredTopics?.includes(topic.id)&&!(topic.id==='5'&&S.dom5)&&topicStats(topic).level==='Dominado');
+    if(mastered){S.masteredTopics=[...(S.masteredTopics||[]),mastered.id];if(mastered.id==='5')S.dom5=true;setTimeout(()=>celebrate('topic'),300);}
+    else if(ok===n)celebrate('perfect');else if(v.mode==='lesson')celebrate('lesson');
+    save();
     V.innerHTML=`<div class="card result"><div class="mascot-c">${mascot(80)}</div><div class="big">${ok}/${n}</div><p class="muted">${msg}</p>
      ${earnedStreak?`<p class="note">🔥 Racha de ${streak()} días</p>`:''}
      ${wrong.length?`<button class="btn primary retry-missed" type="button" id="retryMissed">Repasar ${wrong.length} ${wrong.length===1?'fallo':'fallos'}</button>`:''}
