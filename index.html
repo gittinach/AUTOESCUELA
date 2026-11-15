@@ -127,9 +127,16 @@ figure{margin:0}
 .fb.ok{background:var(--ok-bg)}.fb.bad{background:var(--bad-bg)}
 .fb .v{font-family:var(--display);font-weight:700;font-size:20px}
 .fb.ok .v{color:var(--ok)}.fb.bad .v{color:var(--bad)}
-.q-correct-star{display:inline-block;margin-inline-start:6px}
-@media (prefers-reduced-motion: no-preference){.q-correct-star{animation:q-star-pop .6s ease-out}}
+.q-verdict{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px}
+.q-reaction{flex:none;display:grid;place-items:center;line-height:1}
+.q-correct-star{font-size:32px;margin-inline-end:8px}
+.q-sad-car svg{display:block}
+@media (prefers-reduced-motion: no-preference){
+  .q-correct-star{animation:q-star-pop .6s ease-out}
+  .q-sad-car{animation:q-car-sigh .7s ease-out}
+}
 @keyframes q-star-pop{0%{transform:scale(.4);opacity:0}45%{transform:scale(1.45) rotate(-14deg)}75%{transform:scale(.9) rotate(8deg)}100%{transform:none;opacity:1}}
+@keyframes q-car-sigh{0%,100%{transform:none}40%{transform:translateY(4px) rotate(-8deg) scale(.96)}}
 .result{text-align:center;align-items:center}
 .result .big{font-family:var(--display);font-weight:700;font-size:60px;line-height:1;font-variant-numeric:tabular-nums}
 .review{display:flex;flex-direction:column;gap:8px;text-align:left;width:100%}
@@ -268,7 +275,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.6.14';
+const VERSION='0.6.15';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -777,7 +784,9 @@ const ICN={
  bolt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
 };
-const mascot=(w)=>`<svg width="${w}" viewBox="0 0 120 100" role="img" aria-label="Mascota de la app"><ellipse cx="60" cy="92" rx="44" ry="6" fill="rgba(0,0,0,.12)"/><rect x="14" y="40" width="92" height="40" rx="18" fill="#4A94FF"/><path d="M32 42 Q38 14 60 14 Q82 14 88 42 Z" fill="#4A94FF"/><path d="M40 40 Q44 22 60 22 Q76 22 80 40 Z" fill="#CFE6FF"/><circle cx="48" cy="56" r="10" fill="#fff"/><circle cx="72" cy="56" r="10" fill="#fff"/><circle cx="50" cy="57" r="5" fill="#1A2230"/><circle cx="74" cy="57" r="5" fill="#1A2230"/><circle cx="52" cy="55" r="1.6" fill="#fff"/><circle cx="76" cy="55" r="1.6" fill="#fff"/><path d="M52 68 Q60 75 68 68" stroke="#1A2230" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="36" cy="66" r="4" fill="#FF8FA3" opacity=".7"/><circle cx="84" cy="66" r="4" fill="#FF8FA3" opacity=".7"/><circle cx="32" cy="82" r="11" fill="#2B2F36"/><circle cx="32" cy="82" r="4.5" fill="#B9C0C8"/><circle cx="88" cy="82" r="11" fill="#2B2F36"/><circle cx="88" cy="82" r="4.5" fill="#B9C0C8"/><rect x="100" y="52" width="7" height="8" rx="3" fill="#FFE27A"/><rect x="13" y="52" width="7" height="8" rx="3" fill="#FFE27A"/></svg>`;
+const mascot=(w,sad=false)=>`<svg width="${w}" viewBox="0 0 120 100" role="img" aria-label="Mascota de la app"><ellipse cx="60" cy="92" rx="44" ry="6" fill="rgba(0,0,0,.12)"/><rect x="14" y="40" width="92" height="40" rx="18" fill="#4A94FF"/><path d="M32 42 Q38 14 60 14 Q82 14 88 42 Z" fill="#4A94FF"/><path d="M40 40 Q44 22 60 22 Q76 22 80 40 Z" fill="#CFE6FF"/><circle cx="48" cy="56" r="10" fill="#fff"/><circle cx="72" cy="56" r="10" fill="#fff"/><circle cx="50" cy="57" r="5" fill="#1A2230"/><circle cx="74" cy="57" r="5" fill="#1A2230"/><circle cx="52" cy="55" r="1.6" fill="#fff"/><circle cx="76" cy="55" r="1.6" fill="#fff"/>
+  <path d="${sad?'M52 72 Q60 62 68 72 M41 47 L51 42 M69 42 L79 47':'M52 68 Q60 75 68 68'}" stroke="#1A2230" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <circle cx="36" cy="66" r="4" fill="#FF8FA3" opacity=".7"/><circle cx="84" cy="66" r="4" fill="#FF8FA3" opacity=".7"/><circle cx="32" cy="82" r="11" fill="#2B2F36"/><circle cx="32" cy="82" r="4.5" fill="#B9C0C8"/><circle cx="88" cy="82" r="11" fill="#2B2F36"/><circle cx="88" cy="82" r="4.5" fill="#B9C0C8"/><rect x="100" y="52" width="7" height="8" rx="3" fill="#FFE27A"/><rect x="13" y="52" width="7" height="8" rx="3" fill="#FFE27A"/></svg>`;
 function showWelcome(){
   if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
   if(document.hidden){
@@ -1123,13 +1132,15 @@ function runQuiz(ids,v){
       earnedStreak=record(q.id,ok)||earnedStreak;
       V.querySelectorAll('.opt').forEach(x=>{x.disabled=true;const xo=+x.dataset.o;if(xo===q.c)x.classList.add('ok');else if(x===b)x.classList.add('bad');});
       const last=i===ids.length-1;
-      const verdict=ok?'¡Correcto! <span class="q-correct-star" aria-hidden="true">⭐</span>':'Casi. Fíjate en esto:';
+      const verdict=ok?'¡Correcto!':'Casi. Fíjate en esto:';
+      const reaction=ok?'<span class="q-reaction q-correct-star" aria-hidden="true">⭐</span>':
+        `<span class="q-reaction q-sad-car" aria-hidden="true">${mascot(62,true)}</span>`;
       const feedback=document.getElementById('qfb');
-      feedback.innerHTML=`<div class="fb ${ok?'ok':'bad'}"><span class="v">${verdict}</span><p>${withSigns(esc(q.e))}</p><span class="ref">${withSigns(esc(q.r))}</span><button class="btn primary" type="button" id="qn" style="margin-top:4px">${last?'Ver resultado':'Siguiente'}</button></div>`;
+      feedback.innerHTML=`<div class="fb ${ok?'ok':'bad'}"><div class="q-verdict"><span class="v">${verdict}</span>${reaction}</div><p>${withSigns(esc(q.e))}</p><span class="ref">${withSigns(esc(q.r))}</span><button class="btn primary" type="button" id="qn" style="margin-top:4px">${last?'Ver resultado':'Siguiente'}</button></div>`;
       if(!ok){
         const correct=document.createElement('p');
         correct.textContent='Respuesta correcta: '+q.o[q.c];
-        feedback.querySelector('.v').after(correct);
+        feedback.querySelector('.q-verdict').after(correct);
       }
       addTutor(feedback,q,o);
       feedback.focus({preventScroll:true});
