@@ -127,6 +127,9 @@ figure{margin:0}
 .fb.ok{background:var(--ok-bg)}.fb.bad{background:var(--bad-bg)}
 .fb .v{font-family:var(--display);font-weight:700;font-size:20px}
 .fb.ok .v{color:var(--ok)}.fb.bad .v{color:var(--bad)}
+.q-correct-star{display:inline-block;margin-inline-start:6px}
+@media (prefers-reduced-motion: no-preference){.q-correct-star{animation:q-star-pop .6s ease-out}}
+@keyframes q-star-pop{0%{transform:scale(.4);opacity:0}45%{transform:scale(1.45) rotate(-14deg)}75%{transform:scale(.9) rotate(8deg)}100%{transform:none;opacity:1}}
 .result{text-align:center;align-items:center}
 .result .big{font-family:var(--display);font-weight:700;font-size:60px;line-height:1;font-variant-numeric:tabular-nums}
 .review{display:flex;flex-direction:column;gap:8px;text-align:left;width:100%}
@@ -154,7 +157,21 @@ input[type=text]{width:100%;font:inherit;font-size:17px;padding:12px 14px;border
 .tutor-chat input[type=password]{min-height:44px}
 .tutor-remember{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
 .tutor-remember input{width:20px;height:20px;margin:0;flex:none;accent-color:var(--accent)}
+.tutor-status:empty{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.tutor-sheet{inset:auto 0 0;margin:0 auto;width:min(100%,520px);max-width:none;max-height:min(86vh,720px);max-height:min(86dvh,720px);padding:0;border:0;border-radius:24px 24px 0 0;background:var(--surface);color:var(--fg);box-shadow:0 12px 48px #0004;overflow:hidden}
+.tutor-sheet[open]{display:flex;flex-direction:column}
+.tutor-sheet::backdrop{background:#101a16a6}
+body:has(.tutor-sheet[open]){overflow:hidden}
+.tutor-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;background:var(--accent-soft)}
+.tutor-sheet-art{flex:none;display:grid;place-items:center;width:78px;height:64px;border-radius:18px;background:var(--blue-soft)}
+.tutor-sheet-art svg{display:block}
+.tutor-sheet-body{min-height:0;overflow:auto;overscroll-behavior:contain;padding:16px 18px}
+.tutor-sheet-body:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.tutor-sheet-doubt{display:grid;gap:4px;margin:0 0 16px;padding:10px 12px;border-radius:12px;background:var(--surface2);overflow-wrap:anywhere;white-space:pre-wrap}
 .tutor-answer{font-family:var(--body);font-size:16px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.tutor-sheet-foot{padding:10px 18px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
+.tutor-sheet-foot .btn{width:100%}
+@media (min-width:600px){.tutor-sheet{inset:0;margin:auto;border-radius:24px}}
 .tutor-wait{display:flex;align-items:center;gap:8px;min-height:56px;padding:6px 12px;border-radius:16px;background:var(--accent-soft);color:var(--fg);font-size:14px}
 .tutor-wait[hidden]{display:none}
 .tutor-wait-mascot{position:relative;display:grid;place-items:center;width:52px;height:48px;flex:none;animation:tutor-bounce .8s ease-in-out infinite alternate}
@@ -243,7 +260,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.6.10';
+const VERSION='0.6.12';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -307,13 +324,13 @@ function save(data=S){
   }
 }
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
-function markDay(){const t=today();if(!S.days.includes(t)){S.days.push(t);S.days=S.days.slice(-90);if(streak()>=2)setTimeout(()=>celebrate('streak'),1900);}}
+function markDay(){const t=today();if(S.days.includes(t))return false;S.days.push(t);S.days=S.days.slice(-90);return streak()>=2;}
 function streak(){if(!S.days.length)return 0;const set=new Set(S.days);let n=0;const d=new Date();if(!set.has(today()))d.setDate(d.getDate()-1);
   for(;;){const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(set.has(k)){n++;d.setDate(d.getDate()-1);}else break;}return n;}
 const DAY=864e5;
 function record(id,ok){const r=S.q[id]||{n:0,ok:0,last:false,streak:0,wrong:false,due:0};r.n++;r.last=ok;
   if(ok){r.ok++;r.streak++;r.due=Date.now()+[1,3,7][Math.min(r.streak-1,2)]*DAY;}else{r.streak=0;r.wrong=true;r.due=Date.now()+DAY;}
-  S.q[id]=r;markDay();save();}
+  S.q[id]=r;const earnedStreak=markDay();save();return earnedStreak;}
 const isFallo=id=>{const r=S.q[id];return r&&r.wrong&&r.streak<3;};
 
 /* ================= Temario ================= */
@@ -759,7 +776,6 @@ function emo(ch,cls,x,y,r){const e=document.createElement('div');e.className='em
 function celebrate(k){
  if(k==='lesson')emo('👏','','50%','42%');
  else if(k==='perfect'){emo('🎉','','50%','40%');['🎉','✨','⭐','✨','🎉'].forEach((c,i)=>setTimeout(()=>emo(c,'small',(10+i*19)+'%','80%',(i%2?20:-20)+'deg'),150+i*90));}
- else if(k==='fail')emo('💪','','50%','42%');
  else if(k==='streak'){emo('🔥','','50%','40%');[0,1,2].forEach(i=>setTimeout(()=>emo('🔥','small',(30+i*20)+'%','82%','0deg'),200+i*120));}
  else if(k==='sim')emo('🚗','car','0','46%');
  else if(k==='topic'){emo('🏁','','50%','40%');['🏆','⭐','🏆'].forEach((c,i)=>setTimeout(()=>emo(c,'small',(25+i*25)+'%','82%',(i-1)*15+'deg'),200+i*120));}
@@ -960,10 +976,31 @@ function addTutor(feedback,q,choice){
       <p class="small muted">Necesita internet. La consulta se envía al proveedor de IA.</p>
       <button class="btn ghost" type="submit">Enviar duda</button>
       <div class="tutor-wait" hidden aria-hidden="true"><span class="tutor-wait-mascot">${mascot(52)}</span><span>La mascota busca una explicación…</span></div>
-      <p class="tutor-answer" role="status" aria-live="polite"></p>
-    </form>`;
+      <p class="tutor-status small" role="status" aria-live="polite"></p>
+      <button class="btn ghost" type="button" data-tutor-read hidden>Ver última respuesta</button>
+    </form>
+    <dialog class="tutor-sheet" aria-labelledby="tutor-sheet-title">
+      <header class="tutor-sheet-head">
+        <h2 id="tutor-sheet-title" tabindex="-1" autofocus>Respuesta del tutor IA</h2>
+        <span class="tutor-sheet-art" aria-hidden="true">${mascot(66)}</span>
+      </header>
+      <div class="tutor-sheet-body" tabindex="0" role="region" aria-label="Consulta y explicación">
+        <div class="tutor-sheet-doubt"><b class="small">Tu duda</b><p data-tutor-doubt></p></div>
+        <p class="tutor-answer"></p>
+      </div>
+      <footer class="tutor-sheet-foot"><button class="btn primary" type="button" data-tutor-close>Volver al test</button></footer>
+    </dialog>`;
   const form=panel.querySelector('form'),status=panel.querySelector('[role="status"]');
-  const button=form.querySelector('button'),code=form.querySelector('#tutor-code');
+  const button=form.querySelector('button[type="submit"]'),code=form.querySelector('#tutor-code');
+  const sheet=panel.querySelector('dialog'),readAnswer=form.querySelector('[data-tutor-read]');
+  const waiting=form.querySelector('.tutor-wait');
+  function openAnswer(){
+    sheet.showModal();
+    sheet.querySelector('.tutor-sheet-body').scrollTop=0;
+  }
+  readAnswer.onclick=openAnswer;
+  sheet.querySelector('[data-tutor-close]').onclick=()=>sheet.close();
+  sheet.onclose=()=>{if(panel.isConnected&&panel.open)readAnswer.focus({preventScroll:true});};
   const remember=form.querySelector('#tutor-remember');
   code.value=tutorCode;
   remember.checked=rememberTutor;
@@ -985,8 +1022,9 @@ function addTutor(feedback,q,choice){
     const submittedCode=code.value.trim();
     if(!submittedCode)return;
     button.disabled=true;
+    readAnswer.disabled=true;
     status.textContent='El tutor está preparando la explicación. La primera respuesta puede tardar un poco.';
-    panel.querySelector('.tutor-wait').hidden=false;
+    waiting.hidden=false;
     try{
       const response=await fetch(TUTOR_URL,{
         method:'POST',
@@ -995,25 +1033,35 @@ function addTutor(feedback,q,choice){
         body:JSON.stringify({id:q.id,choice,doubt})
       });
       const result=await response.json();
-      status.textContent=response.ok?result.answer:result.error||'El tutor no está disponible.';
-      if(response.ok){
-        tutorCode=submittedCode;
-        if(rememberTutor){
-          try{localStorage.setItem(TUTOR_CODE_KEY,tutorCode);}
-          catch(e){status.textContent+='\nNo se pudo recordar el código en este dispositivo.';}
-        }
+      if(!response.ok){
+        status.textContent=result?.error||'El tutor no está disponible.';
+        return;
+      }
+      const answer=typeof result?.answer==='string'?result.answer.trim():'';
+      if(!answer){status.textContent='El tutor no ha enviado una respuesta. Prueba de nuevo.';return;}
+      sheet.querySelector('[data-tutor-doubt]').textContent=doubt;
+      sheet.querySelector('.tutor-answer').textContent=answer;
+      readAnswer.hidden=false;
+      status.textContent='';
+      tutorCode=submittedCode;
+      if(rememberTutor){
+        try{localStorage.setItem(TUTOR_CODE_KEY,tutorCode);}
+        catch(e){status.textContent='No se pudo recordar el código en este dispositivo.';}
       }
     }catch{
       status.textContent='No se pudo conectar con el tutor. Puedes seguir con el test.';
+      return;
     }finally{
-      panel.querySelector('.tutor-wait').hidden=true;
+      waiting.hidden=true;
       button.disabled=false;
+      readAnswer.disabled=false;
     }
+    if(panel.isConnected&&panel.open)openAnswer();
   };
   feedback.after(panel);
 }
 function runQuiz(ids,v){
-  let i=0,res=[];
+  let i=0,res=[],earnedStreak=false;
   const draw=()=>{
     const q=QBY[ids[i]],order=shuffle([0,1,2]);
     V.innerHTML=`<div class="qhead"><span class="small muted">Pregunta ${i+1} de ${ids.length}</span><div class="qprog">${ids.map((_,k)=>`<span class="${res[k]===true?'ok':res[k]===false?'bad':k===i?'now':''}"></span>`).join('')}</div></div>
@@ -1021,20 +1069,23 @@ function runQuiz(ids,v){
     <div class="opts">${order.map((o,k)=>`<button class="opt" type="button" data-o="${o}"><b>${'ABC'[k]}</b><span>${esc(q.o[o])}</span></button>`).join('')}</div>
     <div id="qfb" tabindex="-1" aria-live="polite"></div>`;
     V.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
-      const o=+b.dataset.o,ok=o===q.c;res[i]=ok;record(q.id,ok);if(!ok)celebrate('fail');
+      const o=+b.dataset.o,ok=o===q.c;res[i]=ok;
+      earnedStreak=record(q.id,ok)||earnedStreak;
       V.querySelectorAll('.opt').forEach(x=>{x.disabled=true;const xo=+x.dataset.o;if(xo===q.c)x.classList.add('ok');else if(x===b)x.classList.add('bad');});
       const last=i===ids.length-1;
-      document.getElementById('qfb').innerHTML=`<div class="fb ${ok?'ok':'bad'}"><span class="v">${ok?'¡Correcto!':'Casi. Fíjate en esto:'}</span><p>${withSigns(esc(q.e))}</p><span class="ref">${withSigns(esc(q.r))}</span><button class="btn primary" type="button" id="qn" style="margin-top:4px">${last?'Ver resultado':'Siguiente'}</button></div>`;
+      const verdict=ok?'¡Correcto! <span class="q-correct-star" aria-hidden="true">⭐</span>':'Casi. Fíjate en esto:';
+      const feedback=document.getElementById('qfb');
+      feedback.innerHTML=`<div class="fb ${ok?'ok':'bad'}"><span class="v">${verdict}</span><p>${withSigns(esc(q.e))}</p><span class="ref">${withSigns(esc(q.r))}</span><button class="btn primary" type="button" id="qn" style="margin-top:4px">${last?'Ver resultado':'Siguiente'}</button></div>`;
       if(!ok){
         const correct=document.createElement('p');
         correct.textContent='Respuesta correcta: '+q.o[q.c];
-        document.querySelector('#qfb .v').after(correct);
+        feedback.querySelector('.v').after(correct);
       }
-      addTutor(document.getElementById('qfb'),q,o);
-      document.getElementById('qfb').focus();
+      addTutor(feedback,q,o);
+      feedback.focus({preventScroll:true});
       V.querySelectorAll('.qprog span')[i].className=ok?'ok':'bad';
       document.getElementById('qn').onclick=()=>{if(last)finish();else{i++;draw();window.scrollTo(0,0);}};
-      document.getElementById('qfb').scrollIntoView({behavior:'smooth',block:'nearest'});
+      feedback.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'nearest'});
     });
   };
   const finish=()=>{
@@ -1045,6 +1096,7 @@ function runQuiz(ids,v){
     const msg=ok===n?'¡Perfecto, ni un fallo!':ok/n>=.7?'¡Bien! Echa un vistazo a las que fallaste.':'No pasa nada: repasa la lección y vuelve a intentarlo.';
     const before=S.dom5;const stn=topicStats();if(stn.level==='Dominado'&&!before){S.dom5=true;save();setTimeout(()=>celebrate('topic'),300);}else if(ok===n)celebrate('perfect');else if(v.mode==='lesson')celebrate('lesson');
     V.innerHTML=`<div class="card result"><div class="mascot-c">${mascot(80)}</div><div class="big">${ok}/${n}</div><p class="muted">${msg}</p>
+     ${earnedStreak?`<p class="note">🔥 Racha de ${streak()} días</p>`:''}
      ${wrong.length?`<div class="review">${wrong.map(q=>`<div><b>${esc(q.q)}</b><br>Respuesta correcta: ${esc(q.o[q.c])}</div>`).join('')}</div>`:''}
      <div class="grid2" style="width:100%"><button class="btn ghost" type="button" data-back>Volver</button><button class="btn primary" type="button" id="again">Repetir</button></div></div>
      ${v.mode==='lesson'?'<p class="note">Lección marcada como leída.</p>':''}`;
@@ -1111,7 +1163,7 @@ function runSim(simId,set){
   }
   $('snext').onclick=()=>{idx++;if(idx<L.length){load();window.scrollTo(0,0);}else finish();};
   function finish(){
-    const prev=S.sims[simId];S.sims[simId]={best:Math.max(score,prev?prev.best:0),last:score,total:L.length};markDay();save();celebrate('sim');if(score===L.length)setTimeout(()=>celebrate('perfect'),1500);
+    const prev=S.sims[simId];S.sims[simId]={best:Math.max(score,prev?prev.best:0),last:score,total:L.length};if(markDay())setTimeout(()=>celebrate('streak'),1900);save();celebrate('sim');if(score===L.length)setTimeout(()=>celebrate('perfect'),1500);
     V.innerHTML=`<div class="card result"><div class="mascot-c">${mascot(80)}</div><div class="big">${score}/${L.length}</div><p class="muted">${score===L.length?'Perfecto. Dominas estas situaciones.':score>=L.length*.6?'Vas bien. Repite para afianzar las que fallaste.':'Repasa las lecciones del tema y vuelve a intentarlo.'}</p>
      <div class="grid2" style="width:100%"><button class="btn ghost" type="button" data-back>Volver</button><button class="btn primary" type="button" id="again">Repetir</button></div></div>`;
     document.getElementById('again').onclick=()=>{animToken++;runSim(simId,set);};
