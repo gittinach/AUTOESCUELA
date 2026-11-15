@@ -76,6 +76,18 @@ button:focus-visible,.item:focus-visible,textarea:focus-visible,input:focus-visi
 .stat{background:var(--surface);border-radius:14px;padding:12px 14px}
 .stat b{display:block;font-family:var(--display);font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}
 .stat span{font-size:13px;color:var(--muted)}
+.progress-details summary{min-height:44px;padding-block:10px;font-weight:600;cursor:pointer}
+.lesson-progress .list{margin-top:8px}
+.lesson-progress .item{background:var(--surface2)}
+.test-history ol{list-style:none;margin:4px 0 0;padding:0}
+.test-history li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px;padding:10px 12px;border-radius:12px;background:var(--surface2)}
+.test-history time,.test-history .muted{display:block}
+.review-schedule h2{font-size:18px}
+.saved-list{list-style:none;margin:0;padding:0}
+.saved-search{display:grid;gap:4px}
+.saved-preview .qimg svg{width:56px;height:56px}
+.saved-actions{display:flex;flex-wrap:wrap;gap:8px}
+.saved-actions .btn{padding:8px 12px;min-height:44px}
 /* Nav */
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px))}
 .nav-in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
@@ -111,6 +123,9 @@ figure{margin:0}
 .ladder li:nth-child(2){width:92%;opacity:.92}.ladder li:nth-child(3){width:84%;opacity:.84}.ladder li:nth-child(4){width:76%;opacity:.76}.ladder li:nth-child(5){width:68%;opacity:.68}
 /* Quiz */
 .qhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.q-save{align-self:flex-start;display:flex;align-items:center;gap:8px;min-height:44px;padding:7px 10px;font-size:14px}
+.q-save svg{width:18px;height:18px;flex:none}
+.q-save[aria-pressed="true"] svg{fill:currentColor}
 .qprog{display:flex;gap:4px;flex-wrap:wrap}
 .qprog span{width:14px;height:6px;border-radius:3px;background:var(--line)}
 .qprog span.ok{background:var(--ok)}.qprog span.bad{background:var(--bad)}.qprog span.now{background:var(--accent)}
@@ -139,6 +154,7 @@ figure{margin:0}
 @keyframes q-car-sigh{0%,100%{transform:none}40%{transform:translateY(4px) rotate(-8deg) scale(.96)}}
 .result{text-align:center;align-items:center}
 .result .big{font-family:var(--display);font-weight:700;font-size:60px;line-height:1;font-variant-numeric:tabular-nums}
+.result .retry-missed{width:100%}
 .review{display:flex;flex-direction:column;gap:8px;text-align:left;width:100%}
 .review div{background:var(--surface2);border-radius:12px;padding:10px 12px;font-size:14px}
 /* Sim */
@@ -152,7 +168,7 @@ figure{margin:0}
 .lb1{animation:blink .5s infinite}.lb2{animation:blink .5s infinite .25s}
 @keyframes blink{50%{opacity:.15}}
 textarea{width:100%;min-height:110px;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--surface2);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:10px}
-input[type=text]{width:100%;font:inherit;font-size:17px;padding:12px 14px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--fg)}
+input[type=text],input[type=search]{width:100%;font:inherit;font-size:17px;padding:12px 14px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--fg)}
 .choice{display:flex;flex-direction:column;gap:8px}
 .choice button{text-align:left}
 .choice button.sel{border-color:var(--accent);background:var(--accent-soft)}
@@ -275,7 +291,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.6.15';
+const VERSION='0.6.23';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -295,6 +311,7 @@ function validProgress(v){
       isCount(r.best)&&r.best<=r.total&&isCount(r.last)&&r.last<=r.best)&&
     Array.isArray(v.tests)&&v.tests.every(r=>isObject(r)&&isCount(r.d)&&isCount(r.n)&&isCount(r.ok)&&r.ok<=r.n&&typeof r.mode==='string')&&
     Array.isArray(v.days)&&v.days.every(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d))&&
+    (v.savedQuestions===undefined||(Array.isArray(v.savedQuestions)&&v.savedQuestions.every(id=>typeof id==='string')))&&
     (v.theme===undefined||['light','dark'].includes(v.theme))&&
     (v.voice===undefined||typeof v.voice==='string')&&
     (v.mute===undefined||isBool(v.mute))&&
@@ -729,13 +746,24 @@ let tab='inicio',stack=[];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
 
-function topicStats(){let seen=0,ok=0;QS.forEach(q=>{const r=S.q[q.id];if(r&&r.n){seen++;if(r.last)ok++;}});
+function questionStats(questions){
+  let seen=0,ok=0;
+  questions.forEach(q=>{const r=S.q[q.id];if(r&&r.n){seen++;if(r.last)ok++;}});
+  return {seen,ok};
+}
+function topicStats(){const {seen,ok}=questionStats(QS);
   const done=LESSONS.filter(l=>S.lessons[l.id]).length,pct=Math.round(ok/QS.length*100);
   let level='Por empezar',cls='';
   if(seen||done){if(pct>=85&&done===LESSONS.length){level='Dominado';cls='ok';}else if(pct>=50){level='Casi dominado';cls='acc';}else{level='Aprendiendo';cls='warn';}}
   return{seen,ok,done,pct,level,cls};}
 const fallos=()=>QS.filter(q=>isFallo(q.id));
 const dueFallos=()=>fallos().filter(q=>(S.q[q.id].due||0)<=Date.now());
+const savedQuestions=()=>QS.filter(q=>S.savedQuestions?.includes(q.id));
+function setQuestionSaved(id,saved){
+  const ids=S.savedQuestions||[];
+  S.savedQuestions=saved?[...new Set([...ids,id])]:ids.filter(value=>value!==id);
+  save();
+}
 
 const SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
  MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>';
@@ -777,6 +805,7 @@ document.addEventListener('click',e=>{
 });
 
 const ICN={
+ bookmark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
  book:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20M9 8h6"/></svg>',
  wheel:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M3.5 10.5h6M14.5 10.5h6M12 14.5V21"/></svg>',
  redo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
@@ -843,7 +872,7 @@ const VIEWS={
   const plan=[];
   if(nxt) plan.push(item({go:'lesson',id:nxt.id,icon:'book',t:nxt.t,s:`Lección · ${nxt.min} min`}));
   else plan.push(item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema 5',s:'15 preguntas con explicación'}));
-  if(due) plan.push(item({go:'quiz',mode:'fallos',icon:'redo',tone:'peach',t:`Repasa ${due} ${due===1?'pregunta':'preguntas'}`,s:'Las que fallaste hace unos días'}));
+  if(due) plan.push(item({go:'quiz',mode:'repaso-programado',icon:'redo',tone:'peach',t:`Repasa ${due} ${due===1?'pregunta':'preguntas'}`,s:'Repaso programado · disponibles ahora'}));
   plan.push(item({go:'sim',id:simTodo,icon:'wheel',tone:'blue',t:'Simulador: '+SIMS[simTodo].name.toLowerCase(),s:S.sims[simTodo]?`Tu mejor marca: ${S.sims[simTodo].best} de ${S.sims[simTodo].total}`:'Todavía sin probar'}));
   const d=new Date(),dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'],h=d.getHours(),saludo=h<14?'buenos días':h<21?'buenas tardes':'buenas noches';
   const feel={'Por empezar':'listo para empezar','Aprendiendo':'vas cogiendo ritmo','Casi dominado':'vas por buen camino','Dominado':'¡tema dominado!'}[st.level];
@@ -891,20 +920,105 @@ const VIEWS={
  quiz(v){
   let ids,title;
   if(v.mode==='lesson'){ids=shuffle(QS.filter(q=>q.l===v.id)).slice(0,3).map(q=>q.id);title='Comprobación';}
+  else if(v.mode==='practica-leccion'){ids=shuffle(QS.filter(q=>q.l===v.id)).map(q=>q.id);title='Practicar lección';}
   else if(v.mode==='fallos'){const d=dueFallos();ids=shuffle((d.length?d:fallos())).slice(0,15).map(q=>q.id);title='Repaso de fallos';}
+  else if(v.mode==='repaso-programado'){
+    ids=dueFallos().sort((a,b)=>S.q[a.id].due-S.q[b.id].due).slice(0,15).map(q=>q.id);
+    title='Repaso programado';
+  }
+  else if(v.mode==='repaso'){ids=Array.isArray(v.ids)?v.ids.filter(id=>Object.hasOwn(QBY,id)):[];title='Repaso del último intento';}
+  else if(v.mode==='guardadas'){
+    if(v.id){ids=Object.hasOwn(QBY,v.id)?[v.id]:[];title='Practicar pregunta';}
+    else{ids=shuffle(savedQuestions()).map(q=>q.id);title='Preguntas guardadas';}
+  }
   else if(v.mode==='rapido'){ids=shuffle(QS).slice(0,5).map(q=>q.id);title='Test rápido';}
   else {ids=shuffle(QS).slice(0,15).map(q=>q.id);title='Test del tema 5';}
   header(title);
-  if(!ids.length){V.innerHTML=`<div class="card result"><h2>Nada que repasar</h2><p class="muted">No tienes preguntas falladas pendientes. ¡Buen trabajo!</p><button class="btn primary" type="button" data-back>Volver</button></div>`;return;}
+  if(!ids.length){
+    const message=v.mode==='guardadas'?'Pulsa «Guardar pregunta» durante un test para encontrarla aquí.':
+      v.mode==='repaso-programado'?'Estás al día con el repaso programado.':'No tienes preguntas falladas pendientes. ¡Buen trabajo!';
+    V.innerHTML=`<div class="card result"><h2>${v.mode==='guardadas'?'Aún no hay preguntas guardadas':'Nada que repasar'}</h2><p class="muted">${message}</p><button class="btn primary" type="button" data-back>Volver</button></div>`;
+    return;
+  }
   runQuiz(ids,v);
  },
- practicar(){header();const fl=fallos().length;
-  V.innerHTML=`<div class="section-title">Tests</div><div class="list">
+ practicar(){header();
+  const pending=fallos(),now=Date.now();
+  const savedCount=savedQuestions().length;
+  const upcoming=pending.filter(q=>S.q[q.id].due>now);
+  const due=pending.length-upcoming.length;
+  const next=new Date(Math.min(...upcoming.map(q=>S.q[q.id].due)));
+  const nextLabel=Number.isFinite(next.getTime())?new Intl.DateTimeFormat('es-ES',{dateStyle:'medium',timeStyle:'short'}).format(next):'';
+  V.innerHTML=`<section class="card review-schedule" aria-labelledby="review-schedule-title">
+   <h2 id="review-schedule-title">Repaso programado</h2>
+   <p class="small muted">${due?`${due} ${due===1?'pregunta disponible':'preguntas disponibles'} ahora.`:'Estás al día con el repaso programado.'}</p>
+   ${upcoming.length?`<p class="small muted">${upcoming.length} ${upcoming.length===1?'pregunta para más adelante':'preguntas para más adelante'}.${nextLabel?` La siguiente estará disponible el <time datetime="${next.toISOString()}">${nextLabel}</time>.`:''}</p>`:''}
+   ${due?`<button class="btn primary" type="button" data-go="quiz" data-mode="repaso-programado">${due>15?'Repasar las 15 más antiguas':'Empezar repaso'}</button>`:''}
+  </section>
+  <div class="section-title">Tests</div><div class="list">
    ${item({go:'quiz',mode:'rapido',icon:'bolt',tone:'peach',t:'Test rápido',s:'5 preguntas para un rato libre'})}
    ${item({go:'quiz',mode:'tema',icon:'pen',t:'Test del tema 5',s:'Prioridad de paso, con explicación'})}
-   ${item({go:'quiz',mode:'fallos',icon:'redo',tone:'peach',t:'Test de fallos',s:fl?`${fl} preguntas que fallaste`:'Aún no tienes fallos',disabled:!fl})}</div>
+   ${item({go:'guardadas',icon:'bookmark',t:'Preguntas guardadas',s:savedCount?`${savedCount} ${savedCount===1?'pregunta':'preguntas'} para practicar`:'Guarda preguntas durante un test'})}
+   ${item({go:'quiz',mode:'fallos',icon:'redo',tone:'peach',t:'Test de fallos',s:pending.length?'Practica tus fallos cuando quieras':'Aún no tienes fallos',disabled:!pending.length})}</div>
    <div class="section-title">Simuladores de conducción</div><div class="list">${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>
    <p class="note">Más tipos de ejercicios y simuladores llegarán con el resto del temario.</p>`;
+ },
+ guardadas(view){
+  header('Preguntas guardadas');
+  const questions=savedQuestions();
+  const normalize=text=>text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  V.innerHTML=`<div class="card">
+   <div class="saved-search">
+    <label class="small" for="savedSearch">Buscar por pregunta o lección</label>
+    <input type="search" id="savedSearch" maxlength="120" aria-controls="savedList">
+   </div>
+   <p class="small muted" id="savedCount" tabindex="-1" role="status"></p>
+   <button class="btn primary" type="button" id="startSaved" data-go="quiz" data-mode="guardadas">Practicar todas las guardadas</button>
+  </div>
+  <ul class="list saved-list" id="savedList" role="list">${questions.map(q=>{
+    const lesson=LESSONS.find(l=>l.id===q.l);
+    return `<li class="card saved-preview" data-search="${esc(normalize(q.q+' '+(lesson?.t||'')))}">
+     <p class="small muted">${esc(lesson?.t||'')}</p>
+     <p id="saved-${q.id}">${esc(q.q)}</p>
+     ${q.img?`<div class="qimg">${SIGN[q.img]}</div>`:''}
+     <div class="saved-actions">
+      <button class="btn primary" type="button" data-go="quiz" data-mode="guardadas" data-id="${q.id}" aria-describedby="saved-${q.id}">Practicar esta pregunta</button>
+      <button class="btn ghost" type="button" data-remove-saved="${q.id}" aria-describedby="saved-${q.id}">Quitar de guardadas</button>
+     </div>
+    </li>`;
+  }).join('')}</ul>`;
+  const search=V.querySelector('#savedSearch'),count=V.querySelector('#savedCount');
+  const start=V.querySelector('#startSaved'),list=V.querySelector('#savedList');
+  search.value=view.search||'';
+  function updateList(){
+    const total=list.children.length;
+    const query=normalize(search.value).trim();
+    const words=query.split(/\s+/);
+    let matches=0;
+    for(const row of list.children){
+      row.hidden=!words.every(word=>row.dataset.search.includes(word));
+      if(!row.hidden)matches++;
+    }
+    count.textContent=!total?'Aún no hay preguntas guardadas. Pulsa «Guardar pregunta» durante un test para añadirla aquí.':
+      query?(matches?`${matches} de ${total} preguntas guardadas`:'No hay preguntas guardadas que coincidan con la búsqueda.'):
+      `${total} ${total===1?'pregunta guardada':'preguntas guardadas'}`;
+    search.parentElement.hidden=!total;
+    start.hidden=!total;
+  }
+  search.oninput=()=>{view.search=search.value;rememberView(false);updateList();};
+  updateList();
+  list.addEventListener('click',event=>{
+    const button=event.target.closest('[data-remove-saved]');
+    if(!button)return;
+    const row=button.closest('li');
+    const visible=[...list.children].filter(item=>!item.hidden);
+    const index=visible.indexOf(row);
+    const neighbor=visible[index+1]||visible[index-1];
+    setQuestionSaved(button.dataset.removeSaved,false);
+    row.remove();
+    updateList();
+    (neighbor?.querySelector('[data-remove-saved]')||count).focus();
+  });
  },
  simulacros(){header();
   V.innerHTML=`<div class="card"><div class="eyebrow">Próximamente</div><h2>Simulacros de examen</h2><p>Reproducirán el examen real de la DGT: preguntas de todos los temas, tiempo límite y corrección al final.</p>
@@ -914,9 +1028,32 @@ const VIEWS={
  },
  progreso(){header();
   const st=topicStats(),tot=Object.values(S.q).reduce((a,r)=>a+r.n,0),okc=Object.values(S.q).reduce((a,r)=>a+r.ok,0);
+  const lessonRows=LESSONS.map((lesson,index)=>{
+    const questions=QS.filter(q=>q.l===lesson.id);
+    const {seen,ok}=questionStats(questions);
+    const stats=seen?`Practicadas ${seen}/${questions.length} · Aciertos ${ok}/${seen}`:`Sin practicar · ${questions.length} preguntas`;
+    return item({go:'quiz',mode:'practica-leccion',id:lesson.id,ic:index+1,t:lesson.t,s:stats,disabled:!questions.length});
+  });
+  const testNames={lesson:'Comprobación de lección','practica-leccion':'Práctica de lección',tema:'Test del tema 5',rapido:'Test rápido',fallos:'Test de fallos',repaso:'Repaso del último intento','repaso-programado':'Repaso programado',guardadas:'Preguntas guardadas'};
+  const testDate=new Intl.DateTimeFormat('es-ES',{dateStyle:'medium',timeStyle:'short'});
+  const recentTests=S.tests.slice().reverse().sort((a,b)=>b.d-a.d).slice(0,50);
+  const historyRows=recentTests.map(({mode,d,ok,n})=>{
+    const name=Object.hasOwn(testNames,mode)?testNames[mode]:'Test';
+    const date=new Date(d);
+    const when=Number.isFinite(date.getTime())?`<time class="small muted" datetime="${date.toISOString()}">${testDate.format(date)}</time>`:
+      '<span class="small muted">Fecha no disponible</span>';
+    return `<li><div><b>${name}</b>${when}</div><span class="chip acc">Aciertos: ${ok}/${n}</span></li>`;
+  });
   V.innerHTML=`<div class="grid2"><div class="stat"><b>${tot}</b><span>respuestas</span></div><div class="stat"><b>${tot?Math.round(okc/tot*100):0}%</b><span>de aciertos</span></div><div class="stat"><b>${streak()}</b><span>días seguidos</span></div><div class="stat"><b>${fallos().length}</b><span>por repasar</span></div></div>
   <div class="section-title">Dominio por tema</div>
   <div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>5 · Prioridad de paso</b><span class="chip ${st.cls}">${st.level}</span></div><div class="bar"><i style="width:${st.pct}%"></i></div><span class="small muted">${st.done}/${LESSONS.length} lecciones · ${st.ok} de ${QS.length} preguntas acertadas en su último intento</span></div>
+  <details class="card progress-details lesson-progress"><summary>Progreso por lección</summary>
+   <p class="small muted">Los aciertos se calculan con tu última respuesta a cada pregunta. Toca una lección para practicar todas sus preguntas.</p>
+   <div class="list">${lessonRows.join('')}</div>
+  </details>
+  <details class="card progress-details test-history"><summary>Historial de tests</summary>
+   ${historyRows.length?`<ol class="list" role="list">${historyRows.join('')}</ol>`:'<p class="small muted">Aquí aparecerán los tests y repasos que termines.</p>'}
+  </details>
   <div class="section-title">Simuladores</div><div class="list">${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
   <div class="section-title">Ajustes</div>
   <div class="card"><label for="nm2"><b>Nombre</b></label><input type="text" id="nm2" maxlength="24" value="${esc(S.profile.name||'')}">
@@ -933,7 +1070,7 @@ const VIEWS={
    <textarea id="bk" readonly>${esc(JSON.stringify(S))}</textarea><button class="btn ghost" type="button" id="cpBtn">Copiar</button>
    <textarea id="rs" aria-label="Copia de seguridad para restaurar" placeholder="Pega aquí una copia de seguridad"></textarea><button class="btn ghost" type="button" id="rsBtn">Restaurar</button><p class="small" id="rsMsg" aria-live="polite"></p>
    <button class="btn ghost" type="button" id="rsPrevious" hidden>Recuperar copia anterior</button></div>
-  <div class="card"><b>Borrar progreso</b><p class="small muted">Elimina respuestas, lecciones y simuladores de este móvil.</p><button class="btn danger" type="button" id="delBtn">Borrar todo el progreso</button><div id="delConf" hidden style="display:flex;flex-direction:column;gap:8px"><p class="small">¿Seguro? No se puede deshacer.</p><div class="grid2"><button class="btn ghost" type="button" id="delNo">Cancelar</button><button class="btn danger" type="button" id="delYes">Sí, borrar</button></div></div></div>
+  <div class="card"><b>Borrar progreso</b><p class="small muted">Elimina respuestas, lecciones, simuladores y preguntas guardadas de este móvil.</p><button class="btn danger" type="button" id="delBtn">Borrar todo el progreso</button><div id="delConf" hidden style="display:flex;flex-direction:column;gap:8px"><p class="small">¿Seguro? No se puede deshacer.</p><div class="grid2"><button class="btn ghost" type="button" id="delNo">Cancelar</button><button class="btn danger" type="button" id="delYes">Sí, borrar</button></div></div></div>
   <p class="note">Autoescuela · versión ${VERSION}</p>`;
   (function(){const sel=document.getElementById('vsel'),r=document.getElementById('vrate'),pi=document.getElementById('vpitch');
    const fill=()=>{pickVoice();const v=esVoices().sort((a,b)=>voiceScore(b)-voiceScore(a));
@@ -1123,10 +1260,19 @@ function runQuiz(ids,v){
   let i=0,res=[],earnedStreak=false;
   const draw=()=>{
     const q=QBY[ids[i]],order=shuffle([0,1,2]);
+    let saved=S.savedQuestions?.includes(q.id)??false;
     V.innerHTML=`<div class="qhead"><span class="small muted">Pregunta ${i+1} de ${ids.length}</span><div class="qprog">${ids.map((_,k)=>`<span class="${res[k]===true?'ok':res[k]===false?'bad':k===i?'now':''}"></span>`).join('')}</div></div>
-    <div class="card"><p class="qtext">${esc(q.q)}</p>${q.img?`<div class="qimg">${SIGN[q.img]}</div>`:''}</div>
+    <div class="card"><p class="qtext">${esc(q.q)}</p>${q.img?`<div class="qimg">${SIGN[q.img]}</div>`:''}
+    <button class="btn ghost q-save" type="button" aria-pressed="${saved}" aria-label="Guardar pregunta">${ICN.bookmark}<span>${saved?'Pregunta guardada':'Guardar pregunta'}</span></button></div>
     <div class="opts">${order.map((o,k)=>`<button class="opt" type="button" data-o="${o}"><b>${'ABC'[k]}</b><span>${esc(q.o[o])}</span></button>`).join('')}</div>
     <div id="qfb" tabindex="-1" aria-live="polite"></div>`;
+    const bookmark=V.querySelector('.q-save');
+    bookmark.onclick=()=>{
+      saved=!saved;
+      setQuestionSaved(q.id,saved);
+      bookmark.setAttribute('aria-pressed',String(saved));
+      bookmark.querySelector('span').textContent=saved?'Pregunta guardada':'Guardar pregunta';
+    };
     V.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
       const o=+b.dataset.o,ok=o===q.c;res[i]=ok;
       earnedStreak=record(q.id,ok)||earnedStreak;
@@ -1153,15 +1299,25 @@ function runQuiz(ids,v){
     const ok=res.filter(Boolean).length,n=ids.length;
     if(v.mode==='lesson'){S.lessons[v.id]=true;}
     S.tests.push({d:Date.now(),mode:v.mode,ok,n});S.tests=S.tests.slice(-50);save();
-    const wrong=ids.filter((_,k)=>!res[k]).map(id=>QBY[id]);
+    const wrongIds=ids.filter((_,k)=>!res[k]);
+    const wrong=wrongIds.map(id=>QBY[id]);
+    const repeatLabel=v.mode==='guardadas'&&v.id?'Repetir pregunta':v.mode==='repaso'?'Repetir repaso':'Repetir test';
     const msg=ok===n?'¡Perfecto, ni un fallo!':ok/n>=.7?'¡Bien! Echa un vistazo a las que fallaste.':'No pasa nada: repasa la lección y vuelve a intentarlo.';
     const before=S.dom5;const stn=topicStats();if(stn.level==='Dominado'&&!before){S.dom5=true;save();setTimeout(()=>celebrate('topic'),300);}else if(ok===n)celebrate('perfect');else if(v.mode==='lesson')celebrate('lesson');
     V.innerHTML=`<div class="card result"><div class="mascot-c">${mascot(80)}</div><div class="big">${ok}/${n}</div><p class="muted">${msg}</p>
      ${earnedStreak?`<p class="note">🔥 Racha de ${streak()} días</p>`:''}
+     ${wrong.length?`<button class="btn primary retry-missed" type="button" id="retryMissed">Repasar ${wrong.length} ${wrong.length===1?'fallo':'fallos'}</button>`:''}
      ${wrong.length?`<div class="review">${wrong.map(q=>`<div><b>${esc(q.q)}</b><br>Respuesta correcta: ${esc(q.o[q.c])}</div>`).join('')}</div>`:''}
-     <div class="grid2" style="width:100%"><button class="btn ghost" type="button" data-back>Volver</button><button class="btn primary" type="button" id="again">Repetir</button></div></div>
+     <div class="grid2" style="width:100%"><button class="btn ghost" type="button" data-back>Volver</button><button class="btn ${wrong.length?'ghost':'primary'}" type="button" id="again">${repeatLabel}</button></div></div>
      ${v.mode==='lesson'?'<p class="note">Lección marcada como leída.</p>':''}`;
-    document.getElementById('again').onclick=()=>{const top=stack[stack.length-1];stack.pop();go(top);};
+    const retry=document.getElementById('retryMissed');
+    if(retry)retry.onclick=()=>{
+      stack[stack.length-1]={name:'quiz',mode:'repaso',ids:wrongIds};
+      rememberView(false);
+      render();
+    };
+    document.getElementById('again').onclick=render;
+    window.scrollTo(0,0);
   };
   draw();
 }
