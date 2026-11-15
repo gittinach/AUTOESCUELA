@@ -119,6 +119,10 @@ figure{margin:0}
 .signs svg{width:54px;height:54px}
 .lesson-gallery{grid-template-columns:repeat(3,minmax(0,1fr))}
 .lesson-ref a{color:var(--accent)}
+.stopping-distance{padding:14px;text-align:center}
+.stopping-distance .grid2{gap:4px}
+.stopping-distance span{padding:8px;border-radius:8px;background:var(--blue-soft);color:var(--blue);font-size:13px}
+.stopping-distance span+span{background:var(--warn-bg);color:var(--warn)}
 .ladder{list-style:none;margin:0;padding:14px;display:flex;flex-direction:column;gap:6px;counter-reset:l}
 .ladder li{counter-increment:l;background:var(--accent);color:var(--accent-fg);border-radius:10px;padding:8px 12px;font-weight:700;font-size:15px;display:flex;gap:10px;align-items:center}
 .ladder li::before{content:counter(l);font-family:var(--display);font-size:20px;opacity:.8;width:16px}
@@ -293,7 +297,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.7.0';
+const VERSION='0.7.1';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -463,6 +467,7 @@ const RGC='https://www.boe.es/buscar/act.php?id=BOE-A-2003-23514';
 const lightIcon=lights=>`<svg viewBox="0 0 54 72" aria-hidden="true"><rect x="11" y="2" width="32" height="68" rx="7" fill="#272D30"/>${lights.map((color,index)=>`<circle cx="27" cy="${16+20*index}" r="7" fill="${color}"/>`).join('')}</svg>`;
 /* ================= Tema 5: lecciones ================= */
 const ILL={
+  stoppingDistance:()=>`<figure class="fig"><div class="stopping-distance"><div class="grid2"><span>Reacción<br><b>10 m</b></span><span>Frenado<br><b>15 m</b></span></div><p class="small"><b>Distancia total de detención · 25 m</b></p></div><figcaption>Ejemplo para ver cómo se suman las distancias. En la vía, los metros dependen de las condiciones.</figcaption></figure>`,
   trafficLights:()=>`<figure class="fig"><div class="signs lesson-gallery"><div>${lightIcon(['#FF6661','#6C6963','#6C6963'])}Rojo fijo</div><div>${lightIcon(['#6C6963','#FFD150','#6C6963'])}Amarillo fijo</div><div>${lightIcon(['#6C6963','#6C6963','#62DB85'])}Verde fijo</div></div><figcaption>En un semáforo circular, fíjate en la posición de la luz y en si está fija o parpadea.</figcaption></figure>`,
   verticalSigns:()=>`<figure class="fig"><div class="signs lesson-gallery"><div>${SIGN.entry}R-101<br>Entrada prohibida</div><div>${SIGN.speed}R-301<br>Velocidad máxima</div><div>${SIGN.parking}S-17<br>Estacionamiento</div></div></figure>`,
   roadMarks:()=>`<figure class="fig"><div class="signs lesson-gallery"><div><svg viewBox="0 0 54 54" aria-hidden="true"><rect width="54" height="54" rx="6" fill="#46535d"/><path d="M27 2v50" stroke="#fff" stroke-width="3"/></svg>Longitudinal continua</div><div><svg viewBox="0 0 54 54" aria-hidden="true"><rect width="54" height="54" rx="6" fill="#46535d"/><path d="M2 27h50" stroke="#fff" stroke-width="4"/></svg>Línea de detención</div><div><svg viewBox="0 0 54 54" aria-hidden="true"><rect width="54" height="54" rx="6" fill="#46535d"/><path d="M2 27h50" stroke="#fff" stroke-width="4" stroke-dasharray="7 4"/></svg>Línea de ceda el paso</div></div></figure>`,
@@ -664,8 +669,98 @@ const SIGN_QUESTIONS=[
  {id:'q61',l:'T3L6',q:'En un cruce sin señal vertical ni semáforo hay un STOP pintado y una línea de detención. ¿Qué debes hacer?',o:['Detenerte antes de la línea y después ceder el paso','Reducir la velocidad y seguir si no hay vehículos','Detenerte solo si una señal vertical refuerza la marca'],c:0,e:'La marca vial de STOP puede ordenar por sí misma detenerse y después ceder el paso.',r:'RGC, anexo I, apartado 5.2, marcas M-6.3 y M-6.4'}
 ];
 
+/* ================= Tema 4: velocidad ================= */
+const SPEED_LESSONS=[
+ {id:'T4L1',t:'Velocidad adecuada y visibilidad',min:5,
+  key:'El límite marca el máximo. Ajusta la velocidad para poder detenerte dentro del tramo que ves y ante cualquier obstáculo que pueda aparecer.',
+  body:`<p>Para elegir la velocidad, observa cuánto ves y cómo están el firme, el tráfico, el vehículo y su carga. Ten en cuenta también tu estado. Con lluvia intensa, niebla densa o poca adherencia quizá debas circular muy por debajo del límite señalizado.</p>
+  <p>Modera la velocidad y detente si hace falta al acercarte a un centro escolar, a un autobús parado, a un paso peatonal sin regulación, a ciclistas, animales o a un lugar de poca visibilidad. Hazlo también antes de estrechamientos y cruces en los que no tengas prioridad.</p>
+  <p>En una intersección debidamente señalizada con visibilidad prácticamente nula, el Reglamento fija un máximo de 50 km/h. Sigue aplicando cualquier límite inferior y reduce aún más si lo exige la seguridad.</p>`,
+  tip:'Si se acorta lo que ves o empeora el agarre, necesitas bajar la velocidad antes de llegar al peligro.',
+  errs:['Mantener el límite señalizado con niebla intensa aunque veas muy poco.','Confundir el máximo de 50 km/h en el cruce con una velocidad segura en cualquier circunstancia.'],
+  ref:'RGC, arts. 45 y 46',source:'#a45'},
+ {id:'T4L2',t:'Límites en ciudad y travesías',min:6,
+  key:'En calles urbanas sin un límite específico, recuerda 20, 30 y 50. Mira primero si acera y calzada están al mismo nivel y después cuántos carriles cuentan en tu sentido.',
+  body:`<ul><li><b>20 km/h:</b> plataforma única de calzada y acera.</li><li><b>30 km/h:</b> un carril por sentido.</li><li><b>50 km/h:</b> dos o más carriles por sentido.</li></ul>
+  <p>Los carriles reservados a usuarios concretos o al transporte público no cuentan en este cálculo. El ayuntamiento puede señalizar un límite inferior o, de forma excepcional, autorizar hasta 50 km/h en una calle de un carril por sentido mediante señal específica.</p>
+  <p>En una <b>travesía</b> el límite genérico es 50 km/h. En una <b>autopista o autovía dentro de poblado</b> es 80 km/h. En ambos casos, el Reglamento permite que un acuerdo entre el ayuntamiento y el titular de la vía modifique el límite con señalización específica: para rebajarlo en travesías o para ampliarlo en autopistas y autovías sin superar el genérico de fuera de poblado.</p>
+  <p>Los vehículos con mercancías peligrosas tienen un máximo de 40 km/h en travesías y en las vías urbanas con dos o más carriles por sentido.</p>`,
+  tip:'Una calle con un carril normal y un carril bus en tu sentido cuenta como un carril.',
+  errs:['Contar los carriles de ambos sentidos juntos.','Aplicar los límites de una calle urbana a una travesía sin distinguir el tipo de vía.'],
+  ref:'RGC, art. 50',source:'#a50'},
+ {id:'T4L3',t:'Límites fuera de poblado',min:7,
+  key:'El máximo genérico de turismos y motocicletas es de 120 km/h en autopista o autovía y de 90 km/h en carretera convencional pavimentada.',
+  body:`<ul><li><b>Turismos, motocicletas, autocaravanas hasta 3.500 kg de MMA y pick-up:</b> 120 en autopista o autovía y 90 en carretera convencional.</li><li><b>Autobuses, derivados de turismo y vehículos mixtos adaptables:</b> 100 y 90, respectivamente, salvo límites especiales.</li><li><b>Camiones, furgonetas, autocaravanas de más de 3.500 kg y automóviles con remolque:</b> 90 y 80, respectivamente.</li></ul>
+  <p>En una carretera convencional con separación física entre sentidos, el titular puede fijar un máximo de <b>100 km/h</b> para turismos, motocicletas y autocaravanas de hasta 3.500 kg. El límite no sube automáticamente por existir una mediana. En vías sin pavimentar fuera de poblado, el máximo es <b>30 km/h</b>.</p>
+  <p>En el transporte escolar o de menores y en el de mercancías peligrosas, el máximo de la tabla del artículo 48 se reduce en 10 km/h. Fuera de poblado, un autobús con pasajeros de pie autorizados o que carezca de cinturones tiene un máximo de 80 km/h en cualquier tipo de vía.</p>
+  <p>Fuera de poblado, el límite de referencia de los ciclomotores, los cuadriciclos ligeros y los ciclos es 45 km/h. Las bicicletas pueden superarlo si el tramo lo permite. Los vehículos especiales tienen reglas propias. MMA significa masa máxima autorizada.</p>`,
+  tip:'Para elegir la cifra, identifica primero la vía y después la categoría del vehículo.',
+  errs:['Aplicar 120 km/h a un turismo que lleva remolque.','Dar por hecho que una mediana eleva la máxima a 100 km/h.'],
+  ref:'RGC, art. 48.1',source:'#a48'},
+ {id:'T4L4',t:'Velocidad mínima, señales y adelantamiento',min:6,ill:'verticalSigns',
+  key:'En autopista y autovía, el mínimo general para vehículos a motor es 60 km/h. En las demás vías es la mitad de la velocidad genérica de la categoría del vehículo, salvo causa justificada.',
+  body:`<p>La mínima general también se aplica cuando no hay otros vehículos. Puedes bajar de ella si el tráfico, la vía o el vehículo impiden mantenerla con seguridad, como en una retención, y en los demás supuestos del artículo 49.</p>
+  <p>Si tu vehículo no alcanza la velocidad mínima y hay peligro de alcance, utiliza la señal de emergencia mientras circulas. En cambio, si frenas mucho y no hay un peligro inminente, comprueba que puedes hacerlo con seguridad, avisa y reduce de forma progresiva.</p>
+  <p>Si hay una señal de velocidad específica o temporal, comprueba que se aplica a tu vehículo y carril. Respeta las limitaciones que también correspondan a tu vehículo o a ti como conductor.</p>
+  <p>El margen de 20 km/h que se permitía a turismos y motocicletas para adelantar en determinadas carreteras convencionales dejó de aplicarse en 2022. Solo adelanta cuando lo puedas hacer respetando el límite.</p>`,
+  tip:'La mínima no obliga a mantener una velocidad peligrosa y el adelantamiento no autoriza a superar la máxima.',
+  errs:['Calcular la mínima de una autovía como la mitad de la máxima de tu vehículo.','Añadir 20 km/h al límite porque vas a adelantar.'],
+  ref:'RGC, arts. 47, 49 y 51 a 53. Ley 18/2021, disposición derogatoria única.2',source:'#a49'},
+ {id:'T4L5',t:'Reacción, frenado y detención',min:5,ill:'stoppingDistance',
+  key:'La distancia de detención suma lo que recorres antes de empezar a frenar y lo que recorres desde que frenas hasta que te paras.',
+  body:`<p><b>Distancia de reacción:</b> lo que avanzas desde que detectas el peligro hasta que empiezas a frenar. A igual velocidad, aumenta si tardas más en reaccionar por cansancio o distracción. Si el tiempo de reacción es el mismo, recorrerás más metros cuanto más rápido vayas.</p>
+  <p><b>Distancia de frenado:</b> lo que avanzas desde que empiezas a frenar hasta la detención. Influyen la velocidad, la adherencia de la calzada y el estado del vehículo. A la misma velocidad, un firme deslizante puede alargar la frenada.</p>
+  <p>Por ejemplo, si recorres 10 metros antes de frenar y otros 15 hasta detenerte, necesitas 25 metros en total. Es un ejemplo de suma: en carretera, el espacio necesario cambia con las condiciones.</p>`,
+  tip:'Separa los dos momentos: darse cuenta y empezar a frenar, y después frenar hasta parar.',
+  errs:['Medir la detención solo desde que pisas el freno.','Creer que la lluvia y los neumáticos apenas cambian la distancia de frenado.'],
+  ref:'RGC, arts. 45 y 54.1',source:'#a45'},
+ {id:'T4L6',t:'Distancia de seguridad',min:6,
+  key:'Deja espacio para detenerte si quien va delante frena de golpe. Aumenta el margen si sube la velocidad o baja la adherencia.',
+  body:`<p>Calcula la separación según el agarre y la capacidad de frenado. El Reglamento permite que las bicicletas circulen en grupo sin mantener la separación ordinaria, extremando la atención para evitar alcances.</p>
+  <p>Cuando sigues a otro vehículo sin indicar que vas a adelantarlo, deja además hueco para que quien venga detrás pueda adelantarte con seguridad. Para vehículos de más de 3.500 kg de MMA y vehículos o conjuntos de más de 10 metros, esa última separación es de al menos <b>50 metros</b> donde se aplica la regla.</p>
+  <p>El hueco adicional para facilitar el adelantamiento no se exige en poblado, cuando adelantar está prohibido, si hay más de un carril en tu sentido o si el tráfico está demasiado denso para adelantar. Sigue siendo obligatorio dejar margen para evitar un alcance.</p>
+  <p>En <b>túneles o pasos inferiores</b>, si no vas a adelantar, guarda al menos <b>100 metros o cuatro segundos</b>. Para vehículos de más de 3.500 kg de MMA, el mínimo es <b>150 metros o seis segundos</b>. Para estimar los segundos, empieza a contar al pasar el vehículo de delante por una referencia fija.</p>`,
+  tip:'Distingue tres situaciones: evitar un alcance, dejar hueco para que otro adelante y circular por un túnel.',
+  errs:['Pensar que en ciudad no hace falta distancia porque no se exige el hueco adicional.','Usar el mínimo de un turismo en un túnel cuando conduces un vehículo de más de 3.500 kg.'],
+  ref:'RGC, arts. 54 y 95.6',source:'#a54'}
+];
+
+const SPEED_QUESTIONS=[
+ {id:'q62',l:'T4L1',q:'El máximo señalizado es 90 km/h. Hay niebla densa y a esa velocidad no puedes parar dentro del tramo visible. ¿Qué haces?',o:['Mantengo 90 si no veo ningún vehículo','Reduzco hasta poder detenerme dentro de lo que veo','Mantengo 90 si llevo luces antiniebla'],c:1,e:'Debes adaptar la velocidad a la visibilidad y poder detenerte dentro del tramo que ves.',r:'RGC, arts. 45 y 46.1.k'},
+ {id:'q63',l:'T4L1',q:'Te acercas a un colegio a la hora de salida. ¿Qué debes hacer aunque circules dentro del límite?',o:['Moderar la velocidad y detenerte si hace falta','Mantener la velocidad hasta que un menor pise la calzada','Reducir solo si se enciende una señal luminosa'],c:0,e:'Debes moderar la velocidad al acercarte a lugares donde es previsible la presencia de niños.',r:'RGC, art. 46.1.b'},
+ {id:'q64',l:'T4L1',q:'Al aproximarte a un autobús escolar parado, ¿qué conducta corresponde?',o:['Mantener el máximo del tramo mientras sus puertas estén cerradas','Moderarte solo si el autobús lleva encendidos los intermitentes','Moderar la velocidad y detenerte si es preciso'],c:2,e:'El Reglamento exige moderación cuando te acercas a un autobús parado, especialmente si es de transporte escolar.',r:'RGC, art. 46.1.e'},
+ {id:'q65',l:'T4L1',q:'En una carretera convencional con límite de 90 km/h, llegas a una intersección señalizada con visibilidad prácticamente nula. ¿Qué máximo fija la regla para ese cruce?',o:['70 km/h','50 km/h','60 km/h'],c:1,e:'El Reglamento fija un tope de 50 km/h en este supuesto. Debes reducir más si la seguridad o un límite inferior lo exigen.',r:'RGC, arts. 45 y 46.1.h'},
+ {id:'q66',l:'T4L1',q:'En una vía con charcos puedes salpicar a los peatones aunque circules por debajo del máximo. ¿Qué debes hacer?',o:['Moderar la velocidad para evitar salpicarlos','Mantener la marcha porque estás por debajo del límite','Acelerar para pasar menos tiempo junto al charco'],c:0,e:'La posibilidad de proyectar agua sobre otros usuarios es motivo para moderar la velocidad.',r:'RGC, art. 46.1.g'},
+ {id:'q67',l:'T4L2',q:'En una calle de plataforma única de calzada y acera, sin señal específica, ¿cuál es el máximo genérico?',o:['30 km/h','20 km/h','50 km/h'],c:1,e:'Una plataforma única de calzada y acera tiene límite genérico de 20 km/h.',r:'RGC, art. 50.1.a'},
+ {id:'q68',l:'T4L2',q:'En una calle con aceras separadas tienes un carril normal y otro reservado al autobús en tu sentido. Sin señal específica, ¿cuál es el máximo genérico para tu turismo?',o:['50 km/h porque hay dos carriles','20 km/h porque hay un carril reservado','30 km/h porque el carril bus no cuenta'],c:2,e:'Al contar los carriles para el límite urbano, se excluyen los reservados al transporte público.',r:'RGC, art. 50.1.b y párrafo final del apartado 1'},
+ {id:'q69',l:'T4L2',q:'Una vía urbana tiene dos carriles de uso general en cada sentido, calzada separada de la acera y ninguna señal específica. ¿Cuál es su máximo genérico?',o:['50 km/h','30 km/h','80 km/h'],c:0,e:'En vías urbanas con dos o más carriles por sentido, el límite genérico es de 50 km/h.',r:'RGC, art. 50.1.c'},
+ {id:'q70',l:'T4L2',q:'Conduces un turismo por una travesía sin señal específica. ¿Cuál es el límite genérico?',o:['30 km/h','50 km/h','80 km/h'],c:1,e:'Una travesía tiene un límite genérico de 50 km/h. Puede rebajarse con señalización específica.',r:'RGC, art. 50.5'},
+ {id:'q71',l:'T4L2',q:'Circulas por una autovía dentro de poblado y no hay señal específica de velocidad. ¿Cuál es el máximo genérico?',o:['50 km/h','120 km/h','80 km/h'],c:2,e:'En autopistas y autovías que atraviesan un poblado, el límite genérico del tramo es 80 km/h.',r:'RGC, art. 50.6'},
+ {id:'q72',l:'T4L3',q:'Conduces una motocicleta por autopista fuera de poblado en buenas condiciones. Sin señal ni límite particular, ¿cuál es tu máximo genérico?',o:['120 km/h','100 km/h','90 km/h'],c:0,e:'Las motocicletas y los turismos tienen un máximo genérico de 120 km/h en autopista y autovía fuera de poblado.',r:'RGC, art. 48.1.a'},
+ {id:'q73',l:'T4L3',q:'¿Cuál es la máxima genérica de un turismo sin remolque en una carretera convencional pavimentada, si no hay una señal específica?',o:['100 km/h','90 km/h','80 km/h'],c:1,e:'Para un turismo, el límite genérico de la carretera convencional pavimentada es 90 km/h.',r:'RGC, art. 48.1.a'},
+ {id:'q74',l:'T4L3',q:'Una carretera convencional tiene separación física entre sentidos y una señal fija 100 km/h conforme al Reglamento. ¿A cuál de estos vehículos se le puede aplicar ese máximo?',o:['Una furgoneta','Un turismo con remolque','Una motocicleta'],c:2,e:'El titular puede fijar 100 km/h en ese tipo de carretera para motocicletas, turismos y autocaravanas de hasta 3.500 kg de MMA.',r:'RGC, art. 48.1.a.1.º'},
+ {id:'q75',l:'T4L3',q:'Conduces un turismo con remolque por una autovía fuera de poblado. Sin un límite específico inferior, ¿cuál es tu máxima genérica?',o:['90 km/h','100 km/h','120 km/h'],c:0,e:'Los automóviles con remolque tienen una máxima genérica de 90 km/h en autopista y autovía y de 80 km/h en carretera convencional.',r:'RGC, art. 48.1.a'},
+ {id:'q76',l:'T4L3',q:'Circulas fuera de poblado por una vía sin pavimentar y sin un límite específico inferior. ¿Cuál es el máximo?',o:['45 km/h','30 km/h','50 km/h'],c:1,e:'Fuera de poblado, el máximo en vías sin pavimentar es de 30 km/h.',r:'RGC, art. 48.1.f'},
+ {id:'q77',l:'T4L4',q:'En una autovía despejada y sin causa justificada para circular más despacio, ¿cuál es la velocidad mínima general de un vehículo a motor?',o:['50 km/h','45 km/h','60 km/h'],c:2,e:'La mínima general en autopista y autovía es de 60 km/h, aunque no circulen otros vehículos.',r:'RGC, art. 49.1'},
+ {id:'q78',l:'T4L4',q:'En una carretera convencional cuyo máximo genérico para tu turismo es 90 km/h, ¿cuál es la mínima general en condiciones normales y sin señales que la modifiquen?',o:['45 km/h','60 km/h','30 km/h'],c:0,e:'En las vías distintas de autopistas y autovías, se toma la mitad de la genérica del vehículo: la mitad de 90 es 45.',r:'RGC, arts. 48.1.a y 49.1'},
+ {id:'q79',l:'T4L4',q:'Una retención impide mantener 60 km/h con seguridad en una autopista. ¿Puedes circular por debajo de esa cifra?',o:['Solo si llevas un vehículo especial','Sí, si el tráfico obliga a ello','No, el mínimo se aplica también en una retención'],c:1,e:'Está permitido bajar del mínimo cuando las circunstancias del tráfico impiden mantenerlo con seguridad.',r:'RGC, art. 49.2'},
+ {id:'q80',l:'T4L4',q:'Tu vehículo no puede alcanzar la velocidad mínima exigida y existe peligro de alcance. ¿Cómo lo adviertes mientras circulas?',o:['Con el intermitente derecho solamente','Con las ráfagas de luz larga','Con la señal de emergencia'],c:2,e:'Cuando el vehículo no alcanza la mínima y hay peligro de alcance, debes activar la señal de emergencia durante la marcha.',r:'RGC, art. 49.3'},
+ {id:'q81',l:'T4L4',q:'En una carretera convencional limitada a 90 km/h, ¿puedes llegar a 110 km/h solo para adelantar con un turismo?',o:['No, debes respetar el límite durante la maniobra','Sí, si el vehículo adelantado circula por debajo de 90','Sí, si no viene nadie de frente'],c:0,e:'El antiguo margen para adelantar se eliminó. El adelantamiento debe hacerse dentro del límite.',r:'RGC, art. 51 derogado. Ley 18/2021, disposición derogatoria única.2'},
+ {id:'q82',l:'T4L5',q:'Recorres 10 metros antes de empezar a frenar y otros 15 metros hasta parar. ¿Cuál es la distancia total de detención?',o:['15 metros','25 metros','10 metros'],c:1,e:'Se suman la distancia de reacción y la de frenado: 10 más 15 son 25 metros.',r:'DGT, Manual del permiso B, velocidad y distancias'},
+ {id:'q83',l:'T4L5',q:'Con la misma velocidad, tardas más en empezar a frenar porque estás distraído. ¿Qué distancia aumenta directamente por ese retraso?',o:['La distancia de frenado','La distancia lateral al borde','La distancia de reacción'],c:2,e:'Durante el retraso sigues avanzando. La distancia de reacción termina cuando empiezas a frenar.',r:'DGT, Manual del permiso B, velocidad y distancias'},
+ {id:'q84',l:'T4L5',q:'Dos coches iguales inician la frenada a la misma velocidad. Uno circula por un firme con menos agarre. ¿Cuál suele necesitar más distancia para frenar?',o:['El que tiene menos agarre','El que tiene más agarre','Los dos necesitan siempre la misma'],c:0,e:'Con menos adherencia, normalmente se necesita más espacio desde que empieza la frenada hasta la detención.',r:'RGC, art. 54.1 y guía de velocidad de la DGT'},
+ {id:'q85',l:'T4L5',q:'Si tu tiempo de reacción es el mismo pero circulas más rápido, ¿qué pasa con la distancia de reacción?',o:['Se mantiene, porque el tiempo no cambia','Aumenta','Disminuye, porque llegas antes al obstáculo'],c:1,e:'Durante los mismos segundos recorres más metros cuanto mayor sea la velocidad.',r:'DGT, Manual del permiso B, velocidad y distancias'},
+ {id:'q86',l:'T4L5',q:'¿Desde qué momento empieza a medirse la distancia de frenado?',o:['Desde que adviertes el peligro','Desde que el vehículo de delante enciende sus luces de freno','Desde que empiezas a frenar'],c:2,e:'El tramo anterior a pisar el freno es la distancia de reacción. La de frenado comienza al actuar sobre el freno.',r:'DGT, Manual del permiso B, velocidad y distancias'},
+ {id:'q87',l:'T4L6',q:'Sigues a otro turismo con poca separación y empieza a llover con intensidad. ¿Qué debes hacer?',o:['Moderar la velocidad y dejar margen para parar sin alcanzarlo','Mantener velocidad y separación mientras veas sus luces','Acercarme para que otro vehículo no ocupe el hueco'],c:0,e:'Con lluvia intensa debes moderar la velocidad. Deja una distancia que te permita parar sin colisionar teniendo en cuenta la adherencia.',r:'RGC, arts. 46.1.k y 54.1'},
+ {id:'q88',l:'T4L6',q:'Conduces un turismo en un túnel, detrás de otro vehículo y sin intención de adelantar. ¿Qué separación mínima se exige?',o:['50 metros o dos segundos','100 metros o cuatro segundos','150 metros o seis segundos'],c:1,e:'El mínimo en túnel o paso inferior para un turismo, cuando no se pretende adelantar, es 100 metros o cuatro segundos.',r:'RGC, art. 95.6'},
+ {id:'q89',l:'T4L6',q:'En un túnel conduces un vehículo de más de 3.500 kg de MMA y vas detrás de otro sin intención de adelantar. ¿Qué separación mínima se exige?',o:['100 metros o cuatro segundos','50 metros o dos segundos','150 metros o seis segundos'],c:2,e:'Para vehículos de más de 3.500 kg de MMA, el mínimo en este supuesto sube a 150 metros o seis segundos.',r:'RGC, art. 95.6'},
+ {id:'q90',l:'T4L6',q:'Fuera de poblado, en una vía con un carril por sentido donde se puede adelantar y con tráfico fluido, conduces un vehículo de 12 metros. No has señalado que vayas a adelantar. ¿Qué separación mínima debes dejar con el vehículo precedente para que otros puedan adelantarte?',o:['50 metros','30 metros','100 metros'],c:0,e:'El mínimo de 50 metros para facilitar el adelantamiento se aplica en estas condiciones a vehículos y conjuntos de más de 10 metros.',r:'RGC, art. 54.2 y 54.3'},
+ {id:'q91',l:'T4L6',q:'Circulas en poblado detrás de otro coche. ¿Qué separación debes mantener?',o:['Ninguna mientras la velocidad sea baja','La necesaria para detenerte sin alcanzarlo si frena bruscamente','Siempre 50 metros para facilitar que te adelanten'],c:1,e:'En poblado no se exige el hueco adicional para facilitar el adelantamiento, pero sigue siendo obligatorio evitar el alcance.',r:'RGC, art. 54.1 y 54.3.a'}
+];
+
 const TOPIC_CONTENT={
  '3':{desc:'Aprende a interpretar las señales, las órdenes de los agentes, los semáforos y las marcas de la calzada.',lessons:SIGN_LESSONS,questions:SIGN_QUESTIONS,sims:[]},
+ '4':{desc:'Aprende los límites de velocidad, cuándo reducir la marcha y qué distancia dejar para detenerte con seguridad.',lessons:SPEED_LESSONS,questions:SPEED_QUESTIONS,sims:[]},
  '5':{desc:'Quién pasa primero en cruces, glorietas y estrechamientos, y cuándo ceder a peatones, ciclistas y emergencias.',lessons:PRIORITY_LESSONS,questions:PRIORITY_QUESTIONS,sims:['cruces','glorietas']}
 };
 const TOPICS=[...COMUN,...MOTO].map(([id,name])=>({id,name,...TOPIC_CONTENT[id]}));
