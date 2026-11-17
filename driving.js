@@ -11,6 +11,7 @@ const KEY_ACTION={ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right',ArrowUp
   ArrowDown:'brake',s:'brake',' ':'brake',q:'lookLeft',e:'lookRight'};
 const CAP_SECONDS=1/20;
 const SOUND_SETTING='autoescuela_game_sound';
+const ASSIST_SETTING='autoescuela_driving_assist';
 const DISTRICT_HISTORY='autoescuela_district_history';
 const TRAFFIC_PATTERNS=[
   [[1,43,5.2]],
@@ -207,9 +208,12 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   const buttons=Array.from(dialog.querySelectorAll('[data-drive]'));
   const listeners=new AbortController(),{signal}=listeners;
   const heldPointers=new Map(),heldKeys=new Map(),controls=new Set();
-  let nextPattern=Math.floor(Math.random()*TRAFFIC_PATTERNS.length),tripHistory={};
-  if(district)try { tripHistory=JSON.parse(localStorage.getItem(DISTRICT_HISTORY))||{}; } catch {}
-  let renderer,run=district?planDistrict(tripHistory):createRun(nextPattern),frame=0,lastTime=0,lastSpeed=-1;
+  let nextPattern=Math.floor(Math.random()*TRAFFIC_PATTERNS.length),tripHistory={},assisted=true;
+  if(district){
+    try { tripHistory=JSON.parse(localStorage.getItem(DISTRICT_HISTORY))||{}; } catch {}
+    try { assisted=localStorage.getItem(ASSIST_SETTING)!=='off'; } catch {}
+  }
+  let renderer,run=district?planDistrict(tripHistory,Math.random,assisted):createRun(nextPattern),frame=0,lastTime=0,lastSpeed=-1;
   let recent=[],replayFrame=null,replayLook,replayClip=[],reviewAt='Al entrar al cruce',cameraView='cabin';
   const replays=new Map();
   let mode='ready',immersive=false,closed=false;
@@ -238,6 +242,8 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   }
   const leave='<button class="road-button" type="button" data-road-exit>Salir</button>';
   const twoButtons=(label,action)=>`<div class="road-panel-actions"><button class="road-button primary" type="button" data-road-${action}>${label}</button>${leave}</div>`;
+  const assistButton=()=>`<button class="road-button road-assist-toggle" type="button" data-road-assist aria-label="Ayuda de conducción"
+    aria-pressed="${assisted}">${assisted?'Ayuda activada':'Ayuda desactivada'}</button>`;
 
   function paint(){
     const view=replayFrame||run,look=replayLook??view.look;
@@ -299,10 +305,10 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   function pause(){
     if(mode!=='running')return;
     stopFrame();mode='paused';
-    show(`<h2>Partida en pausa</h2>${district?districtMenu():twoButtons('Continuar','resume')}`);
+    show(`<h2>Partida en pausa</h2>${district?districtMenu(true):twoButtons('Continuar','resume')}`);
   }
-  function districtMenu(){return `<div class="road-panel-actions"><button class="road-button primary" type="button" data-road-resume>Continuar</button>
-    <button class="road-button" type="button" data-road-finish>Terminar y revisar</button>${leave}</div>`;}
+  function districtMenu(includeAssistance=false){return `<div class="road-panel-actions"><button class="road-button primary" type="button" data-road-resume>Continuar</button>
+    <button class="road-button" type="button" data-road-finish>Terminar y revisar</button>${leave}${includeAssistance?assistButton():''}</div>`;}
   function openMap(){
     if(!district||mode!=='running')return;
     stopFrame();mode='map';
@@ -322,10 +328,11 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
     const count=run.checks.length,score=run.checks.filter(check=>check.ok).length;
     const title=run.ending==='parked'?'Has llegado a '+CITY_PARKING[run.goal].name:run.ending==='collision'?'Trayecto interrumpido':'Trayecto terminado';
     const heading=count?`${score} de ${count} decisiones correctas · ${Math.round(run.meters)} m recorridos.`:'Todavía no has pasado por una situación evaluada.';
-    const items=run.checks.slice(-10).map(({title,ok,detail},i)=>{
+    const items=run.checks.slice(-10).map(({title,ok,detail,source},i)=>{
       const index=Math.max(0,count-10)+i;
       const replay=replays.has(index)?`<button type="button" class="road-tool road-clip" data-road-replay="${index}" aria-label="Repetir ${title}">Ver</button>`:'';
-      return `<li>${replay}<b>${title} <span class="${ok?'ok':'review'}">${ok?'Bien':'A mejorar'}</span></b><span>${detail}</span></li>`;
+      const rule=source==='signal'?` <a href="${ruleUrl.split('#')[0]}#a75" target="_blank" rel="noopener" class="road-rule">RGC, arts. 75 y 109</a>`:'';
+      return `<li>${replay}<b>${title} <span class="${ok?'ok':'review'}">${ok?'Bien':'A mejorar'}</span></b><span>${detail}${rule}</span></li>`;
     }).join('');
     show(`<h2>${title}</h2><p>${heading}</p>${count>10?'<p class="road-hint">Últimas diez decisiones.</p>':''}<ul class="road-results">${items}</ul>
       ${twoButtons('Nueva partida','start')}<a class="road-rule" href="${ruleUrl}" target="_blank" rel="noopener">Reglamento General de Circulación</a>`);
@@ -420,7 +427,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   function play(restart){
     if(!renderer)return;
     if(restart){
-      if(district){if(mode!=='ready')run=planDistrict(run.history);}
+      if(district){if(mode!=='ready')run=planDistrict(run.history,Math.random,assisted);}
       else{run=createRun(nextPattern);nextPattern=(nextPattern+1)%TRAFFIC_PATTERNS.length;}
       recent=[];replayFrame=null;replayLook=undefined;replays.clear();
       gear.setAttribute('aria-pressed','false');gear.setAttribute('aria-label','Activar marcha atrás');
@@ -456,6 +463,13 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
     else selectIndicator(run,Number(button.dataset.roadSignal));
     paint();
   }
+  function toggleAssistance(button){
+    if(!district||(mode!=='ready'&&mode!=='paused'))return;
+    assisted=!assisted;run.assisted=assisted;
+    try { localStorage.setItem(ASSIST_SETTING,assisted?'on':'off'); } catch {}
+    button.setAttribute('aria-pressed',String(assisted));
+    button.textContent=assisted?'Ayuda activada':'Ayuda desactivada';
+  }
 
   const observer=new ResizeObserver(resize);observer.observe(canvas);
   dialog.addEventListener('click',event=>{
@@ -469,6 +483,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
     if(button.hasAttribute('data-road-results'))showResults();
     if(button.hasAttribute('data-road-map'))openMap();
     if(button.hasAttribute('data-road-gear'))toggleGear();
+    if(button.hasAttribute('data-road-assist'))toggleAssistance(button);
     if(event.detail===0&&accessories.includes(button))changeAccessory(button);
     if(button.hasAttribute('data-road-finish')){run.ending='ended';finish();}
     if(button.dataset.roadView)selectReviewView(button.dataset.roadView);
@@ -522,11 +537,12 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   if(renderer){
     show(`<h2>${district?'Conduce por el barrio':'Cruce con STOP'}</h2>${district?
       `<p>Tu destino es ${CITY_PARKING[run.goal].name}. Elige por qué calles llegar y detente dentro de la zona de aparcamiento.</p>
-      <p class="road-hint">Usa Exterior para anticipar la calle y Vista alta para aparcar. Toca las flechas de Interm. o Luces mientras conduces.</p>`:
+      <p class="road-hint">La ayuda mantiene el carril y modera la velocidad en los cruces. Tú eliges los giros, cuándo frenar y cuándo continuar.</p>`:
       '<p>Conduce hasta el cruce y sigue recto cuando puedas pasar con seguridad.</p>'}
       <p class="road-hint">Pulsa y mantén los mandos para girar, acelerar, frenar y mirar a los lados. En ordenador puedes usar las flechas y Q o E para mirar.</p>
       <p class="road-hint road-landscape-hint">En horizontal verás más carretera.</p>
-      ${twoButtons('Jugar','start')}`);
+      ${district?`<div class="road-panel-actions"><button class="road-button primary" type="button" data-road-start>Jugar</button>${assistButton()}${leave}</div>`:
+        twoButtons('Jugar','start')}`);
     resize();
   }else unavailable();
   return dispose;

@@ -5,6 +5,7 @@ export const CITY_LANE=1.85;
 const CAR_LENGTH=2.05,CAR_WIDTH=.87;
 const WHEEL_LENGTH=1.87,WHEEL_WIDTH=.77;
 const PEDESTRIAN_SPEED=1.42;
+const STREET_AXES=[-DISTRICT,0,DISTRICT];
 export const ROADS=[
   [-56.5,-56.5,56.5,-47.5],[-56.5,47.5,56.5,56.5],
   [-56.5,-47.5,-47.5,47.5],[47.5,-47.5,56.5,47.5],
@@ -35,6 +36,7 @@ const STARTS=[
   {x:20,z:52-CITY_LANE,yaw:-Math.PI/2},
   {x:-52+CITY_LANE,z:20,yaw:0}
 ];
+const SIDE_CORNERS=[[-DISTRICT,-DISTRICT],[-DISTRICT,DISTRICT],[DISTRICT,-DISTRICT],[DISTRICT,DISTRICT]];
 
 export function roadPoint({x,z,dx,dz},forward=0,right=0){return [x+dx*forward-dz*right,z+dz*forward+dx*right];}
 function axes({x,z,dx,dz},px,pz){return [(px-x)*dx+(pz-z)*dz,-(px-x)*dz+(pz-z)*dx];}
@@ -52,7 +54,7 @@ function weigh(values,count,random){
   return values.find((_,index)=>(position-=weights[index])<0)??values.at(-1);
 }
 
-export function planDistrict(previous={},random=Math.random){
+export function planDistrict(previous={},random=Math.random,assisted=true){
   const pairs=[];
   for(const [start,point] of STARTS.entries())for(const [goal,spot] of CITY_PARKING.entries()){
     if(Math.hypot(point.x-spot.x,point.z-spot.z)>69&&previous.pair!==start+'-'+goal)pairs.push({start,goal});
@@ -76,7 +78,8 @@ export function planDistrict(previous={},random=Math.random){
   const car={...STARTS[start],speed:0,steer:0,look:0};
   const run={...car,goal,start,elapsed:0,reverse:false,traffic:[...cars,...circle],pedestrians,history,
     checks:[],stops:new Map(),ringApproach:null,contact:null,clearance:0,ending:null,parkTime:0,meters:0,
-    indicator:0,indicatorSince:0,indicatorTurn:0,lowBeams:false,braking:false};
+    indicator:0,indicatorSince:0,indicatorTurn:0,lowBeams:false,braking:false,
+    assisted,manualUntil:0,streetTurn:null};
   for(const npc of run.traffic){
     placeTraffic(npc);
     if(!npc.ring&&Math.hypot(npc.x-run.x,npc.z-run.z)<11){
@@ -247,6 +250,73 @@ function checkRoundabout(run){
   record(run,'Entrada a la glorieta',!approaching,approaching?'Entraste con un coche circulando cerca de la entrada.':'Te incorporaste con espacio para respetar al tráfico de la glorieta.','roundabout');
 }
 
+function cardinal(yaw){
+  const heading=Math.round(yaw/(Math.PI/2))*Math.PI/2;
+  return {yaw:heading,dx:Math.round(Math.sin(heading)),dz:-Math.round(Math.cos(heading))};
+}
+
+function checkStreetTurn(run){
+  if(run.reverse){run.streetTurn=null;return;}
+  let turn=run.streetTurn;
+  const direction=cardinal(run.yaw);
+  if(!turn){
+    if(Math.abs(wrapAngle(run.yaw-direction.yaw))>.40)return;
+    const node=CITY_STOPS.find(({x,z})=>{
+      const [f,r]=axes({x,z,...direction},run.x,run.z);
+      return f>=-14.5&&f<=-7.1&&Math.abs(r)<=STREET_HALF;
+    });
+    if(node)run.streetTurn={node,direction,signal:null};
+    return;
+  }
+  const {node,direction:original}=turn;
+  const distance=Math.hypot(run.x-node.x,run.z-node.z);
+  const angle=wrapAngle(run.yaw-original.yaw);
+  if(distance>16||Math.abs(angle)>2.2){run.streetTurn=null;return;}
+  if(turn.signal===null&&distance<8.6&&Math.abs(angle)>.14)turn.signal=run.indicator;
+  const [forward,side]=axes({...node,...direction},run.x,run.z);
+  if(forward<6.75||Math.abs(side)>STREET_HALF||Math.abs(wrapAngle(run.yaw-direction.yaw))>.39)return;
+  const change=wrapAngle(direction.yaw-original.yaw);
+  if(Math.abs(change)>1.2){
+    const sign=Math.sign(change),ok=sign===turn.signal;
+    const side=sign<0?'izquierda':'derecha';
+    record(run,'Intermitente al girar',ok,ok?`Señalizaste el giro a la ${side} antes de iniciarlo.`:
+      `Señaliza con antelación el giro a la ${side}.`, 'signal');
+  }
+  run.streetTurn=null;
+}
+
+const limit=(v,min,max)=>Math.min(max,Math.max(min,v));
+
+function assistedPace(run){
+  const radial=Math.hypot(run.x,run.z);
+  const cornerDistance=Math.min(...CITY_STOPS.map(({x,z})=>Math.hypot(x-run.x,z-run.z)),
+    ...SIDE_CORNERS.map(([x,z])=>Math.hypot(x-run.x,z-run.z)));
+  const distance=Math.min(cornerDistance,Math.max(0,radial-ROUND.outer));
+  return 4.65+3.45*limit((distance-7)/14,0,1);
+}
+
+function assistedSteering(run){
+  if(run.reverse||!run.assisted||run.elapsed<run.manualUntil||run.speed<.3)return 0;
+  const radius=Math.hypot(run.x,run.z),tangent=Math.atan2(run.z,run.x);
+  if(Math.abs(radius-ROUND.lane)<1.28&&Math.abs(wrapAngle(run.yaw-tangent))<.42){
+    const bearing=tangent+Math.atan2(ROUND.lane-radius,3.1);
+    return limit(-.46+wrapAngle(bearing-run.yaw)*1.55,-.69,.51);
+  }
+  if(radius<ROUND.outer+3.4||CITY_STOPS.some(({x,z})=>Math.hypot(x-run.x,z-run.z)<8.4)||
+     SIDE_CORNERS.some(([x,z])=>Math.hypot(x-run.x,z-run.z)<8.4))return 0;
+  if(CITY_PARKING.some(spot=>{
+    const [f,r]=axes(spot,run.x,run.z);return Math.abs(f)<PARKING.length/2+2&&r>2.65&&r<PARKING.end+.1;
+  }))return 0;
+  const direction=cardinal(run.yaw);
+  if(Math.abs(wrapAngle(run.yaw-direction.yaw))>.37)return 0;
+  const across=direction.dz?run.x:run.z;
+  const axis=STREET_AXES.reduce((best,value)=>Math.abs(value-across)<Math.abs(best-across)?value:best);
+  const lateral=(across-axis)*(direction.dz?-direction.dz:direction.dx);
+  if(lateral<-.16||lateral>STREET_HALF)return 0;
+  const bearing=direction.yaw+Math.atan2((CITY_LANE-lateral)*.67,4.5);
+  return limit(wrapAngle(bearing-run.yaw)*1.65,-.44,.44);
+}
+
 function moveAlongStreet(run,distance){
   if(!distance)return;
   // A velocidad de maniobra se conserva el giro cerrado. A más velocidad, el volante es menos sensible.
@@ -292,12 +362,21 @@ export function driveDistrict(run,controls,dt){
   actors(run,dt);
   const steer=Number(controls.has('right'))-Number(controls.has('left'));
   const look=Number(controls.has('lookRight'))-Number(controls.has('lookLeft'));
-  run.steer+=(steer-run.steer)*Math.min(1,(steer?7:10)*dt);run.look+=(look*1.29-run.look)*Math.min(1,6*dt);
+  if(steer)run.manualUntil=run.elapsed+.38;
+  const guided=steer||assistedSteering(run);
+  run.steer+=(guided-run.steer)*Math.min(1,(steer?7:10)*dt);run.look+=(look*1.29-run.look)*Math.min(1,6*dt);
   run.braking=controls.has('brake');
-  const acceleration=run.braking?-7.25:controls.has('gas')?2.6-.064*run.speed:-.76-.078*run.speed;
-  run.speed=Math.min(run.reverse?3.25:9.7,Math.max(0,run.speed+acceleration*dt));
+  const gas=controls.has('gas');
+  const acceleration=run.braking?-7.25:gas?2.6-.064*run.speed:-.76-.078*run.speed;
+  let speed=limit(run.speed+acceleration*dt,0,run.reverse?3.25:9.7);
+  if(run.assisted&&!run.reverse){
+    const pace=assistedPace(run);
+    if(speed>pace)speed=Math.min(speed,Math.max(pace,run.speed-2.25*dt));
+  }
+  run.speed=speed;
   const previousYaw=run.yaw;
   moveAlongStreet(run,(run.reverse?-1:1)*run.speed*dt);
+  checkStreetTurn(run);
   if(run.indicator&&!run.reverse){
     run.indicatorTurn+=wrapAngle(run.yaw-previousYaw)*run.indicator;
     if(run.indicatorTurn>.55&&Math.abs(run.steer)<.14)selectIndicator(run,0);

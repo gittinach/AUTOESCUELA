@@ -108,6 +108,7 @@
 .road-panel-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .road-button{min-height:46px;padding:8px 16px;border:1px solid #849aa5;border-radius:11px;background:#304450;color:#fff;font:inherit;font-weight:750}
 .road-button.primary{background:#a2d8be;border-color:#b3e6ce;color:#142e2b}
+.road-assist-toggle[aria-pressed="true"]{background:#304e4c;border-color:#99c3b5;color:#f1f8f4}
 .road-game :is(button,a):focus-visible{outline:3px solid #ffe5ab;outline-offset:2px}
 .road-surface:focus{outline:0}
 .road-landscape-hint{display:none}
