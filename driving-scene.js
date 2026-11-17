@@ -1,4 +1,4 @@
-import {CITY_STOPS,CITY_ENTRIES,CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,PARKING,STOP_LINE,roadPoint,districtRoad,flashingIndicator} from './driving-world.js';
+import {CITY_STOPS,CITY_ENTRIES,CITY_CROSSINGS,CITY_PARKING,CITY_SPEED_ZONES,CITY_LIGHTS,ROADS,ROUND,PARKING,STOP_LINE,roadPoint,districtRoad,flashingIndicator,trafficLight,districtWeather} from './driving-world.js';
 
 export const JUNCTION={
   laneX:1.85,roadHalfWidth:4.5,stopLine:10.5,crossEdge:6,
@@ -79,6 +79,9 @@ const fragmentSource=`
   uniform bool uTextured;
   uniform bool uBeams;
   uniform vec4 uLightPose;
+  uniform vec3 uTint;
+  uniform vec2 uFogRange;
+  uniform float uWet;
   varying vec3 vColor;
   varying vec2 vUV;
   varying vec2 vGround;
@@ -95,10 +98,15 @@ const fragmentSource=`
     vec3 color=vColor;
     float opacity=1.;
     if(vMaterial<.5&&vUV.x>=0.){
-      opacity=texture2D(uPrint,vUV).a;
+      opacity=texture2D(uPrint,vec2(vUV.x,.5+vUV.y*.5)).a;
       if(opacity<.04)discard;
     }
-    if(uTextured&&vMaterial>.5){
+    if(vMaterial>4.5&&vMaterial<6.5){
+      float x=(vMaterial-5.)*.5+vUV.x*.5;
+      vec4 sign=texture2D(uPrint,vec2(x,vUV.y*.5));
+      if(sign.a<.05)discard;
+      color=gl_FrontFacing?sign.rgb:vec3(.52,.56,.54);opacity=sign.a;
+    }else if(uTextured&&vMaterial>.5&&vMaterial<4.5){
       vec3 texel=vMaterial<1.5?texture2D(uAsphalt,vUV).rgb:
         vMaterial<2.5?texture2D(uStucco,vUV).rgb:
         vMaterial<3.5?texture2D(uRoof,vUV).rgb:texture2D(uPaving,vUV).rgb;
@@ -112,9 +120,13 @@ const fragmentSource=`
       float patches=sin(vGround.x*1.34+vGround.y*.48)*sin(vGround.y*.82-vGround.x*.62);
       color+=vGrain*((grain-.5)*nearGrain+patches*.16);
     }
-    if(uShadows&&vShadow.x>.004&&vShadow.x<.996&&vShadow.y>.004&&vShadow.y<.996&&vDepth<77.){
+    if(uShadows&&vMaterial<6.5&&vShadow.x>.004&&vShadow.x<.996&&vShadow.y>.004&&vShadow.y<.996&&vDepth<77.){
       float shadow=(shadeAt(vec2(-.65,-.5))+shadeAt(vec2(.65,.5)))*.5;
       color=mix(color,color*vec3(.67,.72,.80),shadow*(1.-smoothstep(57.,77.,vDepth)));
+    }
+    if(vMaterial<6.5){
+      color*=uTint;
+      if(vMaterial>.5&&vMaterial<1.5)color=mix(color,color*.71+vec3(.06,.076,.09),uWet*.55);
     }
     if(uBeams&&vHeight<1.15){
       vec2 rel=vGround-uLightPose.xy;
@@ -124,9 +136,9 @@ const fragmentSource=`
       float cone=1.-smoothstep(width*.49,width,abs(side-.59));
       cone+=1.-smoothstep(width*.49,width,abs(side+.59));
       float falloff=smoothstep(0.,2.8,front)*(1.-smoothstep(7.,23.,front))*(1.-smoothstep(.1,1.15,vHeight));
-      color+=vec3(.132,.123,.084)*min(1.,cone)*falloff;
+      color+=vec3(.39,.35,.23)*min(1.,cone)*falloff;
     }
-    gl_FragColor=vec4(mix(color,uHaze,smoothstep(27.,105.,vDepth)*.84)*opacity,opacity);
+    gl_FragColor=vec4(mix(color,uHaze,smoothstep(uFogRange.x,uFogRange.y,vDepth)*.94)*opacity,opacity);
   }
 `;
 
@@ -493,6 +505,45 @@ function postSign(m,node,distance,kind){
   }
 }
 
+function speedSign(m,place,position,direction,speed){
+  const [x,z]=roadPoint(place,position,direction*5.2);
+  m.box(x,.12,z,.061,2.2,.061,'#768284');
+  const vertex=(u,y)=>[x-place.dz*u-direction*place.dx*.049,y,z+place.dx*u-direction*place.dz*.049];
+  const left=direction<0?.44:-.44,right=-left;
+  m.quad(vertex(left,1.92),vertex(right,1.92),vertex(right,2.8),vertex(left,2.8),color('#fff'),0,true,speed===20?5:6);
+}
+
+function lightDisc(m,node,side,height,radius,ink,glow=false){
+  const [x,z]=roadPoint(node,-side*CITY_LIGHTS.line,side*5.13);
+  const p=(offset,y)=>[x-node.dz*offset,y,z+node.dx*offset];
+  const layer=glow?.112:.108;
+  for(let i=0;i<20;i++){
+    const a=i*Math.PI/10,b=(i+1)*Math.PI/10;
+    const face=(dx,y)=>{const v=p(dx,y);v[0]-=node.dx*side*layer;v[2]-=node.dz*side*layer;return v;};
+    m.triangle(face(0,height),face(Math.cos(a)*radius,height+Math.sin(a)*radius),
+      face(Math.cos(b)*radius,height+Math.sin(b)*radius),color(ink),0,null,glow?7:0);
+  }
+}
+
+function trafficSignalModel(){
+  const m=mesh();
+  for(const side of [-1,1]){
+    const [x,z]=roadPoint(CITY_LIGHTS,-side*CITY_LIGHTS.line,side*5.13);
+    m.box(x,.12,z,.095,2.3,.095,'#6f7f77');
+    m.box(x,2.23,z,.31,.99,.19,'#273333');
+    for(let i=0;i<3;i++)lightDisc(m,CITY_LIGHTS,side,3.04-i*.30,.108,['#4b2426','#51412a','#234337'][i]);
+  }
+  return m.vertices;
+}
+
+function signalLensModels(){
+  return ['#ff5141','#ffbd42','#4ce79c'].map((ink,index)=>{
+    const m=mesh();
+    for(const side of [-1,1])lightDisc(m,CITY_LIGHTS,side,3.04-index*.3,.092,ink,true);
+    return m.vertices;
+  });
+}
+
 function parkingSign(m,spot){
   const [x,z]=roadPoint(spot,2.4,PARKING.end+.16);
   m.box(x,.07,z,.058,2.25,.058,'#697780');
@@ -588,6 +639,13 @@ function buildDistrict(){
   }
   for(const crossing of CITY_CROSSINGS)for(let r=-4.27;r<4.33;r+=.98){
     roadSurface(m,crossing,-1.6,1.6,r,r+.51,.021,paint);
+  }
+  for(const side of [-1,1])roadSurface(m,CITY_LIGHTS,-side*CITY_LIGHTS.line,-side*CITY_LIGHTS.line+.14,
+    side>0?.06:-4.44,side>0?4.44:-.06,.027,'#f3ecdd');
+  for(const zone of CITY_SPEED_ZONES){
+    speedSign(m,zone,zone.from,1,zone.limit);
+    speedSign(m,zone,zone.to,-1,zone.limit);
+    if(zone.limit<30){speedSign(m,zone,zone.to,1,30);speedSign(m,zone,zone.from,-1,30);}
   }
   for(const spot of CITY_PARKING){
     // La plaza está sobre el lado derecho de su calle, con salida directa a la calzada.
@@ -767,10 +825,17 @@ function makeShadow(gl,street){
 }
 
 function makePrint(gl){
-  const ink=document.createElement('canvas');ink.width=256;ink.height=128;
+  const ink=document.createElement('canvas');ink.width=256;ink.height=256;
   const ctx=ink.getContext('2d');
   ctx.font='900 92px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillStyle='#fff';ctx.fillText('STOP',128,64,248);
+  for(const [i,speed] of [20,30].entries()){
+    const x=i*128+64,y=192;
+    ctx.fillStyle='#f1ece2';ctx.beginPath();ctx.arc(x,y,62,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ba2531';ctx.beginPath();ctx.arc(x,y,59,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fffdf4';ctx.beginPath();ctx.arc(x,y,47,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#202327';ctx.font='700 66px Arial,sans-serif';ctx.fillText(String(speed),x,y+1,85);
+  }
   const texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,texture);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,ink);
@@ -820,6 +885,7 @@ export function createStreetRenderer(canvas,materialReady,district=false){
   const eye=uniform('uEye'),heading=uniform('uHeading'),projection=uniform('uProjection'),pitch=uniform('uPitch'),placement=uniform('uPlacement');
   const stride=uniform('uStride');
   const beams=uniform('uBeams'),lightPose=uniform('uLightPose');
+  const tint=uniform('uTint'),fog=uniform('uFogRange'),wet=uniform('uWet'),hazeColor=uniform('uHaze');
   gl.uniform3fv(uniform('uHaze'),SKY);
   for(const [unit,name] of ['uPrint','uAsphalt','uStucco','uRoof','uPaving','uShadow'].entries())gl.uniform1i(uniform(name),unit);
   gl.uniform1i(uniform('uShadows'),Number(shadow.ready));
@@ -832,6 +898,8 @@ export function createStreetRenderer(canvas,materialReady,district=false){
   });
   const human=district?upload(humanModel()):null;
   const lamps=district?driverLights(upload):null;
+  const trafficSignal=district?upload(trafficSignalModel()):null;
+  const lensModels=district?signalLensModels().map(upload):[];
   function draw(object,x=0,z=0,angle=0,step=0){
     gl.bindBuffer(gl.ARRAY_BUFFER,object.buffer);
     for(const [attribute,size,start] of attributes)gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,VERTEX_SIZE*4,start*4);
@@ -849,6 +917,12 @@ export function createStreetRenderer(canvas,materialReady,district=false){
     },
     draw(frame,look=frame.look,camera='cabin'){
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+      const time=frame.environment?.time||'day',weather=districtWeather(frame),night=time==='night';
+      const light=night?[.16,.22,.32]:time==='sunset'?[1.04,.79,.60]:[1,1,1];
+      const haze=night?[.035,.065,.10]:weather==='fog'?[.68,.73,.74]:time==='sunset'?[.65,.55,.48]:SKY;
+      gl.uniform3fv(tint,weather==='rain'?light.map(n=>n*.80):light);
+      gl.uniform3fv(hazeColor,haze);gl.uniform2f(fog,weather==='fog'?9:weather==='rain'?23:27,weather==='fog'?45:weather==='rain'?84:105);
+      gl.uniform1f(wet,Number(weather==='rain'));
       const outside=district&&camera!=='cabin',overhead=camera==='overhead';
       const bearing=frame.yaw+look*(outside?.62:1);
       const tilt=outside?(overhead?.96:.32):district?.135:.088;
@@ -861,6 +935,7 @@ export function createStreetRenderer(canvas,materialReady,district=false){
       gl.uniform1i(beams,Number(Boolean(district&&frame.lowBeams)));
       if(district&&frame.lowBeams)gl.uniform4f(lightPose,frame.x,frame.z,Math.sin(frame.yaw),-Math.cos(frame.yaw));
       draw(street);
+      if(trafficSignal){draw(trafficSignal);draw(lensModels[{red:0,amber:1,green:2}[trafficLight(frame)]]);}
       if(outside){
         const angle=Math.PI/2-frame.yaw;
         const own=object=>draw(object,frame.x,frame.z,angle);
@@ -875,6 +950,7 @@ export function createStreetRenderer(canvas,materialReady,district=false){
         if(!district&&Math.abs(car.x)>=78)continue;
         const angle=district?Math.PI/2-car.yaw:car.direction===1?0:Math.PI;
         draw(cars[district?car.model:car.direction===1?0:1],car.x,car.z,angle);
+        if(district&&night){draw(lamps.front,car.x,car.z,angle);draw(lamps.tail,car.x,car.z,angle);}
       }
       if(human)for(const person of frame.pedestrians){
         if(!person.present||person.state==='clear')continue;
@@ -887,6 +963,8 @@ export function createStreetRenderer(canvas,materialReady,district=false){
       for(const car of cars)gl.deleteBuffer(car.buffer);
       if(human)gl.deleteBuffer(human.buffer);
       if(lamps)for(const lamp of Object.values(lamps))gl.deleteBuffer(lamp.buffer);
+      if(trafficSignal)gl.deleteBuffer(trafficSignal.buffer);
+      for(const lens of lensModels)gl.deleteBuffer(lens.buffer);
       disposeMaterials();gl.deleteTexture(shadow.texture);gl.deleteTexture(ink);gl.deleteProgram(program);
     }
   };

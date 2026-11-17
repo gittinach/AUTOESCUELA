@@ -1,6 +1,6 @@
 import {JUNCTION,PARKED_VAN,SIDE_LOOK,createStreetRenderer,driverEye} from './driving-scene.js';
 import {createDrivingAudio} from './driving-audio.js';
-import {CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,roadPoint,planDistrict,driveDistrict,wrapAngle,selectIndicator,flashingIndicator} from './driving-world.js';
+import {CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,roadPoint,planDistrict,driveDistrict,wrapAngle,selectIndicator,flashingIndicator,districtWeather} from './driving-world.js';
 
 const ROUTE_TEXT=[
   ['Parada en la línea','Te detuviste antes de la línea del STOP.','Debías detenerte por completo antes de la línea del STOP.'],
@@ -92,9 +92,9 @@ export function moveThroughJunction(run,controls,dt){
   }
 }
 
-function captureFrame({x,z,yaw,look,steer,speed,traffic,pedestrians=[],elapsed,indicator,indicatorSince,lowBeams,braking,reverse},camera){
+function captureFrame({x,z,yaw,look,steer,speed,traffic,pedestrians=[],elapsed,indicator,indicatorSince,lowBeams,braking,reverse,environment,lightOffset},camera){
   return {x,z,yaw,look,steer,speed,elapsed,camera,indicator,indicatorSince,lowBeams,braking,reverse,
-    traffic:traffic.map(car=>({...car})),pedestrians:pedestrians.map(person=>({...person}))};
+    environment,lightOffset,traffic:traffic.map(car=>({...car})),pedestrians:pedestrians.map(person=>({...person}))};
 }
 
 function interpolateFrame(before,after,elapsed){
@@ -135,6 +135,7 @@ function drawDistrictMap(canvas,run){
 
 const CABIN=`
   <canvas class="road-gl" aria-label="Vista 3D desde el asiento del conductor" role="img"></canvas>
+  <div class="road-rain" aria-hidden="true"></div>
   <div class="road-cabin" aria-hidden="true">
     <div class="road-headliner"></div>
     <div class="road-pillar left"></div><div class="road-pillar right"></div>
@@ -244,11 +245,17 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   const twoButtons=(label,action)=>`<div class="road-panel-actions"><button class="road-button primary" type="button" data-road-${action}>${label}</button>${leave}</div>`;
   const assistButton=()=>`<button class="road-button road-assist-toggle" type="button" data-road-assist aria-label="Ayuda de conducción"
     aria-pressed="${assisted}">${assisted?'Ayuda activada':'Ayuda desactivada'}</button>`;
+  const conditions=()=>`${{day:'Día',sunset:'Atardecer',night:'Noche'}[run.environment.time]} · ${{clear:'Despejado',rain:'Lluvia intensa',fog:'Niebla'}[run.environment.weather]}`;
 
   function paint(){
     const view=replayFrame||run,look=replayLook??view.look;
     const angle=replayFrame?.camera??cameraView;
     renderer?.draw(view,look,angle);cabin.hidden=district&&angle!=='cabin';
+    if(district){
+      const time=view.environment.time,weather=districtWeather(view);
+      if(surface.dataset.time!==time)surface.dataset.time=time;
+      if(surface.dataset.weather!==weather)surface.dataset.weather=weather;
+    }
     const kmh=Math.round(view.speed*3.6);
     if(kmh!==lastSpeed){speed.textContent=kmh;lastSpeed=kmh;}
     wheel.style.transform=`rotate(${view.steer*72}deg)`;
@@ -262,6 +269,13 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
       notice.hidden=!hint;
       if(notice.textContent!==hint)notice.textContent=hint;
       gear.disabled=run.speed>.12;
+      for(const button of buttons){
+        const sign=button.dataset.drive==='left'?-1:button.dataset.drive==='right'?1:0;
+        if(!sign)continue;
+        button.classList.toggle('planned',run.assisted&&run.turnChoice===sign&&!run.guidePath);
+        button.setAttribute('aria-label',run.assisted?`Elegir el próximo giro a la ${sign<0?'izquierda':'derecha'}`:
+          `Girar a la ${sign<0?'izquierda':'derecha'}`);
+      }
       syncLights();
     }
   }
@@ -331,7 +345,9 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
     const items=run.checks.slice(-10).map(({title,ok,detail,source},i)=>{
       const index=Math.max(0,count-10)+i;
       const replay=replays.has(index)?`<button type="button" class="road-tool road-clip" data-road-replay="${index}" aria-label="Repetir ${title}">Ver</button>`:'';
-      const rule=source==='signal'?` <a href="${ruleUrl.split('#')[0]}#a75" target="_blank" rel="noopener" class="road-rule">RGC, arts. 75 y 109</a>`:'';
+      const reference={signal:['#a75','RGC, arts. 75 y 109'],speed:['#a52','RGC, arts. 50 y 52'],
+        'traffic-light':['#A5','RGC, anexo I, semáforos'],lighting:['#a101','RGC, arts. 101 y 106']}[source];
+      const rule=reference?` <a href="${ruleUrl.split('#')[0]}${reference[0]}" target="_blank" rel="noopener" class="road-rule">${reference[1]}</a>`:'';
       return `<li>${replay}<b>${title} <span class="${ok?'ok':'review'}">${ok?'Bien':'A mejorar'}</span></b><span>${detail}${rule}</span></li>`;
     }).join('');
     show(`<h2>${title}</h2><p>${heading}</p>${count>10?'<p class="road-hint">Últimas diez decisiones.</p>':''}<ul class="road-results">${items}</ul>
@@ -537,9 +553,10 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   if(renderer){
     show(`<h2>${district?'Conduce por el barrio':'Cruce con STOP'}</h2>${district?
       `<p>Tu destino es ${CITY_PARKING[run.goal].name}. Elige por qué calles llegar y detente dentro de la zona de aparcamiento.</p>
-      <p class="road-hint">La ayuda mantiene el carril y modera la velocidad en los cruces. Tú eliges los giros, cuándo frenar y cuándo continuar.</p>`:
+      <p class="road-hint">${conditions()}. El tiempo puede cambiar durante el trayecto.</p>
+      <p class="road-hint">Con la ayuda activada, toca una flecha para elegir el próximo giro. El coche sigue la calzada. Tú controlas el acelerador, el freno, los intermitentes y las luces.</p>`:
       '<p>Conduce hasta el cruce y sigue recto cuando puedas pasar con seguridad.</p>'}
-      <p class="road-hint">Pulsa y mantén los mandos para girar, acelerar, frenar y mirar a los lados. En ordenador puedes usar las flechas y Q o E para mirar.</p>
+      <p class="road-hint">${district?'Mantén pulsado Acelerar o Freno para avanzar o parar.':'Pulsa y mantén los mandos para girar, acelerar o frenar.'} En ordenador puedes usar las flechas y Q o E para mirar.</p>
       <p class="road-hint road-landscape-hint">En horizontal verás más carretera.</p>
       ${district?`<div class="road-panel-actions"><button class="road-button primary" type="button" data-road-start>Jugar</button>${assistButton()}${leave}</div>`:
         twoButtons('Jugar','start')}`);

@@ -18,6 +18,17 @@
     radial-gradient(ellipse 22% 4% at 81% 25%,#eef1e897,transparent 100%),
     linear-gradient(#6398bd,#cbd5d6 43%,#b2be99 65%);
 }
+.road-surface[data-time="sunset"] .road-gl{background:linear-gradient(#7186a0,#dfb48a 43%,#9c9d80 69%)}
+.road-surface[data-time="night"] .road-gl{background:radial-gradient(ellipse 70% 50% at 50% 52%,#203342,#091725 85%)}
+.road-surface[data-weather="fog"] .road-gl{background:linear-gradient(#a1afb4,#b9c0bd 59%,#9fa99b)}
+.road-surface[data-time="night"][data-weather="fog"] .road-gl{background:linear-gradient(#101b29,#192731)}
+.road-rain{display:none;position:absolute;inset:0;pointer-events:none;opacity:.28;
+  background:repeating-linear-gradient(104deg,transparent 0 39px,#d3e3e542 39px 40px,transparent 40px 118px);
+  background-size:139px 89px;animation:road-rainfall .52s linear infinite}
+.road-surface[data-weather="rain"] .road-rain{display:block}
+.road-surface:has(.road-overlay:not([hidden])) .road-rain{animation-play-state:paused}
+@keyframes road-rainfall{to{background-position:-22px 89px}}
+@media (prefers-reduced-motion:reduce){.road-rain{animation:none;opacity:.16}}
 .road-cabin{position:absolute;inset:0;pointer-events:none;transform:translateX(calc(0px - var(--road-look,0%) * .44));}
 .road-headliner{position:absolute;top:0;inset-inline:-24%;height:clamp(9px,3.2vh,28px);border-radius:0 0 48% 41%;
   background:linear-gradient(#232c33,#485259);box-shadow:0 2px 8px #25333c58}
@@ -78,6 +89,7 @@
   color:white;background:#192a35ef;font-family:inherit;font-weight:750;font-size:clamp(.73rem,2.3vw,.95rem);
 }
 .road-steering button{font-size:clamp(1.55rem,5vw,2.1rem);font-weight:650;line-height:1}
+.road-steering button.planned{background:#385950;border-color:#b1dfcf;box-shadow:0 0 0 1px #b1dfcf inset}
 .road-pedals [data-drive="brake"]{background:#632d35f5;border-color:#ed9da590}
 .road-pedals [data-drive="gas"]{background:#17554cf5;border-color:#9bd8c290}
 .road-hud button.held{box-shadow:0 0 0 2px #e8f4ed inset;background:#526b76}

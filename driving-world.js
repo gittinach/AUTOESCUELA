@@ -24,6 +24,22 @@ export const CITY_CROSSINGS=[
   {id:'paso-n',x:25,z:-52,dx:1,dz:0}, {id:'paso-e',x:52,z:25,dx:0,dz:1},
   {id:'paso-s',x:-25,z:52,dx:1,dz:0}, {id:'paso-w',x:-52,z:-25,dx:0,dz:1}
 ];
+export const CITY_LIGHTS={...CITY_CROSSINGS[3],line:2.5};
+
+export function trafficLight(frame){
+  const phase=(frame.elapsed+frame.lightOffset)%32;
+  return phase<14||phase>=30?'red':phase<27?'green':'amber';
+}
+
+export function districtWeather(frame){
+  const env=frame.environment;
+  if(!env)return 'clear';
+  return frame.elapsed>=env.changeAt?env.next:env.weather;
+}
+export const CITY_SPEED_ZONES=[
+  {id:'avenida-20',x:52,z:0,dx:0,dz:1,from:12,to:42,limit:20},
+  {id:'mercado-30',x:0,z:-52,dx:1,dz:0,from:8.6,to:44,limit:30}
+];
 export const CITY_PARKING=[
   {name:'Mercado',x:32,z:-52,dx:1,dz:0},{name:'Biblioteca',x:52,z:34,dx:0,dz:1},
   {name:'Polideportivo',x:-33,z:52,dx:-1,dz:0},{name:'Parque',x:-52,z:-34,dx:0,dz:-1}
@@ -75,11 +91,16 @@ export function planDistrict(previous={},random=Math.random,assisted=true){
   const cars=Array.from({length:3},(_,i)=>({id:i,model:i%2,speed:4.4+random()*1.8,velocity:0,
     distance:(i+.18+random()*.65)*LOOP_LENGTH/3}));
   const circle=[{id:3,model:1,speed:4.15+random()*1.15,velocity:4.1,angle:random()*Math.PI*2,ring:true}];
+  const times=['day','sunset','night'],weather=['clear','rain','fog'];
+  const environment={time:times[Math.floor(random()*times.length)],weather:weather[Math.floor(random()*weather.length)],
+    changeAt:75+random()*50};
+  environment.next=weather[(weather.indexOf(environment.weather)+1+Math.floor(random()*2))%weather.length];
   const car={...STARTS[start],speed:0,steer:0,look:0};
   const run={...car,goal,start,elapsed:0,reverse:false,traffic:[...cars,...circle],pedestrians,history,
     checks:[],stops:new Map(),ringApproach:null,contact:null,clearance:0,ending:null,parkTime:0,meters:0,
     indicator:0,indicatorSince:0,indicatorTurn:0,lowBeams:false,braking:false,
-    assisted,manualUntil:0,streetTurn:null};
+    assisted,manualUntil:0,streetTurn:null,speedZone:null,guidePath:null,guideCircle:null,turnChoice:0,turnHeld:0,
+    lightOffset:random()*32,signalVisit:null,environment,lightUse:null};
   for(const npc of run.traffic){
     placeTraffic(npc);
     if(!npc.ring&&Math.hypot(npc.x-run.x,npc.z-run.z)<11){
@@ -119,7 +140,9 @@ function actors(run,dt){
       person.nearSince??=run.elapsed;
       const distance=Math.abs(forward)-CAR_LENGTH;
       const safe=run.speed<.25||distance/Math.max(1.4,run.speed)>4;
-      if(safe&&run.elapsed-person.nearSince>person.wait)person.state='walking';
+      const phase=(run.elapsed+run.lightOffset)%32;
+      const permitted=person.id!==CITY_LIGHTS.id||phase>1&&phase<5.5;
+      if(safe&&permitted&&run.elapsed-person.nearSince>person.wait)person.state='walking';
     }
     if(person.state==='walking'){
       person.progress+=PEDESTRIAN_SPEED*dt;
@@ -141,13 +164,26 @@ function actors(run,dt){
         if(person.state!=='walking')return false;
         const x=person.x-car.x,z=person.z-car.z;
         return Math.abs(-x*dz+z*dx)<5.2&&x*dx+z*dz>1.9&&x*dx+z*dz<10;
-      })||sameLaneAhead(car,run,8.5)||run.traffic.some(other=>other!==car&&!other.ring&&sameLaneAhead(car,other,7.5));
-      car.velocity=Math.min(car.speed,Math.max(0,car.velocity+(blocked?-5:2.2)*dt));
+      })||sameLaneAhead(car,run,8.5)||run.traffic.some(other=>other!==car&&!other.ring&&sameLaneAhead(car,other,7.5))||
+        stopsAtLight(run,car);
+      const area=CITY_SPEED_ZONES.find(zone=>{
+        const [f,r]=axes(zone,car.x,car.z);return f>=zone.from&&f<=zone.to&&Math.abs(r)<STREET_HALF;
+      });
+      const pace=Math.min(car.speed,(area?.limit||30)/3.6);
+      car.velocity=Math.min(pace,Math.max(0,car.velocity+(blocked?-5:2.2)*dt));
       car.distance=(car.distance+car.velocity*dt)%LOOP_LENGTH;
     }
     placeTraffic(car);
   }
 }
+
+function stopsAtLight(run,car){
+  if(trafficLight(run)==='green')return false;
+  const [f,r]=axes(CITY_LIGHTS,car.x,car.z),direction=Math.sign(alignment(car,CITY_LIGHTS));
+  const distance=-CITY_LIGHTS.line-f*direction-JUNCTION_NPC_FRONT;
+  return Math.abs(r)<STREET_HALF&&distance>-.12&&distance<10;
+}
+const JUNCTION_NPC_FRONT=2.11;
 
 function sameLaneAhead(car,other,distance){
   const x=other.x-car.x,z=other.z-car.z,dx=Math.sin(car.yaw),dz=-Math.cos(car.yaw);
@@ -230,6 +266,36 @@ function checkCrossings(run){
   }
 }
 
+function checkTrafficLight(run){
+  if(run.reverse||Math.abs(alignment(run,CITY_LIGHTS))<.72){run.signalVisit=null;return;}
+  const [f,r]=axes(CITY_LIGHTS,run.x,run.z),direction=Math.sign(alignment(run,CITY_LIGHTS));
+  const front=f*direction+CAR_LENGTH,color=trafficLight(run);
+  if(Math.abs(r)>STREET_HALF||front< -27||front>7){run.signalVisit=null;return;}
+  const state=run.signalVisit??={passed:false,lastColor:color,canClearAmber:false};
+  if(color==='amber'&&state.lastColor!=='amber')state.canClearAmber=-CITY_LIGHTS.line-front<run.speed**2/(2*5.3)+.65;
+  state.lastColor=color;
+  if(!state.passed&&front>=-CITY_LIGHTS.line){
+    state.passed=true;
+    const ok=color==='green'||color==='amber'&&state.canClearAmber;
+    record(run,'Semáforo',ok,ok?(color==='green'?'Pasaste con luz verde.':'Continuaste al encenderse el ámbar porque estabas demasiado cerca para detenerte con seguridad.'):
+      color==='red'?'Franqueaste la línea con el semáforo en rojo.':'En ámbar debes parar si puedes hacerlo con seguridad.','traffic-light');
+  }
+}
+
+function checkLighting(run){
+  const weather=districtWeather(run);
+  const required=run.environment.time==='night'||weather==='fog'||weather==='rain';
+  if(!required){run.lightUse=null;return;}
+  const state=run.lightUse??={dark:0,reported:false};
+  if(run.speed<.3||state.reported)return;
+  state.dark=run.lowBeams?0:state.dark+run.dt;
+  if(state.dark>=2.0){
+    state.reported=true;
+    record(run,'Alumbrado',false,run.environment.time==='night'?'Al circular de noche debes encender las luces de cruce.':
+      weather==='fog'?'La niebla reduce la visibilidad. Debes utilizar el alumbrado correspondiente.':'Con lluvia intensa debes utilizar el alumbrado correspondiente.', 'lighting');
+  }
+}
+
 function checkRoundabout(run){
   if(Math.hypot(run.x,run.z)>24){run.ringApproach=null;return;}
   if(!run.ringApproach){
@@ -245,7 +311,7 @@ function checkRoundabout(run){
   if(f+CAR_LENGTH< -ROUND.outer)return;
   approach.done=true;
   const a=Math.atan2(run.z,run.x),npc=run.traffic.find(c=>c.ring);
-  const angle=(npc.angle-a+Math.PI*2)%(Math.PI*2);
+  const angle=npc?(npc.angle-a+Math.PI*2)%(Math.PI*2):Math.PI;
   const approaching=angle<.93||angle>Math.PI*2-.22;
   record(run,'Entrada a la glorieta',!approaching,approaching?'Entraste con un coche circulando cerca de la entrada.':'Te incorporaste con espacio para respetar al tráfico de la glorieta.','roundabout');
 }
@@ -287,45 +353,223 @@ function checkStreetTurn(run){
 
 const limit=(v,min,max)=>Math.min(max,Math.max(min,v));
 
-function assistedPace(run){
-  const radial=Math.hypot(run.x,run.z);
-  const cornerDistance=Math.min(...CITY_STOPS.map(({x,z})=>Math.hypot(x-run.x,z-run.z)),
-    ...SIDE_CORNERS.map(([x,z])=>Math.hypot(x-run.x,z-run.z)));
-  const distance=Math.min(cornerDistance,Math.max(0,radial-ROUND.outer));
-  return 4.65+3.45*limit((distance-7)/14,0,1);
+function checkSpeed(run){
+  const zone=run.reverse?null:CITY_SPEED_ZONES.find(place=>{
+    const [forward,side]=axes(place,run.x,run.z);
+    return forward>=place.from&&forward<=place.to&&Math.abs(side)<=STREET_HALF&&Math.abs(alignment(run,place))>.66;
+  });
+  let visit=run.speedZone;
+  if(visit&&zone?.id!==visit.zone.id){
+    if(!visit.reported&&run.meters-visit.started>8.5)record(run,'Límite de velocidad',true,
+      `Respetaste la señal de ${visit.zone.limit} km/h.`, 'speed');
+    visit=run.speedZone=null;
+  }
+  if(!zone)return;
+  if(!visit)visit=run.speedZone={zone,started:run.meters,above:0,reported:false};
+  if(visit.reported)return;
+  const kmh=run.speed*3.6;
+  visit.above=kmh>zone.limit+.35?visit.above+run.dt:0;
+  if(visit.above>=.20){
+    visit.reported=true;
+    record(run,'Límite de velocidad',false,`Circulabas a ${Math.round(kmh)} km/h en un tramo señalizado a ${zone.limit} km/h.`, 'speed');
+  }
 }
 
-function assistedSteering(run){
+function straightLane(run){
+  const radius=Math.hypot(run.x,run.z);
+  if(radius<ROUND.outer+3.4||CITY_STOPS.some(({x,z})=>Math.hypot(x-run.x,z-run.z)<8.4)||
+     SIDE_CORNERS.some(([x,z])=>Math.hypot(x-run.x,z-run.z)<8.4))return null;
+  if(CITY_PARKING.some(spot=>{
+    const [f,r]=axes(spot,run.x,run.z);return Math.abs(f)<PARKING.length/2+2&&r>2.65&&r<PARKING.end+.1;
+  }))return null;
+  const direction=cardinal(run.yaw);
+  if(Math.abs(wrapAngle(run.yaw-direction.yaw))>.42)return null;
+  const across=direction.dz?run.x:run.z;
+  const axis=STREET_AXES.reduce((best,value)=>Math.abs(value-across)<Math.abs(best-across)?value:best);
+  const side=direction.dz?-direction.dz:direction.dx;
+  const lateral=(across-axis)*side;
+  if(lateral<-.16||lateral>STREET_HALF)return null;
+  return {direction,axis,side,lateral};
+}
+
+function assistedSteering(run,lane){
   if(run.reverse||!run.assisted||run.elapsed<run.manualUntil||run.speed<.3)return 0;
   const radius=Math.hypot(run.x,run.z),tangent=Math.atan2(run.z,run.x);
   if(Math.abs(radius-ROUND.lane)<1.28&&Math.abs(wrapAngle(run.yaw-tangent))<.42){
     const bearing=tangent+Math.atan2(ROUND.lane-radius,3.1);
     return limit(-.46+wrapAngle(bearing-run.yaw)*1.55,-.69,.51);
   }
-  if(radius<ROUND.outer+3.4||CITY_STOPS.some(({x,z})=>Math.hypot(x-run.x,z-run.z)<8.4)||
-     SIDE_CORNERS.some(([x,z])=>Math.hypot(x-run.x,z-run.z)<8.4))return 0;
-  if(CITY_PARKING.some(spot=>{
-    const [f,r]=axes(spot,run.x,run.z);return Math.abs(f)<PARKING.length/2+2&&r>2.65&&r<PARKING.end+.1;
-  }))return 0;
-  const direction=cardinal(run.yaw);
-  if(Math.abs(wrapAngle(run.yaw-direction.yaw))>.37)return 0;
-  const across=direction.dz?run.x:run.z;
-  const axis=STREET_AXES.reduce((best,value)=>Math.abs(value-across)<Math.abs(best-across)?value:best);
-  const lateral=(across-axis)*(direction.dz?-direction.dz:direction.dx);
-  if(lateral<-.16||lateral>STREET_HALF)return 0;
-  const bearing=direction.yaw+Math.atan2((CITY_LANE-lateral)*.67,4.5);
+  if(!lane)return 0;
+  const bearing=lane.direction.yaw+Math.atan2((CITY_LANE-lane.lateral)*.67,4.5);
   return limit(wrapAngle(bearing-run.yaw)*1.65,-.44,.44);
 }
 
-function moveAlongStreet(run,distance){
+function roadFits(x,z,yaw){
+  return corners(x,z,yaw,WHEEL_LENGTH,WHEEL_WIDTH).every(([wx,wz])=>districtRoad(wx,wz));
+}
+
+// La ayuda usa la geometría de la calle. No consulta señales, tráfico ni peatones.
+function curveAhead(run,distance,curvature,lane){
+  let {x,z,yaw}=run;
+  const sign=Math.sign(distance),step=sign*.60;
+  const count=run.reverse?3:limit(Math.ceil((1.85+run.speed*.26)/Math.abs(step)),4,8);
+  for(let i=0;i<count;i++){
+    yaw+=curvature*step;
+    x+=Math.sin(yaw)*step;z-=Math.cos(yaw)*step;
+    if(!roadFits(x,z,yaw))return i;
+    if(lane){
+      const across=(lane.direction.dz?x:z)-lane.axis;
+      if(across*lane.side<Math.min(lane.lateral,.78)-.02)return i;
+    }
+  }
+  return count;
+}
+
+function worldPath(run,points,after=null){
+  const length=[0];
+  for(let i=1;i<points.length;i++)length.push(length[i-1]+Math.hypot(points[i][0]-points[i-1][0],points[i][1]-points[i-1][1]));
+  run.guidePath={points,length,travelled:0,after};run.turnChoice=0;
+}
+
+function bezierPath(run,end,heading,reach){
+  const a=[run.x,run.z],d=end;
+  const b=[a[0]+Math.sin(run.yaw)*reach,a[1]-Math.cos(run.yaw)*reach];
+  const c=[d[0]-Math.sin(heading)*reach,d[1]+Math.cos(heading)*reach];
+  const points=Array.from({length:37},(_,i)=>{
+    const t=i/36,u=1-t;
+    return [u**3*a[0]+3*u*u*t*b[0]+3*u*t*t*c[0]+t**3*d[0],u**3*a[1]+3*u*u*t*b[1]+3*u*t*t*c[1]+t**3*d[1]];
+  });
+  worldPath(run,points);
+}
+
+const GUIDE_BEND=4.94;
+const GUIDE_NEAR=CITY_LANE+GUIDE_BEND;
+const GUIDE_FAR=Math.sqrt((GUIDE_BEND+ROUND.lane)**2-GUIDE_NEAR**2);
+const GUIDE_ENTRY=Math.atan2(GUIDE_FAR,GUIDE_NEAR);
+const GUIDE_EXIT=Math.atan2(GUIDE_NEAR,GUIDE_FAR);
+
+function chooseGuidePath(run,command){
+  if(run.guidePath||run.reverse)return;
+  if(!run.guideCircle&&Math.abs(Math.hypot(run.x,run.z)-ROUND.lane)<.42&&
+    Math.abs(wrapAngle(run.yaw-Math.atan2(run.z,run.x)))<.28){
+    const angle=Math.atan2(run.z,run.x),exit=cardinal(run.yaw-1.1).yaw;
+    run.guideCircle={angle,exit:{yaw:exit,a:exit-Math.PI/2+GUIDE_EXIT}};
+  }
+  if(run.guideCircle){
+    if(command&&command!==run.turnHeld){
+      const options=[0,Math.PI/2,Math.PI,-Math.PI/2].map(yaw=>({yaw,a:yaw-Math.PI/2+GUIDE_EXIT}));
+      options.sort((a,b)=>((run.guideCircle.angle-a.a+Math.PI*4)%(Math.PI*2))-((run.guideCircle.angle-b.a+Math.PI*4)%(Math.PI*2)));
+      run.guideCircle.exit=options[command>0?0:2];run.turnChoice=0;
+    }
+    return;
+  }
+  const direction=cardinal(run.yaw);
+  if(Math.abs(wrapAngle(run.yaw-direction.yaw))>.42)return;
+  if(run.turnChoice===1){
+    const parking=CITY_PARKING.find(spot=>{
+      const [f,r]=axes(spot,run.x,run.z);
+      return f>=-3.3&&f< -1.5&&r>.5&&r<3.2&&alignment(run,spot)>.85;
+    });
+    if(parking){
+      const end=roadPoint(parking,2.7,(PARKING.start+PARKING.end)/2);
+      bezierPath(run,end,direction.yaw,2.85);return;
+    }
+  }
+  const centre=-run.x*direction.dz+run.z*direction.dx;
+  const towards=run.x*direction.dx+run.z*direction.dz;
+  if(Math.abs(centre-CITY_LANE)<1.1&&towards>=-GUIDE_FAR-.13&&towards< -11){
+    const outgoing=direction.yaw+run.turnChoice*Math.PI/2;
+    const anchor={x:0,z:0,...direction};
+    const points=Array.from({length:30},(_,i)=>{
+      const angle=i*GUIDE_ENTRY/29;
+      return roadPoint(anchor,-GUIDE_FAR+GUIDE_BEND*Math.sin(angle),GUIDE_NEAR-GUIDE_BEND*Math.cos(angle));
+    });
+    points[0]=[run.x,run.z];
+    const last=points.at(-1),a=Math.atan2(last[1],last[0]);
+    worldPath(run,points,{angle:a,exit:{yaw:outgoing,a:outgoing-Math.PI/2+GUIDE_EXIT}});return;
+  }
+  const nodes=[...CITY_STOPS,...SIDE_CORNERS.map(([x,z])=>({x,z}))];
+  const node=nodes.find(point=>{
+    const [f,r]=axes({...point,...direction},run.x,run.z);
+    return f>=-7.68&&f< -6.5&&r>.55&&r<3.2;
+  });
+  if(!node)return;
+  const allowed=change=>{
+    const yaw=direction.yaw+change*Math.PI/2;
+    return districtRoad(node.x+16*Math.sin(yaw)+CITY_LANE*Math.cos(yaw),node.z-16*Math.cos(yaw)+CITY_LANE*Math.sin(yaw));
+  };
+  let selected=run.turnChoice;
+  if(!allowed(selected))selected=[0,1,-1].find(allowed);
+  if(!selected){run.turnChoice=0;return;}
+  const out=direction.yaw+selected*Math.PI/2;
+  const end=roadPoint({...node,...direction},-selected*CITY_LANE,selected*7.68);
+  bezierPath(run,end,out,selected>0?4.0:6.1);
+}
+
+function followGuidePath(run,distance){
+  const path=run.guidePath;
+  if(!path)return false;
+  path.travelled=Math.min(path.travelled+distance,path.length.at(-1));
+  let index=1;
+  while(index<path.length.length-1&&path.length[index]<path.travelled)index++;
+  const previous=path.points[index-1],next=path.points[index];
+  const amount=(path.travelled-path.length[index-1])/(path.length[index]-path.length[index-1]);
+  const old=run.yaw;
+  run.x=previous[0]+(next[0]-previous[0])*amount;run.z=previous[1]+(next[1]-previous[1])*amount;
+  run.yaw=Math.atan2(next[0]-previous[0],previous[1]-next[1]);run.meters+=distance;run.contact=null;
+  run.steer=limit(wrapAngle(run.yaw-old)*2.62/Math.max(.01,distance),-.8,.8);
+  if(path.travelled>=path.length.at(-1)){
+    run.guideCircle=path.after;run.guidePath=null;
+  }
+  return true;
+}
+
+function followGuideCircle(run,distance){
+  const circle=run.guideCircle;
+  if(!circle)return false;
+  const remaining=(circle.angle-circle.exit.a+Math.PI*4)%(Math.PI*2);
+  if(remaining<distance/ROUND.lane+.018){
+    const direction=cardinal(circle.exit.yaw),node={x:0,z:0,...direction};
+    const points=Array.from({length:29},(_,i)=>{
+      const a=GUIDE_EXIT+(Math.PI/2-GUIDE_EXIT)*i/28;
+      return roadPoint(node,GUIDE_FAR-GUIDE_BEND*Math.cos(a),GUIDE_NEAR-GUIDE_BEND*Math.sin(a));
+    });
+    points[0]=[run.x,run.z];run.guideCircle=null;worldPath(run,points);
+    return followGuidePath(run,distance);
+  }
+  circle.angle-=distance/ROUND.lane;
+  run.x=Math.cos(circle.angle)*ROUND.lane;run.z=Math.sin(circle.angle)*ROUND.lane;
+  run.yaw=wrapAngle(circle.angle);run.steer=-.47;run.meters+=distance;run.contact=null;
+  return true;
+}
+
+function guidedCurve(run,distance,curve,lock,lane,command){
+  const expected=curveAhead(run,distance,curve,lane);
+  if(expected>=6||expected>=4&&run.speed<5||run.reverse&&expected>=3)return curve;
+  // Al llegar al fondo de una calle en T, el jugador elige hacia dónde salir.
+  const atEnd=!command&&CITY_STOPS.some(node=>alignment(run,node)>.83&&Math.hypot(run.x-node.x,run.z-node.z)<8.6);
+  if(atEnd)return curve;
+  const maximum=Math.tan(lock)/2.62;
+  let preferred=curve,best=expected;
+  for(const offset of [-.30,.30,-.60,.60,-1,1]){
+    const option=limit(curve+offset*maximum,-maximum,maximum);
+    const clearance=curveAhead(run,distance,option,lane);
+    if(clearance>best){best=clearance;preferred=option;}
+  }
+  return preferred;
+}
+
+function moveAlongStreet(run,distance,lane,command){
   if(!distance)return;
   // A velocidad de maniobra se conserva el giro cerrado. A más velocidad, el volante es menos sensible.
-  const lock=.53-.29*Math.min(1,Math.max(0,(run.speed-4.15)/5.55));
-  const turn=Math.tan(run.steer*lock)*distance/2.62;
+  const lock=run.assisted?.53:.53-.29*limit((run.speed-4.15)/5.55,0,1);
+  const manual=Math.tan(run.steer*lock)/2.62;
+  const curve=run.assisted?guidedCurve(run,distance,manual,lock,lane,command):manual;
+  const turn=curve*distance;
   function tryMove(step,steering){
     const yaw=wrapAngle(run.yaw+steering);
     const x=run.x+Math.sin(yaw)*step,z=run.z-Math.cos(yaw)*step;
-    if(!corners(x,z,yaw,WHEEL_LENGTH,WHEEL_WIDTH).every(([wx,wz])=>districtRoad(wx,wz)))return false;
+    if(!roadFits(x,z,yaw))return false;
     run.x=x;run.z=z;run.yaw=yaw;run.meters+=Math.abs(step);
     return true;
   }
@@ -334,6 +578,11 @@ function moveAlongStreet(run,distance){
       run.clearance+=Math.abs(distance);
       if(run.clearance>=.48)run.contact=null;
     }
+    return;
+  }
+  if(run.assisted){
+    if(tryMove(distance*.45,turn*.45))return;
+    run.speed=0;run.contact=null;
     return;
   }
   // Se reduce la marcha cuando el giro rebasa el borde. Las ruedas se mantienen sobre la calzada.
@@ -362,26 +611,34 @@ export function driveDistrict(run,controls,dt){
   actors(run,dt);
   const steer=Number(controls.has('right'))-Number(controls.has('left'));
   const look=Number(controls.has('lookRight'))-Number(controls.has('lookLeft'));
-  if(steer)run.manualUntil=run.elapsed+.38;
-  const guided=steer||assistedSteering(run);
-  run.steer+=(guided-run.steer)*Math.min(1,(steer?7:10)*dt);run.look+=(look*1.29-run.look)*Math.min(1,6*dt);
+  if(run.assisted){
+    if(steer&&steer!==run.turnHeld)run.turnChoice=steer;
+    if(run.reverse){run.guidePath=null;run.guideCircle=null;}
+    else chooseGuidePath(run,steer);
+  }else{
+    run.guidePath=null;run.guideCircle=null;
+    if(steer)run.manualUntil=run.elapsed+.38;
+  }
+  run.turnHeld=steer;
+  const lane=run.assisted&&!run.reverse?straightLane(run):null;
+  const command=run.assisted&&!run.reverse?0:steer;
+  const guided=command||assistedSteering(run,lane);
+  run.steer+=(guided-run.steer)*Math.min(1,(command?7:10)*dt);run.look+=(look*1.29-run.look)*Math.min(1,6*dt);
   run.braking=controls.has('brake');
   const gas=controls.has('gas');
   const acceleration=run.braking?-7.25:gas?2.6-.064*run.speed:-.76-.078*run.speed;
-  let speed=limit(run.speed+acceleration*dt,0,run.reverse?3.25:9.7);
-  if(run.assisted&&!run.reverse){
-    const pace=assistedPace(run);
-    if(speed>pace)speed=Math.min(speed,Math.max(pace,run.speed-2.25*dt));
-  }
-  run.speed=speed;
+  run.speed=limit(run.speed+acceleration*dt,0,run.reverse?3.25:9.7);
   const previousYaw=run.yaw;
-  moveAlongStreet(run,(run.reverse?-1:1)*run.speed*dt);
+  const movement=(run.reverse?-1:1)*run.speed*dt;
+  if(!run.assisted||run.reverse||!followGuidePath(run,movement)&&!followGuideCircle(run,movement)){
+    moveAlongStreet(run,movement,lane,command);
+  }
   checkStreetTurn(run);
   if(run.indicator&&!run.reverse){
     run.indicatorTurn+=wrapAngle(run.yaw-previousYaw)*run.indicator;
     if(run.indicatorTurn>.55&&Math.abs(run.steer)<.14)selectIndicator(run,0);
   }
-  checkStops(run);checkCrossings(run);checkRoundabout(run);
+  checkStops(run);checkCrossings(run);checkRoundabout(run);checkSpeed(run);checkTrafficLight(run);checkLighting(run);
   const collision=run.traffic.some(car=>bump(run,car));
   const hitsPerson=run.pedestrians.some(person=>bumpPerson(run,person));
   if(collision||hitsPerson){
@@ -390,7 +647,7 @@ export function driveDistrict(run,controls,dt){
     return;
   }
   const parking=CITY_PARKING[run.goal];
-  const parked=run.speed<.1&&corners(run.x,run.z,run.yaw).every(([wx,wz])=>{
+  const parked=run.speed<.1&&!controls.has('gas')&&corners(run.x,run.z,run.yaw).every(([wx,wz])=>{
     const [f,r]=axes(parking,wx,wz);return Math.abs(f)<PARKING.length/2&&r>4.48&&r<PARKING.end;
   });
   run.parkTime=parked?run.parkTime+dt:0;
