@@ -10,12 +10,23 @@ export function driverEye({x,z,yaw}){
   return [x-.39*Math.cos(yaw)+.38*Math.sin(yaw),1.24,z-.39*Math.sin(yaw)-.38*Math.cos(yaw)];
 }
 
-const SKY=[.75,.83,.85];
+const SKY=[.75,.82,.84];
+const VERTEX_SIZE=10;
+const SHADOW_SIZE=1024;
+const lightSpace=`
+  vec3 sunSpace(vec3 world){
+    vec3 p=world-vec3(0.,0.,7.);
+    return vec3(dot(p,vec3(.382,0.,.924))/29.,
+                dot(p,vec3(.468,.863,-.193))/24.,
+                -dot(p,vec3(-.797,.506,.329))/37.);
+  }
+`;
 const vertexSource=`
   attribute vec3 aPosition;
   attribute vec3 aColor;
   attribute vec2 aUV;
   attribute float aGrain;
+  attribute float aMaterial;
   uniform vec3 uEye;
   uniform vec2 uHeading;
   uniform vec2 uProjection;
@@ -25,41 +36,92 @@ const vertexSource=`
   varying vec2 vGround;
   varying float vGrain;
   varying float vDepth;
+  varying float vMaterial;
+  varying vec3 vShadow;
+  ${lightSpace}
   void main(){
     vec2 world=aPosition.xz*uPlacement.z+uPlacement.xy;
-    vec3 p=vec3(world.x,aPosition.y,world.y)-uEye;
+    vec3 point=vec3(world.x,aPosition.y,world.y);
+    vec3 p=point-uEye;
     float side=dot(p.xz,uHeading);
     float front=dot(p.xz,vec2(uHeading.y,-uHeading.x));
     float depth=front*.996-p.y*.088;
     float up=p.y*.996+front*.088;
     gl_Position=vec4(side*uProjection.x,up*uProjection.y,depth*1.0016-.20,depth);
     vColor=aColor; vUV=aUV; vGround=world; vGrain=aGrain; vDepth=depth;
+    vMaterial=aMaterial;
+    vShadow=sunSpace(point)*.5+.5;
   }
 `;
 const fragmentSource=`
-  precision mediump float;
+  #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+  #else
+    precision mediump float;
+  #endif
   uniform vec3 uHaze;
   uniform sampler2D uPrint;
+  uniform sampler2D uAsphalt;
+  uniform sampler2D uStucco;
+  uniform sampler2D uRoof;
+  uniform sampler2D uPaving;
+  uniform sampler2D uShadow;
+  uniform bool uShadows;
+  uniform bool uTextured;
   varying vec3 vColor;
   varying vec2 vUV;
   varying vec2 vGround;
   varying float vGrain;
   varying float vDepth;
+  varying float vMaterial;
+  varying vec3 vShadow;
+  float shadeAt(vec2 offset){
+    vec2 depth=texture2D(uShadow,vShadow.xy+offset/${SHADOW_SIZE}.).rg;
+    return smoothstep(.0034,.0053,vShadow.z-dot(depth,vec2(1.,1./255.)));
+  }
   void main(){
     vec3 color=vColor;
     float opacity=1.;
-    if(vUV.x>=0.){
+    if(vMaterial<.5&&vUV.x>=0.){
       opacity=texture2D(uPrint,vUV).a;
       if(opacity<.04)discard;
     }
-    if(vGrain>.0){
+    if(uTextured&&vMaterial>.5){
+      vec3 texel=vMaterial<1.5?texture2D(uAsphalt,vUV).rgb:
+        vMaterial<2.5?texture2D(uStucco,vUV).rgb:
+        vMaterial<3.5?texture2D(uRoof,vUV).rgb:texture2D(uPaving,vUV).rgb;
+      float mapped=dot(texel,vec3(.299,.587,.114));
+      float middle=vMaterial<1.5?.35:vMaterial<2.5?.72:vMaterial<3.5?.45:.64;
+      color*=clamp(1.+(mapped-middle)*1.52,.58,1.36);
+    }else if(vGrain>.0){
       float nearGrain=1.-smoothstep(7.,31.,vDepth);
       vec2 tile=mod(floor(vGround*38.),vec2(97.,89.));
       float grain=fract(sin(dot(tile,vec2(12.9898,57.233)))*4375.3545);
       float patches=sin(vGround.x*1.34+vGround.y*.48)*sin(vGround.y*.82-vGround.x*.62);
       color+=vGrain*((grain-.5)*nearGrain+patches*.16);
     }
+    if(uShadows&&vShadow.x>.004&&vShadow.x<.996&&vShadow.y>.004&&vShadow.y<.996&&vDepth<77.){
+      float shadow=(shadeAt(vec2(-.65,-.5))+shadeAt(vec2(.65,.5)))*.5;
+      color=mix(color,color*vec3(.67,.72,.80),shadow*(1.-smoothstep(57.,77.,vDepth)));
+    }
     gl_FragColor=vec4(mix(color,uHaze,smoothstep(27.,105.,vDepth)*.84)*opacity,opacity);
+  }
+`;
+
+const shadowVertex=`
+  attribute vec3 aPosition;
+  ${lightSpace}
+  void main(){gl_Position=vec4(sunSpace(aPosition),1.);}
+`;
+const shadowFragment=`
+  #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+  #else
+    precision mediump float;
+  #endif
+  void main(){
+    vec2 depthPair=fract(gl_FragCoord.z*vec2(1.,255.));
+    gl_FragColor=vec4(depthPair.x-depthPair.y/255.,depthPair.y,0.,1.);
   }
 `;
 
@@ -70,24 +132,29 @@ function color(hex,shade=1){
 
 function mesh(){
   const vertices=[];
-  function triangle(a,b,c,tint,grain=0,uv){
+  function triangle(a,b,c,tint,grain=0,uv,material=0){
     const perVertex=Array.isArray(tint[0]);
-    [a,b,c].forEach((p,i)=>vertices.push(...p,...(perVertex?tint[i]:tint),...(uv?.[i]||[-1,-1]),grain));
+    [a,b,c].forEach((p,i)=>vertices.push(...p,...(perVertex?tint[i]:tint),...(uv?.[i]||[-1,-1]),grain,material));
   }
-  function quad(a,b,c,d,tint,grain=0,print=false){
-    triangle(a,b,c,tint,grain,print?[[0,0],[1,0],[1,1]]:null);
-    triangle(a,c,d,tint,grain,print?[[0,0],[1,1],[0,1]]:null);
+  function quad(a,b,c,d,tint,grain=0,print=false,material=0){
+    const uv=typeof print==='function'?print:print?null:undefined;
+    triangle(a,b,c,tint,grain,uv?[uv(a),uv(b),uv(c)]:print?[[0,0],[1,0],[1,1]]:null,material);
+    triangle(a,c,d,tint,grain,uv?[uv(a),uv(c),uv(d)]:print?[[0,0],[1,1],[0,1]]:null,material);
   }
-  function ground(x1,z1,x2,z2,y,hex,grain=0,print=false){
-    quad([x1,y,z1],[x2,y,z1],[x2,y,z2],[x1,y,z2],color(hex),grain,print);
+  function ground(x1,z1,x2,z2,y,hex,grain=0,material=0){
+    const metres=material===4?2.35:2.95;
+    quad([x1,y,z1],[x2,y,z1],[x2,y,z2],[x1,y,z2],color(hex),grain,
+      material?([x,,z])=>[x/metres,z/metres]:false,material);
   }
-  function box(x,y,z,w,h,d,hex){
+  function box(x,y,z,w,h,d,hex,material=0){
     const l=x-w/2,r=x+w/2,n=z-d/2,f=z+d/2,t=y+h;
-    quad([l,t,n],[r,t,n],[r,t,f],[l,t,f],color(hex,1.025));
-    quad([l,y,f],[r,y,f],[r,t,f],[l,t,f],color(hex,.94));
-    quad([r,y,n],[l,y,n],[l,t,n],[r,t,n],color(hex,.73));
-    quad([l,y,n],[l,y,f],[l,t,f],[l,t,n],color(hex,.79));
-    quad([r,y,f],[r,y,n],[r,t,n],[r,t,f],color(hex,.88));
+    const top=material===4,wall=material===2;
+    const xz=([a,,b])=>[a/2.35,b/2.35],xy=([a,b])=>[a/3.8,b/3.8],zy=([,a,b])=>[b/3.8,a/3.8];
+    quad([l,t,n],[r,t,n],[r,t,f],[l,t,f],color(hex,1.025),0,top&&xz,top?material:0);
+    quad([l,y,f],[r,y,f],[r,t,f],[l,t,f],color(hex,.96),0,wall&&xy,wall?material:0);
+    quad([r,y,n],[l,y,n],[l,t,n],[r,t,n],color(hex,.77),0,wall&&xy,wall?material:0);
+    quad([l,y,n],[l,y,f],[l,t,f],[l,t,n],color(hex,.89),0,wall&&zy,wall?material:0);
+    quad([r,y,f],[r,y,n],[r,t,n],[r,t,f],color(hex,.79),0,wall&&zy,wall?material:0);
   }
   function foliage(x,y,z,r,hex){
     const top=[x,y+r*.94,z],bottom=[x,y-r*.71,z];
@@ -132,14 +199,28 @@ function wallWindow(m,x,y,z,front,face,shutters){
   }
 }
 
+function balcony(m,x,z,y){
+  m.box(x,y,z,2.32,.18,.84,'#d7c8ad');
+  m.box(x,y+.89,z+.36,2.33,.054,.049,'#3e4d48');
+  m.box(x,y+.25,z+.36,2.33,.05,.048,'#485751');
+  for(let i=-5;i<=5;i++)m.box(x+i*.215,y+.22,z+.36,.031,.70,.031,'#485751');
+  for(const s of [-1,1]){
+    m.box(x+s*1.13,y+.89,z,.044,.054,.74,'#3e4d48');
+    m.box(x+s*1.13,y+.17,z,.046,.75,.043,'#485751');
+  }
+  m.box(x+.68,y+.20,z+.02,.48,.21,.21,'#ad7358');
+  m.foliage(x+.69,y+.45,z+.02,.23,'#707b45');
+}
+
 function house(m,x,z,w,d,h,wall,roof){
   const {box,quad,triangle}=m;
   const l=x-w/2-.23,r=x+w/2+.23,n=z-d/2-.25,f=z+d/2+.25,ridge=h+1.2;
-  box(x,.1,z,w,h-.1,d,wall);
+  box(x,.1,z,w,h-.1,d,wall,2);
   box(x,.0,z,w+.05,.39,d+.05,'#9b8b79');
   box(x,.392,z,w+.075,.085,d+.075,'#ccb79c');
-  quad([l,h,n],[r,h,n],[r,ridge,z],[l,ridge,z],color(roof,.83));
-  quad([l,ridge,z],[r,ridge,z],[r,h,f],[l,h,f],color(roof));
+  const roofUV=([a,,b])=>[a/2.2,Math.abs(b-z)/1.85];
+  quad([l,h,n],[r,h,n],[r,ridge,z],[l,ridge,z],color(roof,.83),0,roofUV,3);
+  quad([l,ridge,z],[r,ridge,z],[r,h,f],[l,h,f],color(roof),0,roofUV,3);
   triangle([l,h,n],[l,ridge,z],[l,h,f],color(wall,.81));
   triangle([r,h,f],[r,ridge,z],[r,h,n],color(wall,.92));
   box(x,ridge-.018,z,w+.5,.09,.14,'#be7555');
@@ -170,6 +251,7 @@ function house(m,x,z,w,d,h,wall,roof){
       wallWindow(m,facade,h-1.47,z+off,false,face,shutters);
     }
   }
+  if(z< -10&&Math.abs(x)<25)balcony(m,x-w*.19,z+d/2+.38,h-1.53);
 }
 
 function groundShade(m,x,z,y,w,d,hex,strength,grain){
@@ -213,12 +295,31 @@ function octagon(m,x,y,z,r,hex){
   }
 }
 
+function hatchbackBody(m,x,z,half,width,paint){
+  const stations=[[-half,.62,.70],[-half+.28,.87,.84],[-.92,.90,.98],
+    [.78,.91,1],[half-.27,.80,.92],[half,.65,.72]];
+  for(const [i,[a,topA,wa]] of stations.slice(0,-1).entries()){
+    const [b,topB,wb]=stations[i+1];
+    const ea=wa*width/2,eb=wb*width/2;
+    m.quad([x+a,topA,z-ea*.87],[x+b,topB,z-eb*.87],[x+b,topB,z+eb*.87],[x+a,topA,z+ea*.87],color(paint,1.13));
+    for(const side of [-1,1]){
+      m.quad([x+a,.59,z+side*ea],[x+b,.59,z+side*eb],[x+b,topB,z+side*eb*.87],
+        [x+a,topA,z+side*ea*.87],color(paint,side===1?1.02:.91));
+      m.quad([x+a,.35,z+side*ea*.89],[x+b,.35,z+side*eb*.89],[x+b,.59,z+side*eb],
+        [x+a,.59,z+side*ea],color(paint,side===1?.83:.72));
+    }
+  }
+  for(const [a,y,w] of [stations[0],stations.at(-1)]){
+    m.box(x+a,.35,z,.021,y-.35,w*width*.89,paint);
+  }
+}
+
 // Las mallas se dibujan hacia +x. El motor gira el tráfico que circula hacia -x.
 function vehicle(m,x,z,van,paint='#d68a42'){
   const {box,quad}=m;
   const length=van?PARKED_VAN.length:JUNCTION.trafficHalfLength*2,half=length/2;
   const width=van?PARKED_VAN.width:JUNCTION.trafficHalfWidth*2,body=van?'#e7e6dc':paint;
-  groundShade(m,x+.14,z-.09,van?.156:.022,half+.4,width*.76,van?'#707573':'#5c6267',.54,van?.16:.095);
+  groundShade(m,x+.14,z-.09,van?.156:.022,half+.4,width*.76,van?'#656662':'#5c5c5b',.54,van?.16:.095);
   const raisedStart=m.vertices.length;
   for(const wheel of [-half+.87,half-.82]){
     for(const side of [-1,1]){
@@ -233,8 +334,9 @@ function vehicle(m,x,z,van,paint='#d68a42'){
       }
     }
   }
-  box(x,.37,z,length,van?.74:.55,width-.08,body);
-  box(x,.36,z,length-.06,.14,width-.06,'#49545b');
+  if(van)box(x,.37,z,length,.74,width-.08,body);
+  else hatchbackBody(m,x,z,half,width,body);
+  box(x,.33,z,length-.24,.095,width*.72,'#353e43');
   if(van){
     box(x-.66,1.095,z,3.84,1.24,width-.11,body);
     box(x-.72,1.13,z,3.18,.055,width-.046,'#aab6b7');
@@ -265,7 +367,7 @@ function vehicle(m,x,z,van,paint='#d68a42'){
   box((topFront+topBack)/2,top-.014,z,topFront-topBack+.10,.08,inner*2+.11,body);
   box(x+half+.012,.51,z,.028,.104,.39,'#e9ece7');
   box(x-half-.012,.51,z,.028,.104,.39,'#e9ece7');
-  if(van)for(let i=raisedStart+1;i<m.vertices.length;i+=9)m.vertices[i]+=.154;
+  if(van)for(let i=raisedStart+1;i<m.vertices.length;i+=VERTEX_SIZE)m.vertices[i]+=.154;
 }
 
 function drain(m,x,z){
@@ -295,21 +397,16 @@ function buildStreet(){
   const m=mesh(),{box,ground,quad}=m;
   hills(m);
   ground(-112,-110,112,110,-.13,'#88996d',.11);
-  ground(-108,-6,108,6,0,'#5c6267',.095);
+  ground(-108,-6,108,6,0,'#5c5c5b',.095,1);
   const half=JUNCTION.roadHalfWidth;
-  ground(-half,-106,half,-6,0,'#555d64',.095);
-  ground(-half,6,half,106,0,'#555d64',.095);
-  const curb='#cec5b4';
+  ground(-half,-106,half,-6,0,'#565754',.095,1);
+  ground(-half,6,half,106,0,'#565754',.095,1);
+  const curb='#d4cbbb';
   for(const side of [-1,1]){
-    for(const z of [-53,53])box(side*(half+.83),-.08,z,1.66,.21,94,curb);
-    for(const x of [-52,52])box(x,-.08,side*6.86,95,.21,1.72,curb);
+    for(const z of [-53,53])box(side*(half+.83),-.08,z,1.66,.21,94,curb,4);
+    for(const x of [-52,52])box(x,-.08,side*6.86,95,.21,1.72,curb,4);
     for(const z of [-53,53])box(side*(half+.043),.125,z,.075,.016,94,'#e2d4bd');
     for(const x of [-52,52])box(x,.125,side*6.043,95,.016,.075,'#e2d4bd');
-    for(let i=8;i<53;i+=1.25){
-      ground(side*(half+.04)-.01,side*i-.008,side*(half+1.6)+.01,side*i+.009,.132,'#aba597');
-      ground(side*i-.008,5.99,side*i+.009,7.65,.132,'#aba597');
-      ground(side*i-.008,-7.65,side*i+.009,-5.99,.132,'#aba597');
-    }
     for(let z=14;z<96;z+=9){
       ground(-.05,side*z-1.46,.05,side*z+1.46,.013,'#f3eddf');
     }
@@ -318,7 +415,7 @@ function buildStreet(){
     }
   }
   // Espacio de estacionamiento fuera de la trayectoria del cruce.
-  ground(-14.4,6.01,-6.45,9.69,.153,'#707573',.16);
+  ground(-14.4,6.01,-6.45,9.69,.153,'#656662',.16,1);
   ground(-14.4,9.63,-6.45,9.67,.16,'#ddd9c9');
   ground(-6.49,6.07,-6.45,9.67,.16,'#ddd9c9');
   vehicle(m,PARKED_VAN.x,PARKED_VAN.z,true);
@@ -345,6 +442,14 @@ function buildStreet(){
     [-42,-13,13,8,5.8,'#d7bd9e','#996451'],[40,-14,13,9,5.6,'#cbb8a0','#826454']
   ];
   for(const params of buildings)house(m,...params);
+  box(6.68,-.11,21.2,.32,.64,8.2,'#b5a78f');
+  box(6.68,.52,21.2,.41,.075,8.22,'#dfceb2');
+  box(6.68,1.21,21.2,.061,.05,8.06,'#424d47');
+  for(let z=17.2;z<25.34;z+=.31)box(6.68,.59,z,.034,.65,.034,'#49544d');
+  for(const z of [17.15,19.9,22.48,25.3]){
+    box(6.68,-.11,z,.43,1.39,.43,'#baa98f');
+    box(6.68,1.26,z,.5,.065,.5,'#deceb3');
+  }
   for(const [x,z,size] of [[-6.6,12.8,.77],[6.45,13.2,.82],[-6.45,-9,.9],[6.6,-10.1,.88],[-18.4,-9.35,1.14],
     [18.35,-9.25,1],[-31,-9.7,.95],[32,-9.6,1.1],[-6.6,27.7,.92],[6.65,26.8,1],[-7,-23,1],[6.8,-24,1.12],
     [-16.1,8.1,.79],[16.5,8.2,.78],[-43,8.3,1.14],[43.5,8.25,1.06]])tree(m,x,z,size);
@@ -358,9 +463,9 @@ function buildStreet(){
   return m.vertices;
 }
 
-function makeProgram(gl){
+function makeProgram(gl,vertexShader,fragmentShader){
   const program=gl.createProgram();
-  for(const [type,source] of [[gl.VERTEX_SHADER,vertexSource],[gl.FRAGMENT_SHADER,fragmentSource]]){
+  for(const [type,source] of [[gl.VERTEX_SHADER,vertexShader],[gl.FRAGMENT_SHADER,fragmentShader]]){
     const shader=gl.createShader(type);
     gl.shaderSource(shader,source);gl.compileShader(shader);
     if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)){
@@ -375,6 +480,66 @@ function makeProgram(gl){
     gl.deleteProgram(program);throw new Error(message);
   }
   return program;
+}
+
+function loadMaterials(gl,onReady){
+  const image=new Image();
+  const textures=Array.from({length:4},(_,i)=>{
+    const texture=gl.createTexture();gl.activeTexture(gl.TEXTURE1+i);gl.bindTexture(gl.TEXTURE_2D,texture);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([128,128,128,255]));
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    return texture;
+  });
+  image.onload=()=>{
+    const tile=document.createElement('canvas');tile.width=256;tile.height=256;
+    const ctx=tile.getContext('2d');ctx.imageSmoothingQuality='high';
+    const edge=image.naturalWidth/2,anisotropy=gl.getExtension('EXT_texture_filter_anisotropic');
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+    for(const [i,texture] of textures.entries()){
+      ctx.drawImage(image,i%2*edge+2,Math.floor(i/2)*edge+2,edge-4,edge-4,0,0,256,256);
+      gl.activeTexture(gl.TEXTURE1+i);gl.bindTexture(gl.TEXTURE_2D,texture);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,tile);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.MIRRORED_REPEAT);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.MIRRORED_REPEAT);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
+      if(anisotropy)gl.texParameterf(gl.TEXTURE_2D,anisotropy.TEXTURE_MAX_ANISOTROPY_EXT,
+        Math.min(3,gl.getParameter(anisotropy.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+      gl.generateMipmap(gl.TEXTURE_2D);
+    }
+    onReady();
+  };
+  image.src=new URL('./driving-materials.jpg',import.meta.url).href;
+  return ()=>{image.onload=null;for(const texture of textures)gl.deleteTexture(texture);};
+}
+
+// El sol y los edificios son fijos, así que este mapa se calcula una sola vez.
+function makeShadow(gl,street){
+  const material=makeProgram(gl,shadowVertex,shadowFragment);
+  const texture=gl.createTexture(),target=gl.createFramebuffer(),depth=gl.createRenderbuffer();
+  gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,texture);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,SHADOW_SIZE,SHADOW_SIZE,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,target);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,texture,0);
+  gl.bindRenderbuffer(gl.RENDERBUFFER,depth);
+  gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,SHADOW_SIZE,SHADOW_SIZE);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,depth);
+  const ready=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE;
+  if(ready){
+    gl.useProgram(material);gl.disable(gl.BLEND);gl.enable(gl.DEPTH_TEST);
+    gl.viewport(0,0,SHADOW_SIZE,SHADOW_SIZE);
+    gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    gl.bindBuffer(gl.ARRAY_BUFFER,street.buffer);
+    const position=gl.getAttribLocation(material,'aPosition');
+    gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,3,gl.FLOAT,false,VERTEX_SIZE*4,0);
+    gl.drawArrays(gl.TRIANGLES,0,street.count);gl.disableVertexAttribArray(position);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindRenderbuffer(gl.RENDERBUFFER,null);
+  gl.deleteFramebuffer(target);gl.deleteRenderbuffer(depth);gl.deleteProgram(material);
+  return {ready,texture};
 }
 
 function makePrint(gl){
@@ -393,32 +558,38 @@ function makePrint(gl){
   return texture;
 }
 
-export function createStreetRenderer(canvas){
+export function createStreetRenderer(canvas,materialReady){
   const gl=canvas.getContext('webgl',{alpha:true,antialias:true,depth:true,powerPreference:'high-performance'});
   if(!gl)return null;
-  const program=makeProgram(gl);
+  const program=makeProgram(gl,vertexSource,fragmentSource);
+  function upload(points){
+    const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points),gl.STATIC_DRAW);
+    return {buffer,count:points.length/VERTEX_SIZE};
+  }
+  const street=upload(buildStreet());
+  const shadow=makeShadow(gl,street);
   gl.useProgram(program);gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
   gl.clearColor(0,0,0,0);
-  const attributes=[['aPosition',3,0],['aColor',3,3],['aUV',2,6],['aGrain',1,8]].map(
+  const attributes=[['aPosition',3,0],['aColor',3,3],['aUV',2,6],['aGrain',1,8],['aMaterial',1,9]].map(
     ([name,size,offset])=>[gl.getAttribLocation(program,name),size,offset]);
   for(const [attribute] of attributes)gl.enableVertexAttribArray(attribute);
   const uniform=name=>gl.getUniformLocation(program,name);
   const eye=uniform('uEye'),heading=uniform('uHeading'),projection=uniform('uProjection'),placement=uniform('uPlacement');
   gl.uniform3fv(uniform('uHaze'),SKY);
+  for(const [unit,name] of ['uPrint','uAsphalt','uStucco','uRoof','uPaving','uShadow'].entries())gl.uniform1i(uniform(name),unit);
+  gl.uniform1i(uniform('uShadows'),Number(shadow.ready));
+  const textured=uniform('uTextured');
+  gl.activeTexture(gl.TEXTURE0);
   const ink=makePrint(gl);
-  function upload(points){
-    const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points),gl.STATIC_DRAW);
-    return {buffer,count:points.length/9};
-  }
-  const street=upload(buildStreet());
+  const disposeMaterials=loadMaterials(gl,()=>{gl.uniform1i(textured,1);materialReady?.();});
   const cars=['#d68a42','#507d95'].map(paint=>{
     const model=mesh();vehicle(model,0,0,false,paint);return upload(model.vertices);
   });
   function draw(object,x=0,z=0,direction=1){
     gl.bindBuffer(gl.ARRAY_BUFFER,object.buffer);
-    for(const [attribute,size,start] of attributes)gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,36,start*4);
+    for(const [attribute,size,start] of attributes)gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,VERTEX_SIZE*4,start*4);
     gl.uniform3f(placement,x,z,direction);gl.drawArrays(gl.TRIANGLES,0,object.count);
   }
   return {
@@ -443,7 +614,7 @@ export function createStreetRenderer(canvas){
     dispose(){
       gl.deleteBuffer(street.buffer);
       for(const car of cars)gl.deleteBuffer(car.buffer);
-      gl.deleteTexture(ink);gl.deleteProgram(program);
+      disposeMaterials();gl.deleteTexture(shadow.texture);gl.deleteTexture(ink);gl.deleteProgram(program);
     }
   };
 }

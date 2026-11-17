@@ -102,8 +102,10 @@ function interpolateFrame(before,after,elapsed){
 const CABIN=`
   <canvas class="road-gl" aria-label="Vista 3D del cruce desde el asiento del conductor" role="img"></canvas>
   <div class="road-cabin" aria-hidden="true">
+    <div class="road-headliner"></div>
     <div class="road-pillar left"></div><div class="road-pillar right"></div>
-    <div class="road-hood"></div><div class="road-dash"></div>
+    <div class="road-hood"></div><div class="road-wipers"><i></i><i></i></div><div class="road-dash"></div>
+    <div class="road-cluster"></div>
     <div class="road-vents"><i></i><i></i></div><div class="road-wheel"></div>
   </div>
   <div class="road-hud" hidden>
@@ -160,7 +162,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
   let mode='ready',immersive=false,closed=false;
   let audio,soundOn=true;
   try { soundOn=localStorage.getItem(SOUND_SETTING)!=='off'; } catch {}
-  try { renderer=createStreetRenderer(canvas); } catch { renderer=null; }
+  try { renderer=createStreetRenderer(canvas,paint); } catch { renderer=null; }
 
   function syncAudio(){
     if(soundOn&&mode==='running'&&audio===undefined){
