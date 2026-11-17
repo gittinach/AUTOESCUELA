@@ -1,6 +1,6 @@
 import {JUNCTION,PARKED_VAN,SIDE_LOOK,createStreetRenderer,driverEye} from './driving-scene.js';
 import {createDrivingAudio} from './driving-audio.js';
-import {CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,roadPoint,planDistrict,driveDistrict,wrapAngle} from './driving-world.js';
+import {CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,roadPoint,planDistrict,driveDistrict,wrapAngle,selectIndicator,flashingIndicator} from './driving-world.js';
 
 const ROUTE_TEXT=[
   ['Parada en la línea','Te detuviste antes de la línea del STOP.','Debías detenerte por completo antes de la línea del STOP.'],
@@ -19,6 +19,8 @@ const TRAFFIC_PATTERNS=[
   [[-1,39,5.75],[1,64,5.15]]
 ];
 const REPLAY_SECONDS=1.6;
+const CAMERAS=['cabin','follow','overhead'];
+const CAMERA_NAMES={cabin:'Cabina',follow:'Exterior',overhead:'Vista alta'};
 
 export function createRun(pattern=0){
   const traffic=TRAFFIC_PATTERNS[pattern].map(([direction,distance,speed])=>({
@@ -89,16 +91,17 @@ export function moveThroughJunction(run,controls,dt){
   }
 }
 
-function captureFrame({x,z,yaw,look,steer,speed,traffic,pedestrians=[],elapsed},highView){
-  return {x,z,yaw,look,steer,speed,elapsed,highView,traffic:traffic.map(car=>({...car})),pedestrians:pedestrians.map(person=>({...person}))};
+function captureFrame({x,z,yaw,look,steer,speed,traffic,pedestrians=[],elapsed,indicator,indicatorSince,lowBeams,braking,reverse},camera){
+  return {x,z,yaw,look,steer,speed,elapsed,camera,indicator,indicatorSince,lowBeams,braking,reverse,
+    traffic:traffic.map(car=>({...car})),pedestrians:pedestrians.map(person=>({...person}))};
 }
 
 function interpolateFrame(before,after,elapsed){
   const t=(elapsed-before.elapsed)/(after.elapsed-before.elapsed);
   const blend=(a,b)=>a+(b-a)*t;
   const angle=(a,b)=>a+wrapAngle(b-a)*t;
-  return {x:blend(before.x,after.x),z:blend(before.z,after.z),yaw:angle(before.yaw,after.yaw),
-    look:blend(before.look,after.look),steer:blend(before.steer,after.steer),speed:blend(before.speed,after.speed),highView:before.highView,
+  return {...before,elapsed,x:blend(before.x,after.x),z:blend(before.z,after.z),yaw:angle(before.yaw,after.yaw),
+    look:blend(before.look,after.look),steer:blend(before.steer,after.steer),speed:blend(before.speed,after.speed),
     traffic:before.traffic.map((car,i)=>({...car,x:blend(car.x,after.traffic[i].x),z:blend(car.z,after.traffic[i].z),
       yaw:car.yaw===undefined?undefined:angle(car.yaw,after.traffic[i].yaw)})),
     pedestrians:before.pedestrians.map((person,i)=>({...person,
@@ -145,6 +148,10 @@ const CABIN=`
       <button class="road-tool" type="button" data-road-pause>Pausa</button>
     </div></div>
     <p class="road-notice" role="status" hidden></p>
+    <div class="road-signals" aria-label="Intermitentes" hidden>
+      <button class="road-tool road-signal" type="button" data-road-signal="-1" aria-label="Intermitente izquierdo" aria-pressed="false"><span aria-hidden="true">←</span> Interm.</button>
+      <button class="road-tool road-signal" type="button" data-road-signal="1" aria-label="Intermitente derecho" aria-pressed="false">Interm. <span aria-hidden="true">→</span></button>
+    </div>
     <div class="road-look" aria-label="Mirar por el parabrisas">
       <button class="road-tool" type="button" data-drive="lookLeft" aria-label="Mirar a la izquierda">‹ Mirar</button>
       <button class="road-tool" type="button" data-drive="lookRight" aria-label="Mirar a la derecha">Mirar ›</button>
@@ -156,8 +163,9 @@ const CABIN=`
       </div>
       <div class="road-instruments"><div class="road-speed" aria-label="Velocímetro"><b>0</b><span>km/h</span></div>
         <div class="road-assist">
-          <button class="road-tool road-camera" type="button" data-road-camera aria-label="Vista alta de maniobra" aria-pressed="false" hidden>Vista alta</button>
+          <button class="road-tool" type="button" data-road-camera aria-label="Cambiar a vista exterior" hidden>Exterior</button>
           <button class="road-tool road-gear" type="button" data-road-gear aria-label="Activar marcha atrás" aria-pressed="false" hidden>R</button>
+          <button class="road-tool road-lights" type="button" data-road-lights aria-label="Luces de cruce" aria-pressed="false" hidden>Luces</button>
         </div></div>
       <div class="road-pedals" aria-label="Pedales">
         <button type="button" data-drive="brake">Freno</button>
@@ -187,8 +195,11 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   const soundButton=hud.querySelector('[data-road-sound]');
   const gear=hud.querySelector('[data-road-gear]'),destination=hud.querySelector('[data-road-title]');
   const camera=hud.querySelector('[data-road-camera]');
+  const lights=hud.querySelector('[data-road-lights]'),signals=Array.from(hud.querySelectorAll('[data-road-signal]'));
+  const accessories=[camera,lights,...signals];
   const notice=hud.querySelector('.road-notice');
-  gear.hidden=camera.hidden=!district;hud.querySelector('[data-road-map]').hidden=!district;
+  gear.hidden=camera.hidden=lights.hidden=!district;
+  hud.querySelector('[data-road-map]').hidden=hud.querySelector('.road-signals').hidden=!district;
   const cabin=dialog.querySelector('.road-cabin');
   const overlay=dialog.querySelector('.road-overlay'),panel=dialog.querySelector('.road-panel');
   const review=dialog.querySelector('.road-review-view'),reviewControls=review.querySelector('.road-review-controls');
@@ -199,7 +210,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   let nextPattern=Math.floor(Math.random()*TRAFFIC_PATTERNS.length),tripHistory={};
   if(district)try { tripHistory=JSON.parse(localStorage.getItem(DISTRICT_HISTORY))||{}; } catch {}
   let renderer,run=district?planDistrict(tripHistory):createRun(nextPattern),frame=0,lastTime=0,lastSpeed=-1;
-  let recent=[],replayFrame=null,replayLook,replayClip=[],reviewAt='Al entrar al cruce',highView=false;
+  let recent=[],replayFrame=null,replayLook,replayClip=[],reviewAt='Al entrar al cruce',cameraView='cabin';
   const replays=new Map();
   let mode='ready',immersive=false,closed=false;
   let audio,soundOn=true;
@@ -230,8 +241,8 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
 
   function paint(){
     const view=replayFrame||run,look=replayLook??view.look;
-    const above=district&&(replayFrame?.highView??highView);
-    renderer?.draw(view,look,above);cabin.hidden=above;
+    const angle=replayFrame?.camera??cameraView;
+    renderer?.draw(view,look,angle);cabin.hidden=district&&angle!=='cabin';
     const kmh=Math.round(view.speed*3.6);
     if(kmh!==lastSpeed){speed.textContent=kmh;lastSpeed=kmh;}
     wheel.style.transform=`rotate(${view.steer*72}deg)`;
@@ -245,7 +256,19 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
       notice.hidden=!hint;
       if(notice.textContent!==hint)notice.textContent=hint;
       gear.disabled=run.speed>.12;
+      syncLights();
     }
+  }
+  function syncLights(){
+    const lit=flashingIndicator(run);
+    for(const button of signals){
+      const side=Number(button.dataset.roadSignal);
+      const pressed=String(run.indicator===side);
+      if(button.getAttribute('aria-pressed')!==pressed)button.setAttribute('aria-pressed',pressed);
+      button.classList.toggle('lit',lit===side);
+    }
+    const on=String(run.lowBeams);
+    if(lights.getAttribute('aria-pressed')!==on)lights.setAttribute('aria-pressed',on);
   }
   function resize(){
     renderer?.resize(canvas.clientWidth,canvas.clientHeight);
@@ -331,7 +354,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
     if(!district&&run.entryAt!==null&&previous>=run.entryAt)return;
     if(!force&&(district||run.entryAt===null)&&run.elapsed-previous<1/24)return;
     if(previous>=run.elapsed)return;
-    recent.push(captureFrame(run,highView));
+    recent.push(captureFrame(run,cameraView));
     while(recent.length>1&&recent[1].elapsed<run.elapsed-REPLAY_SECONDS)recent.shift();
   }
   function selectReviewView(side){
@@ -419,9 +442,18 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   }
   function toggleCamera(){
     if(!district||mode!=='running')return;
-    highView=!highView;
-    camera.setAttribute('aria-pressed',String(highView));
-    camera.textContent=highView?'Cabina':'Vista alta';
+    const next=(CAMERAS.indexOf(cameraView)+1)%CAMERAS.length;
+    cameraView=CAMERAS[next];
+    const option=CAMERA_NAMES[CAMERAS[(next+1)%CAMERAS.length]];
+    camera.textContent=option;
+    camera.setAttribute('aria-label',`Cambiar a ${option.toLowerCase()}`);
+    paint();
+  }
+  function changeAccessory(button){
+    if(!district||mode!=='running')return;
+    if(button===camera){toggleCamera();return;}
+    if(button===lights)run.lowBeams=!run.lowBeams;
+    else selectIndicator(run,Number(button.dataset.roadSignal));
     paint();
   }
 
@@ -437,7 +469,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
     if(button.hasAttribute('data-road-results'))showResults();
     if(button.hasAttribute('data-road-map'))openMap();
     if(button.hasAttribute('data-road-gear'))toggleGear();
-    if(button.hasAttribute('data-road-camera'))toggleCamera();
+    if(event.detail===0&&accessories.includes(button))changeAccessory(button);
     if(button.hasAttribute('data-road-finish')){run.ending='ended';finish();}
     if(button.dataset.roadView)selectReviewView(button.dataset.roadView);
     if(button.hasAttribute('data-road-sound')){
@@ -459,6 +491,11 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   function pauseOnInterrupt(){if(mode==='replay')freezeAtEntry();else pause();}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseOnInterrupt();},{signal});
   window.addEventListener('blur',pauseOnInterrupt,{signal});
+  // Otra pulsación táctil puede cambiar las luces mientras el pulgar sigue en un pedal.
+  for(const button of accessories)button.addEventListener('pointerdown',event=>{
+    if(event.button!==0||mode!=='running')return;
+    event.preventDefault();changeAccessory(button);
+  },{signal});
   for(const button of buttons){
     button.addEventListener('pointerdown',event=>{
       if(mode!=='running'||event.button!==0)return;
@@ -473,6 +510,8 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
     if(mode!=='running'||event.metaKey||event.altKey||event.ctrlKey)return;
     if(district&&event.key.toLowerCase()==='r'&&!event.repeat){event.preventDefault();toggleGear();return;}
     if(district&&event.key.toLowerCase()==='c'&&!event.repeat){event.preventDefault();toggleCamera();return;}
+    const accessory={z:signals[0],x:signals[1],l:lights}[event.key.toLowerCase()];
+    if(district&&accessory){event.preventDefault();if(!event.repeat)changeAccessory(accessory);return;}
     const action=KEY_ACTION[event.key.length===1?event.key.toLowerCase():event.key];
     if(!action)return;
     event.preventDefault();heldKeys.set(event.code||event.key,action);refreshControls();
@@ -483,7 +522,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl,district=false}){
   if(renderer){
     show(`<h2>${district?'Conduce por el barrio':'Cruce con STOP'}</h2>${district?
       `<p>Tu destino es ${CITY_PARKING[run.goal].name}. Elige por qué calles llegar y detente dentro de la zona de aparcamiento.</p>
-      <p class="road-hint">Pulsa Vista alta para ver ambos bordillos al girar o aparcar.</p>`:
+      <p class="road-hint">Usa Exterior para anticipar la calle y Vista alta para aparcar. Toca las flechas de Interm. o Luces mientras conduces.</p>`:
       '<p>Conduce hasta el cruce y sigue recto cuando puedas pasar con seguridad.</p>'}
       <p class="road-hint">Pulsa y mantén los mandos para girar, acelerar, frenar y mirar a los lados. En ordenador puedes usar las flechas y Q o E para mirar.</p>
       <p class="road-hint road-landscape-hint">En horizontal verás más carretera.</p>

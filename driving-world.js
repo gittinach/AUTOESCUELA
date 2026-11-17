@@ -75,7 +75,8 @@ export function planDistrict(previous={},random=Math.random){
   const circle=[{id:3,model:1,speed:4.15+random()*1.15,velocity:4.1,angle:random()*Math.PI*2,ring:true}];
   const car={...STARTS[start],speed:0,steer:0,look:0};
   const run={...car,goal,start,elapsed:0,reverse:false,traffic:[...cars,...circle],pedestrians,history,
-    checks:[],stops:new Map(),ringApproach:null,contact:null,clearance:0,ending:null,parkTime:0,meters:0};
+    checks:[],stops:new Map(),ringApproach:null,contact:null,clearance:0,ending:null,parkTime:0,meters:0,
+    indicator:0,indicatorSince:0,indicatorTurn:0,lowBeams:false,braking:false};
   for(const npc of run.traffic){
     placeTraffic(npc);
     if(!npc.ring&&Math.hypot(npc.x-run.x,npc.z-run.z)<11){
@@ -275,16 +276,32 @@ function moveAlongStreet(run,distance){
   run.clearance=0;
 }
 
+export function selectIndicator(run,direction){
+  run.indicator=run.indicator===direction?0:direction;
+  run.indicatorSince=run.elapsed;
+  run.indicatorTurn=0;
+}
+
+export function flashingIndicator(frame){
+  return frame.indicator&&(frame.elapsed-frame.indicatorSince)% .72<.36?frame.indicator:0;
+}
+
 export function driveDistrict(run,controls,dt){
   if(run.ending)return;
   run.dt=dt;run.elapsed+=dt;
   actors(run,dt);
   const steer=Number(controls.has('right'))-Number(controls.has('left'));
   const look=Number(controls.has('lookRight'))-Number(controls.has('lookLeft'));
-  run.steer+=(steer-run.steer)*Math.min(1,7*dt);run.look+=(look*1.29-run.look)*Math.min(1,6*dt);
-  const acceleration=controls.has('brake')?-7.25:controls.has('gas')?2.6-.064*run.speed:-.76-.078*run.speed;
+  run.steer+=(steer-run.steer)*Math.min(1,(steer?7:10)*dt);run.look+=(look*1.29-run.look)*Math.min(1,6*dt);
+  run.braking=controls.has('brake');
+  const acceleration=run.braking?-7.25:controls.has('gas')?2.6-.064*run.speed:-.76-.078*run.speed;
   run.speed=Math.min(run.reverse?3.25:9.7,Math.max(0,run.speed+acceleration*dt));
+  const previousYaw=run.yaw;
   moveAlongStreet(run,(run.reverse?-1:1)*run.speed*dt);
+  if(run.indicator&&!run.reverse){
+    run.indicatorTurn+=wrapAngle(run.yaw-previousYaw)*run.indicator;
+    if(run.indicatorTurn>.55&&Math.abs(run.steer)<.14)selectIndicator(run,0);
+  }
   checkStops(run);checkCrossings(run);checkRoundabout(run);
   const collision=run.traffic.some(car=>bump(run,car));
   const hitsPerson=run.pedestrians.some(person=>bumpPerson(run,person));

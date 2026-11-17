@@ -1,4 +1,4 @@
-import {CITY_STOPS,CITY_ENTRIES,CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,PARKING,STOP_LINE,roadPoint,districtRoad} from './driving-world.js';
+import {CITY_STOPS,CITY_ENTRIES,CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,PARKING,STOP_LINE,roadPoint,districtRoad,flashingIndicator} from './driving-world.js';
 
 export const JUNCTION={
   laneX:1.85,roadHalfWidth:4.5,stopLine:10.5,crossEdge:6,
@@ -42,6 +42,7 @@ const vertexSource=`
   varying float vDepth;
   varying float vMaterial;
   varying vec3 vShadow;
+  varying float vHeight;
   ${lightSpace}
   void main(){
     vec3 local=aPosition;
@@ -58,6 +59,7 @@ const vertexSource=`
     vColor=aColor; vUV=aUV; vGround=world; vGrain=aGrain; vDepth=depth;
     vMaterial=aMaterial;
     vShadow=sunSpace(point)*.5+.5;
+    vHeight=point.y;
   }
 `;
 const fragmentSource=`
@@ -75,6 +77,8 @@ const fragmentSource=`
   uniform sampler2D uShadow;
   uniform bool uShadows;
   uniform bool uTextured;
+  uniform bool uBeams;
+  uniform vec4 uLightPose;
   varying vec3 vColor;
   varying vec2 vUV;
   varying vec2 vGround;
@@ -82,6 +86,7 @@ const fragmentSource=`
   varying float vDepth;
   varying float vMaterial;
   varying vec3 vShadow;
+  varying float vHeight;
   float shadeAt(vec2 offset){
     vec2 depth=texture2D(uShadow,vShadow.xy+offset/${SHADOW_SIZE}.).rg;
     return smoothstep(.0034,.0053,vShadow.z-dot(depth,vec2(1.,1./255.)));
@@ -110,6 +115,16 @@ const fragmentSource=`
     if(uShadows&&vShadow.x>.004&&vShadow.x<.996&&vShadow.y>.004&&vShadow.y<.996&&vDepth<77.){
       float shadow=(shadeAt(vec2(-.65,-.5))+shadeAt(vec2(.65,.5)))*.5;
       color=mix(color,color*vec3(.67,.72,.80),shadow*(1.-smoothstep(57.,77.,vDepth)));
+    }
+    if(uBeams&&vHeight<1.15){
+      vec2 rel=vGround-uLightPose.xy;
+      float front=dot(rel,uLightPose.zw)-2.12;
+      float side=dot(rel,vec2(-uLightPose.w,uLightPose.z));
+      float width=.52+max(0.,front)*.16;
+      float cone=1.-smoothstep(width*.49,width,abs(side-.59));
+      cone+=1.-smoothstep(width*.49,width,abs(side+.59));
+      float falloff=smoothstep(0.,2.8,front)*(1.-smoothstep(7.,23.,front))*(1.-smoothstep(.1,1.15,vHeight));
+      color+=vec3(.132,.123,.084)*min(1.,cone)*falloff;
     }
     gl_FragColor=vec4(mix(color,uHaze,smoothstep(27.,105.,vDepth)*.84)*opacity,opacity);
   }
@@ -718,6 +733,23 @@ function makePrint(gl){
   return texture;
 }
 
+function driverLights(upload){
+  const front=mesh(),tail=mesh(),brake=mesh(),reverse=mesh();
+  const signals=[mesh(),mesh()];
+  for(const [i,side] of [-1,1].entries()){
+    front.box(2.175,.646,side*.52,.049,.142,.29,'#fff7d8');
+    tail.box(-2.167,.67,side*.65,.04,.112,.205,'#db4441');
+    brake.box(-2.185,.67,side*.65,.053,.155,.221,'#ff5148');
+    reverse.box(-2.15,.541,side*.47,.045,.08,.176,'#f2eee3');
+    signals[i].box(2.16,.612,side*.714,.072,.142,.153,'#ffb02c');
+    signals[i].box(-2.161,.637,side*.806,.069,.136,.144,'#ffae22');
+    signals[i].box(.82,.914,side*.59*JUNCTION.trafficHalfWidth*2,.121,.046,.178,'#ffbb36');
+  }
+  brake.box(-1.21,1.331,0,.043,.061,.30,'#ff5148');
+  const named={front,tail,brake,reverse,left:signals[0],right:signals[1]};
+  return Object.fromEntries(Object.entries(named).map(([name,model])=>[name,upload(model.vertices)]));
+}
+
 export function createStreetRenderer(canvas,materialReady,district=false){
   const gl=canvas.getContext('webgl',{alpha:true,antialias:true,depth:true,powerPreference:'high-performance'});
   if(!gl)return null;
@@ -738,6 +770,7 @@ export function createStreetRenderer(canvas,materialReady,district=false){
   const uniform=name=>gl.getUniformLocation(program,name);
   const eye=uniform('uEye'),heading=uniform('uHeading'),projection=uniform('uProjection'),pitch=uniform('uPitch'),placement=uniform('uPlacement');
   const stride=uniform('uStride');
+  const beams=uniform('uBeams'),lightPose=uniform('uLightPose');
   gl.uniform3fv(uniform('uHaze'),SKY);
   for(const [unit,name] of ['uPrint','uAsphalt','uStucco','uRoof','uPaving','uShadow'].entries())gl.uniform1i(uniform(name),unit);
   gl.uniform1i(uniform('uShadows'),Number(shadow.ready));
@@ -749,6 +782,7 @@ export function createStreetRenderer(canvas,materialReady,district=false){
     const model=mesh();vehicle(model,0,0,false,paint);return upload(model.vertices);
   });
   const human=district?upload(humanModel()):null;
+  const lamps=district?driverLights(upload):null;
   function draw(object,x=0,z=0,angle=0,step=0){
     gl.bindBuffer(gl.ARRAY_BUFFER,object.buffer);
     for(const [attribute,size,start] of attributes)gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,VERTEX_SIZE*4,start*4);
@@ -764,18 +798,30 @@ export function createStreetRenderer(canvas,materialReady,district=false){
       const focal=district?Math.min(2.2,aspect*1.76):Math.min(2.5,aspect*1.92);
       gl.uniform2f(projection,focal/aspect,focal);
     },
-    draw(frame,look=frame.look,highView=false){
+    draw(frame,look=frame.look,camera='cabin'){
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-      const above=district&&highView;
-      const bearing=frame.yaw+look*(above?.62:1);
-      const tilt=above?.96:district?.135:.088;
-      const viewpoint=above?[frame.x-6.9*Math.sin(bearing),9.6,frame.z+6.9*Math.cos(bearing)]:driverEye(frame);
-      if(district&&!above)viewpoint[1]=1.43;
+      const outside=district&&camera!=='cabin',overhead=camera==='overhead';
+      const bearing=frame.yaw+look*(outside?.62:1);
+      const tilt=outside?(overhead?.96:.32):district?.135:.088;
+      const back=overhead?6.9:9.5,height=overhead?9.6:3.95;
+      const viewpoint=outside?[frame.x-back*Math.sin(bearing),height,frame.z+back*Math.cos(bearing)]:driverEye(frame);
+      if(district&&!outside)viewpoint[1]=1.43;
       gl.uniform3fv(eye,viewpoint);
       gl.uniform2f(heading,Math.cos(bearing),Math.sin(bearing));
       gl.uniform2f(pitch,Math.cos(tilt),Math.sin(tilt));
+      gl.uniform1i(beams,Number(Boolean(district&&frame.lowBeams)));
+      if(district&&frame.lowBeams)gl.uniform4f(lightPose,frame.x,frame.z,Math.sin(frame.yaw),-Math.cos(frame.yaw));
       draw(street);
-      if(above)draw(cars[2],frame.x,frame.z,Math.PI/2-frame.yaw);
+      if(outside){
+        const angle=Math.PI/2-frame.yaw;
+        const own=object=>draw(object,frame.x,frame.z,angle);
+        own(cars[2]);
+        if(frame.lowBeams){own(lamps.front);if(!frame.braking)own(lamps.tail);}
+        if(frame.braking)own(lamps.brake);
+        if(frame.reverse)own(lamps.reverse);
+        const signal=flashingIndicator(frame);
+        if(signal)own(signal<0?lamps.left:lamps.right);
+      }
       for(const car of frame.traffic){
         if(!district&&Math.abs(car.x)>=78)continue;
         const angle=district?Math.PI/2-car.yaw:car.direction===1?0:Math.PI;
@@ -791,6 +837,7 @@ export function createStreetRenderer(canvas,materialReady,district=false){
       gl.deleteBuffer(street.buffer);
       for(const car of cars)gl.deleteBuffer(car.buffer);
       if(human)gl.deleteBuffer(human.buffer);
+      if(lamps)for(const lamp of Object.values(lamps))gl.deleteBuffer(lamp.buffer);
       disposeMaterials();gl.deleteTexture(shadow.texture);gl.deleteTexture(ink);gl.deleteProgram(program);
     }
   };

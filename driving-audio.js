@@ -1,3 +1,5 @@
+import {flashingIndicator} from './driving-world.js';
+
 export function createDrivingAudio(){
   if(!window.AudioContext)return null;
   const context=new AudioContext({latencyHint:'playback'});
@@ -21,6 +23,8 @@ export function createDrivingAudio(){
   const engine=channel(level),engineTone=filter('lowpass',360,engine);
   const motor=oscillator(43,[0,.67,1,.45,.27,.12,.06],engineTone);
   const road=channel(level),roadTone=filter('bandpass',320,road);
+  const blinker=channel(level);
+  oscillator(870,[0,1,.74,.32,.17],blinker);
 
   const buffer=context.createBuffer(1,context.sampleRate*2,context.sampleRate);
   const samples=buffer.getChannelData(0);
@@ -41,7 +45,7 @@ export function createDrivingAudio(){
   });
   air.start();
 
-  let running=false,timer=0,lastUpdate=-1;
+  let running=false,timer=0,lastUpdate=-1,lastBlink=0;
   function setPlaying(active){
     if(running===active)return;
     clearTimeout(timer);running=active;lastUpdate=-1;
@@ -62,6 +66,13 @@ export function createDrivingAudio(){
       const approach=car.speed/10.6,load=accelerating?1:0;
       const angle=car.yaw+car.look;
       const target=(param,value)=>param.setTargetAtTime(value,now,.062);
+      const blink=flashingIndicator(car);
+      if(car.indicator&&blink!==lastBlink){
+        blinker.gain.cancelScheduledValues(now);
+        blinker.gain.setValueAtTime(.083,now);
+        blinker.gain.exponentialRampToValueAtTime(.0001,now+.038);
+      }
+      lastBlink=blink;
       target(motor.frequency,43+approach*29+load*10);
       target(engine.gain,.115+approach*.055+load*.052);
       target(engineTone.frequency,340+approach*270+load*130);
