@@ -4,7 +4,7 @@ export const JUNCTION={
   carHalfLength:2.05,carHalfWidth:.87
 };
 
-const SKY=[.69,.8,.82];
+const SKY=[.75,.83,.85];
 const vertexSource=`
   attribute vec3 aPosition;
   attribute vec3 aColor;
@@ -44,10 +44,13 @@ const fragmentSource=`
       float ink=texture2D(uPrint,vUV).a;
       if(ink<.45)discard;
     }
-    float nearGrain=1.-smoothstep(7.,31.,vDepth);
-    vec2 tile=mod(floor(vGround*36.),vec2(97.,89.));
-    float grain=fract(sin(dot(tile,vec2(12.9898,57.233)))*4375.3545);
-    color+=(grain-.5)*vGrain*nearGrain;
+    if(vGrain>.0){
+      float nearGrain=1.-smoothstep(7.,31.,vDepth);
+      vec2 tile=mod(floor(vGround*38.),vec2(97.,89.));
+      float grain=fract(sin(dot(tile,vec2(12.9898,57.233)))*4375.3545);
+      float patches=sin(vGround.x*1.34+vGround.y*.48)*sin(vGround.y*.82-vGround.x*.62);
+      color+=vGrain*((grain-.5)*nearGrain+patches*.16);
+    }
     gl_FragColor=vec4(mix(color,uHaze,smoothstep(27.,105.,vDepth)*.84),1.);
   }
 `;
@@ -60,7 +63,8 @@ function color(hex,shade=1){
 function mesh(){
   const vertices=[];
   function triangle(a,b,c,tint,grain=0,uv){
-    [a,b,c].forEach((p,i)=>vertices.push(...p,...tint,...(uv?.[i]||[-1,-1]),grain));
+    const perVertex=Array.isArray(tint[0]);
+    [a,b,c].forEach((p,i)=>vertices.push(...p,...(perVertex?tint[i]:tint),...(uv?.[i]||[-1,-1]),grain));
   }
   function quad(a,b,c,d,tint,grain=0,print=false){
     triangle(a,b,c,tint,grain,print?[[0,0],[1,0],[1,1]]:null);
@@ -78,63 +82,112 @@ function mesh(){
     quad([r,y,f],[r,y,n],[r,t,n],[r,t,f],color(hex,.88));
   }
   function foliage(x,y,z,r,hex){
-    const a=[x-r,y,z],b=[x,y,z-r],c=[x+r,y,z],d=[x,y,z+r];
-    const top=[x,y+r*.95,z],bottom=[x,y-r*.73,z];
-    for(const [p,q,shade] of [[a,b,.86],[b,c,.89],[c,d,1.04],[d,a,1.12]]){
-      triangle(p,q,top,color(hex,shade));triangle(q,p,bottom,color(hex,shade*.8));
+    const top=[x,y+r*.94,z],bottom=[x,y-r*.71,z];
+    const points=Array.from({length:9},(_,i)=>{
+      const angle=i*Math.PI*2/9,dx=Math.cos(angle),dz=Math.sin(angle);
+      const spread=r*(1+(i%3-1)*.09);
+      return {
+        lower:[x+dx*spread,y-r*.21,z+dz*spread],
+        upper:[x+dx*spread*.73,y+r*(.33+i%2*.14),z+dz*spread*.73],
+        shade:.91+(-dx+dz)*.12
+      };
+    });
+    for(const [i,p] of points.entries()){
+      const q=points[(i+1)%points.length];
+      triangle(p.upper,q.upper,top,[color(hex,p.shade*1.08),color(hex,q.shade*1.08),color(hex,1.21)]);
+      triangle(p.lower,q.lower,q.upper,[color(hex,p.shade*.85),color(hex,q.shade*.85),color(hex,q.shade*1.08)]);
+      triangle(p.lower,q.upper,p.upper,[color(hex,p.shade*.85),color(hex,q.shade*1.08),color(hex,p.shade*1.08)]);
+      triangle(p.lower,bottom,q.lower,color(hex,p.shade*.72));
     }
   }
   return {vertices,triangle,quad,ground,box,foliage};
+}
+
+function wallWindow(m,x,y,z,front,face,shutters){
+  function plate(left,bottom,width,height,offset,hex){
+    const point=(u,v)=>front?[x+u,y+v,z+face*offset]:[x+face*offset,y+v,z+u];
+    m.quad(point(left,bottom),point(left+width,bottom),point(left+width,bottom+height),
+      point(left,bottom+height),color(hex,face>0?1:.84));
+  }
+  plate(-.47,0,.94,1.04,.012,'#977f6d');
+  plate(-.44,.05,.88,.92,.025,'#f3e6ce');
+  plate(-.354,.13,.708,.75,.04,'#2e4c5a');
+  plate(-.343,.49,.686,.37,.042,'#7e9ea0');
+  plate(-.026,.11,.052,.8,.046,'#dbd4be');
+  plate(-.36,.446,.72,.046,.047,'#d1c9b4');
+  plate(-.51,-.028,1.02,.095,.055,'#eee0c5');
+  if(shutters){
+    for(const dx of [-.69,.48]){
+      plate(dx,.06,.21,.89,.029,shutters);
+      for(let row=.19;row<.88;row+=.14)plate(dx+.021,row,.168,.013,.032,'#c9ba98');
+    }
+  }
 }
 
 function house(m,x,z,w,d,h,wall,roof){
   const {box,quad,triangle}=m;
   const l=x-w/2-.23,r=x+w/2+.23,n=z-d/2-.25,f=z+d/2+.25,ridge=h+1.2;
   box(x,.1,z,w,h-.1,d,wall);
-  box(x,.14,z+.01,w+.03,.33,d+.03,'#9b8f7c');
+  box(x,.0,z,w+.05,.39,d+.05,'#9b8b79');
+  box(x,.392,z,w+.075,.085,d+.075,'#ccb79c');
   quad([l,h,n],[r,h,n],[r,ridge,z],[l,ridge,z],color(roof,.83));
   quad([l,ridge,z],[r,ridge,z],[r,h,f],[l,h,f],color(roof));
   triangle([l,h,n],[l,ridge,z],[l,h,f],color(wall,.81));
   triangle([r,h,f],[r,ridge,z],[r,h,n],color(wall,.92));
   box(x,ridge-.018,z,w+.5,.09,.14,'#be7555');
-  for(let i=1;i<7;i++){
-    const ratio=i/7,y=ridge-ratio*1.2+.009;
+  for(let i=1;i<11;i++){
+    const ratio=i/11,y=ridge-ratio*1.2+.013;
     for(const direction of [-1,1]){
       const edge=z+direction*ratio*(d/2+.25);
-      box(x,y,edge,w+.35,.025,.035,roof);
+      box(x,y,edge,w+.35,.027,.048,i%3?'#ab6e54':'#c38968');
     }
   }
   box(x+w*.2,h+.53,z-.38,.36,.91,.37,'#c18063');
   box(x+w*.2,h+1.44,z-.38,.45,.085,.46,'#8b5849');
+  const shutters=x<0?'#547064':'#789590';
   for(const face of [-1,1]){
     const facade=z+face*(d/2+.035);
     for(let off=-w/2+1.3;off<w/2-1;off+=2.25){
-      box(x+off,h-.96,facade,.97,1.04,.10,'#ebe0c7');
-      box(x+off,h-.85,facade+face*.058,.73,.82,.029,'#34566a');
-      box(x+off,h-.71,facade+face*.08,.55,.54,.013,'#52808b');
-      box(x+off,h-.87,facade+face*.09,.065,.87,.025,'#e1d8c4');
-      box(x+off,h-.91,facade+face*.12,1.07,.075,.18,'#b4a18e');
+      wallWindow(m,x+off,h-1.31,facade,true,face,shutters);
     }
     box(x+w/5,.22,facade,1.12,2.17,.13,'#666558');
     box(x+w/5,.25,facade+face*.08,.86,1.88,.045,'#37615a');
+    box(x+w/5,.27,facade+face*.108,.69,.12,.10,'#b9a588');
+    box(x+w/5+.28,1.20,facade+face*.123,.065,.12,.055,'#dbb27a');
+    box(x+w/5,2.37,facade+face*.17,1.38,.12,.52,roof);
   }
   for(const face of [-1,1]){
     const facade=x+face*(w/2+.055);
     for(let off=-d/2+1.18;off<d/2-.85;off+=2.1){
-      box(facade,h-1.65,z+off,.13,1.04,.95,'#e5d6bb');
-      box(facade+face*.07,h-1.53,z+off,.035,.79,.72,'#416979');
-      box(facade+face*.09,h-1.57,z+off,.025,.87,.066,'#d8cfb9');
+      wallWindow(m,facade,h-1.47,z+off,false,face,shutters);
     }
   }
 }
 
+function groundShade(m,x,z,y,w,d,hex,strength,grain){
+  const edge=color(hex),inside=color(hex,strength);
+  for(let i=0;i<12;i++){
+    const point=(step,scale)=>{
+      const a=step*Math.PI/6;
+      return [x+Math.cos(a)*w*scale,y,z+Math.sin(a)*d*scale];
+    };
+    const a=point(i,1),b=point(i+1,1),c=point(i+1,.51),d1=point(i,.51);
+    m.triangle(a,b,c,[edge,edge,inside],grain);
+    m.triangle(a,c,d1,[edge,inside,inside],grain);
+    m.triangle(d1,c,[x,y,z],inside,grain);
+  }
+}
+
 function tree(m,x,z,size){
-  m.ground(x-.2,z-.14,x+1.35*size,z+.72*size,.132,'#7c8469');
-  m.box(x,.12,z,.18*size,1.66*size,.18*size,'#78644a');
-  m.foliage(x,2.12*size,z,.87*size,'#587e54');
-  m.foliage(x-.48*size,1.97*size,z+.15*size,.62*size,'#719962');
-  m.foliage(x+.46*size,2.08*size,z-.17*size,.67*size,'#4b7854');
-  m.foliage(x,2.6*size,z-.08*size,.62*size,'#769d65');
+  const onPaving=Math.abs(z)<7.72;
+  const ground=onPaving?.134:-.126;
+  groundShade(m,x+.76*size,z-.43*size,ground,1.35*size,.61*size,onPaving?'#cec5b4':'#88996d',.79,onPaving?0:.11);
+  m.box(x,.124,z,.32*size,.13,.29*size,'#776a4f');
+  m.box(x,ground,z,.19*size,1.87*size,.2*size,'#80684c');
+  m.foliage(x,2.12*size,z,.88*size,'#597d49');
+  m.foliage(x-.49*size,2.14*size,z+.21*size,.64*size,'#769753');
+  m.foliage(x+.48*size,2.13*size,z-.12*size,.68*size,'#496f44');
+  m.foliage(x-.025,2.63*size,z-.08*size,.64*size,'#779949');
 }
 
 function streetlight(m,x,z,direction){
@@ -154,10 +207,11 @@ function octagon(m,x,y,z,r,hex){
 
 // Los dos vehículos se construyen mirando hacia la derecha del cruce.
 function vehicle(m,x,z,van){
-  const {box,ground,quad}=m;
+  const {box,quad}=m;
   const length=van?5.3:4.22,half=length/2;
   const width=van?2.25:1.79,body=van?'#e7e6dc':'#e89b4a';
-  ground(x-half+.14,z-width/2-.17,x+half+.3,z+width/2+.28,.019,'#333c43');
+  groundShade(m,x+.14,z-.09,van?.156:.022,half+.4,width*.76,van?'#707573':'#5c6267',.54,van?.16:.095);
+  const raisedStart=m.vertices.length;
   for(const wheel of [-half+.87,half-.82]){
     for(const side of [-1,1]){
       const face=z+side*(width/2-.015),axis=x+wheel;
@@ -177,6 +231,14 @@ function vehicle(m,x,z,van){
     box(x-.66,1.095,z,3.84,1.24,width-.11,body);
     box(x-.72,1.13,z,3.18,.055,width-.046,'#aab6b7');
     box(x-.53,1.17,z,2.75,.94,width-.072,'#dedfd7');
+    for(const s of [-1,1]){
+      const panel=z+s*(width/2-.022);
+      box(x-.45,1.16,panel,.024,.91,.018,'#9eaaa8');
+      box(x-.26,1.29,panel,.19,.061,.039,'#52626a');
+      box(x-.69,.65,panel,3.24,.095,.017,'#8c999c');
+    }
+    box(x+half+.013,.66,z,.02,.14,.83,'#364a53');
+    box(x+half+.018,.744,z,.023,.022,.87,'#9aa8a9');
   }
   const f=x+(van?1.95:.97),r=x-(van?-.63:1.2),top=van?2.19:1.52,base=van?1.09:.91;
   const topFront=f-.39,topBack=r+.34,side=width*.47,inner=side-.16;
@@ -192,11 +254,28 @@ function vehicle(m,x,z,van){
   box((topFront+topBack)/2,top-.014,z,topFront-topBack+.10,.08,inner*2+.11,body);
   box(x+half+.012,.51,z,.028,.104,.39,'#e9ece7');
   box(x-half-.012,.51,z,.028,.104,.39,'#e9ece7');
+  if(van)for(let i=raisedStart+1;i<m.vertices.length;i+=9)m.vertices[i]+=.154;
+}
+
+function hills(m){
+  const rings=[[108,10,'#98aaa0'],[87,6.9,'#798d78']];
+  for(const [radius,peak,hex] of rings){
+    function ridge(i){
+      const a=i*Math.PI/22;
+      const height=peak*(.73+.24*Math.sin(a*5+.2)+.20*Math.sin(a*9+1.6));
+      return [Math.cos(a)*radius,height,Math.sin(a)*radius];
+    }
+    for(let i=0;i<44;i++){
+      const a=ridge(i),b=ridge(i+1);
+      m.quad([a[0],-.22,a[2]],[b[0],-.22,b[2]],b,a,color(hex,.95+i%3*.026));
+    }
+  }
 }
 
 function buildStreet(){
   const m=mesh(),{box,ground,quad}=m;
-  ground(-112,-110,112,110,-.13,'#8a9b72',.16);
+  hills(m);
+  ground(-112,-110,112,110,-.13,'#88996d',.11);
   ground(-108,-6,108,6,0,'#5c6267',.095);
   const half=JUNCTION.roadHalfWidth;
   ground(-half,-106,half,-6,0,'#555d64',.095);
@@ -205,6 +284,8 @@ function buildStreet(){
   for(const side of [-1,1]){
     for(const z of [-53,53])box(side*(half+.83),-.08,z,1.66,.21,94,curb);
     for(const x of [-52,52])box(x,-.08,side*6.86,95,.21,1.72,curb);
+    for(const z of [-53,53])box(side*(half+.043),.125,z,.075,.016,94,'#e2d4bd');
+    for(const x of [-52,52])box(x,.125,side*6.043,95,.016,.075,'#e2d4bd');
     for(let i=8;i<53;i+=1.25){
       ground(side*(half+.04)-.01,side*i-.008,side*(half+1.6)+.01,side*i+.009,.132,'#aba597');
       ground(side*i-.008,5.99,side*i+.009,7.65,.132,'#aba597');
@@ -244,6 +325,12 @@ function buildStreet(){
   for(const [x,z,size] of [[-6.6,12.8,.77],[6.45,13.2,.82],[-6.45,-9,.9],[6.6,-10.1,.88],[-18.4,-9.35,1.14],
     [18.35,-9.25,1],[-31,-9.7,.95],[32,-9.6,1.1],[-6.6,27.7,.92],[6.65,26.8,1],[-7,-23,1],[6.8,-24,1.12],
     [-16.1,8.1,.79],[16.5,8.2,.78],[-43,8.3,1.14],[43.5,8.25,1.06]])tree(m,x,z,size);
+  for(const [x,z] of [[-8.8,15.4],[8.1,15.1],[-8.5,-10.2],[8.6,-10.1],[-18.6,-10.4],[19,-8.5],
+    [-7.1,27.9],[8.1,25.2],[-10,26],[8.2,30.3],[-7.5,21],[7.5,21.3]]){
+    m.foliage(x,.24,z,.57,'#697d47');
+    m.foliage(x-.28,.26,z-.12,.34,'#849553');
+    m.foliage(x+.32,.16,z+.16,.31,'#879d5c');
+  }
   for(const [x,z,d] of [[-5.7,13.1,1],[5.8,24.4,-1],[5.75,-8.38,-1],[-22,-6.8,1],[21,7.21,-1],[-5.75,-25,1]])streetlight(m,x,z,d);
   return m.vertices;
 }
@@ -276,6 +363,9 @@ function makePrint(gl){
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,ink);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
+  const anisotropy=gl.getExtension('EXT_texture_filter_anisotropic');
+  if(anisotropy)gl.texParameterf(gl.TEXTURE_2D,anisotropy.TEXTURE_MAX_ANISOTROPY_EXT,
+    Math.min(4,gl.getParameter(anisotropy.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
   gl.generateMipmap(gl.TEXTURE_2D);
   return texture;
 }

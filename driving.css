@@ -11,38 +11,48 @@
 .road-game::backdrop{background:#111c22}
 .road-gl{
   display:block;position:absolute;inset:0;width:100%;height:100%;
-  background:radial-gradient(ellipse 16% 5% at 31% 17%,#f0f5ed9e,transparent 100%),
-    radial-gradient(ellipse 22% 7% at 67% 26%,#e8f0eb94,transparent 100%),
-    linear-gradient(#78accb,#bbd1d2 45%,#a5b58e 60%);
+  background:radial-gradient(ellipse 32% 35% at 6% 2%,#fff1cd82,transparent 100%),
+    radial-gradient(ellipse 11% 3% at 27% 16%,#f9f9ebae,transparent 100%),
+    radial-gradient(ellipse 17% 4% at 34% 18%,#eaf2ec94,transparent 100%),
+    radial-gradient(ellipse 13% 3% at 72% 23%,#f1f4eac9,transparent 100%),
+    radial-gradient(ellipse 17% 3% at 78% 25%,#f3f4e993,transparent 100%),
+    linear-gradient(#74aacf,#bfcfd5 43%,#afbb8a 65%);
 }
 .road-cabin{position:absolute;inset:0;pointer-events:none;transform:translateX(calc(0px - var(--road-look,0%) * .44));}
-.road-pillar{position:absolute;top:0;width:13%;height:83%;background:linear-gradient(95deg,#191f25 23%,#5b636b 49%,#252e37 72%)}
+.road-pillar{position:absolute;top:0;width:13%;height:83%;background:linear-gradient(95deg,#141b22 22%,#38434d 42%,#78838a 51%,#454f58 56%,#1c252d 79%)}
 .road-pillar.left{left:0;clip-path:polygon(0 0,16% 0,100% 100%,65% 100%,0 44%)}
 .road-pillar.right{right:0;transform:scaleX(-1);clip-path:polygon(0 0,12% 0,100% 100%,64% 100%,0 44%)}
 .road-hood{
   position:absolute;inset:auto -21% 12%;height:13%;
-  background:linear-gradient(174deg,#5b9eaa 4%,#6a9eac 25%,#30596d 70%);
+  background:linear-gradient(99deg,#2e536c77 22%,transparent 32% 71%,#213e5666 80%),
+    linear-gradient(176deg,#89bcc2 1%,#6898ad 32%,#46758a 57%,#274858 70%);
   clip-path:polygon(0 77%,15% 32%,34% 5%,57% 12%,83% 42%,100% 79%,100% 100%,0 100%);
 }
 .road-dash{
   position:absolute;bottom:0;left:-22%;width:144%;height:20%;border-top:3px solid #465764;
   border-radius:47% 59% 0 0/29% 49% 0 0;
-  background:linear-gradient(175deg,#394650 2%,#222e37 29%,#141b23 68%);
-  box-shadow:0 7px 0 #45535d inset,0 11px 0 #19232b inset;
+  background:radial-gradient(ellipse 65% 90% at 40% -23%,#78859070,transparent 100%),
+    repeating-linear-gradient(110deg,#ffffff04 0 1px,#00000004 1px 3px),
+    linear-gradient(175deg,#414e58 3%,#262f37 36%,#131a22 74%);
+  box-shadow:0 6px 0 #6a768153 inset,0 10px 0 #181f2c70 inset,0 -11px 12px #0c121882 inset;
 }
 .road-vents{position:absolute;bottom:7%;right:19%;display:flex;gap:6px;width:min(15%,150px)}
-.road-vents i{flex:1;height:12px;border:2px solid #44535e;border-radius:5px;background:repeating-linear-gradient(0deg,#121a20 0 2px,#5a6770 2px 3px)}
+.road-vents i{flex:1;height:12px;border:2px solid #505f68;border-radius:5px;box-shadow:0 0 5px #0c131a,inset 0 0 4px #0b1019;
+  background:linear-gradient(90deg,transparent 40%,#9a9da0 43% 50%,transparent 52%),repeating-linear-gradient(0deg,#131c23 0 2px,#637077 2px 3px)}
 .road-wheel{
   position:absolute;bottom:calc(0px - clamp(75px,12vh,122px));left:31%;width:clamp(151px,23vh,240px);aspect-ratio:1;
   border:clamp(13px,2vh,22px) solid #20272f;border-radius:50%;
-  box-shadow:0 2px 1px 2px #515b65,0 4px 2px #080c12 inset;
+  box-shadow:0 -2px 1px 2px #596671,0 2px 4px 3px #10151b,0 2px 2px 1px #080c12 inset;
   background:linear-gradient(108deg,transparent 46%,#303942 46% 52%,transparent 52%) center 95%/40% 55% no-repeat;
 }
 .road-wheel::before{content:'';position:absolute;top:44%;inset-inline:0;height:13%;background:#303942;transform:rotate(-8deg)}
-.road-wheel::after{content:'';position:absolute;top:38%;left:35%;width:30%;height:24%;border:1px solid #3e4b58;border-radius:39%;background:#19232b}
+.road-wheel::after{content:'';position:absolute;top:38%;left:35%;width:30%;height:24%;border:1px solid #5d6973;border-radius:39%;
+  background:radial-gradient(ellipse 16% 19% at 50% 45%,#56727b 0 72%,transparent 80%),linear-gradient(145deg,#45515b,#171f27 72%)}
 .road-hud:not([hidden]){position:absolute;inset:0;pointer-events:none}
 .road-hud button{pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-.road-top{position:absolute;top:var(--road-top);inset-inline:var(--road-side);display:flex;justify-content:space-between;align-items:center}
+.road-top{position:absolute;top:var(--road-top);inset-inline:var(--road-side);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.road-tools{display:flex;gap:6px;flex:none}
+.road-tool[aria-pressed="false"]{background:#2d414cef;color:#e1e8eb}
 .road-top span,.road-tool,.road-speed{background:#192a35ed;border:1px solid #d0e0e44a;color:#fff;border-radius:12px}
 .road-top span{font-size:.85rem;font-weight:700;padding:7px 10px}
 .road-tool{padding:8px 12px;min-height:44px;font-family:inherit;font-weight:700;font-size:.83rem;line-height:1.15}

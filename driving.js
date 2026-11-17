@@ -1,4 +1,5 @@
 import {JUNCTION,createStreetRenderer} from './driving-scene.js';
+import {createDrivingAudio} from './driving-audio.js';
 
 const ROUTE_TEXT=[
   ['Parada en la línea','Te detuviste antes de la línea del STOP.','Debías detenerte por completo antes de la línea del STOP.'],
@@ -8,6 +9,7 @@ const ROUTE_TEXT=[
 const KEY_ACTION={ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right',ArrowUp:'gas',w:'gas',
   ArrowDown:'brake',s:'brake',' ':'brake',q:'lookLeft',e:'lookRight'};
 const CAP_SECONDS=1/20;
+const SOUND_SETTING='autoescuela_game_sound';
 
 export function createRun(){
   return {x:JUNCTION.laneX,z:27,yaw:0,speed:0,steer:0,look:0,trafficX:JUNCTION.trafficStart,
@@ -62,7 +64,10 @@ const CABIN=`
     <div class="road-vents"><i></i><i></i></div><div class="road-wheel"></div>
   </div>
   <div class="road-hud" hidden>
-    <div class="road-top"><span>Cruce con STOP</span><button class="road-tool" type="button" data-road-pause>Pausa</button></div>
+    <div class="road-top"><span>Cruce con STOP</span><div class="road-tools">
+      <button class="road-tool" type="button" data-road-sound aria-label="Sonido del videojuego" aria-pressed="true">Sonido</button>
+      <button class="road-tool" type="button" data-road-pause>Pausa</button>
+    </div></div>
     <div class="road-look" aria-label="Mirar por el parabrisas">
       <button class="road-tool" type="button" data-drive="lookLeft" aria-label="Mirar a la izquierda">‹ Mirar</button>
       <button class="road-tool" type="button" data-drive="lookRight" aria-label="Mirar a la derecha">Mirar ›</button>
@@ -90,6 +95,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
   document.body.appendChild(dialog);dialog.showModal();
   const canvas=dialog.querySelector('canvas'),hud=dialog.querySelector('.road-hud');
   const speed=hud.querySelector('.road-speed b'),wheel=dialog.querySelector('.road-wheel');
+  const soundButton=hud.querySelector('[data-road-sound]');
   const cabin=dialog.querySelector('.road-cabin');
   const overlay=dialog.querySelector('.road-overlay'),panel=dialog.querySelector('.road-panel');
   const buttons=Array.from(dialog.querySelectorAll('[data-drive]'));
@@ -97,7 +103,19 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
   const heldPointers=new Map(),heldKeys=new Map(),controls=new Set();
   let renderer,run=createRun(),frame=0,lastTime=0,lastSpeed=-1;
   let mode='ready',immersive=false,closed=false;
+  let audio,soundOn=true;
+  try { soundOn=localStorage.getItem(SOUND_SETTING)!=='off'; } catch {}
   try { renderer=createStreetRenderer(canvas); } catch { renderer=null; }
+
+  function syncAudio(){
+    if(soundOn&&mode==='running'&&audio===undefined){
+      try { audio=createDrivingAudio(); } catch { audio=null; }
+    }
+    audio?.setPlaying(soundOn&&mode==='running');
+    soundButton.disabled=audio===null;
+    soundButton.setAttribute('aria-pressed',String(soundOn&&audio!==null));
+    soundButton.textContent=audio===null?'Sin sonido':soundOn?'Sonido':'Silencio';
+  }
 
   function show(content){
     panel.innerHTML=content;
@@ -127,11 +145,12 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
   function stopFrame(){
     cancelAnimationFrame(frame);frame=0;lastTime=0;
     heldPointers.clear();heldKeys.clear();refreshControls();
+    audio?.setPlaying(false);
   }
   function dispose(){
     if(closed)return;
     closed=true;stopFrame();listeners.abort();observer.disconnect();
-    renderer?.dispose();
+    renderer?.dispose();audio?.dispose();
     if(document.fullscreenElement===surface){
       screen.orientation?.unlock?.();
       document.exitFullscreen().catch(()=>{});
@@ -164,6 +183,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
     const dt=Math.min(CAP_SECONDS,lastTime?(now-lastTime)/1000:0);
     lastTime=now;
     moveThroughJunction(run,controls,dt);paint();
+    audio?.update(run,controls.has('gas')&&!controls.has('brake'));
     if(run.ending)finish();else frame=requestAnimationFrame(tick);
   }
   function enterFullscreen(){
@@ -179,7 +199,7 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
     if(restart)run=createRun();
     mode='running';overlay.hidden=true;hud.hidden=false;
     surface.focus({preventScroll:true});
-    enterFullscreen();resize();frame=requestAnimationFrame(tick);
+    syncAudio();enterFullscreen();resize();frame=requestAnimationFrame(tick);
   }
   function unavailable(){
     stopFrame();mode='unavailable';
@@ -194,6 +214,11 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
     if(button.hasAttribute('data-road-start'))play(true);
     if(button.hasAttribute('data-road-resume'))play(false);
     if(button.hasAttribute('data-road-pause'))pause();
+    if(button.hasAttribute('data-road-sound')){
+      soundOn=!soundOn;
+      try { localStorage.setItem(SOUND_SETTING,soundOn?'on':'off'); } catch {}
+      syncAudio();
+    }
   },{signal});
   dialog.addEventListener('cancel',event=>{
     event.preventDefault();
