@@ -316,7 +316,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.8.0';
+const VERSION='0.8.1';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -2097,7 +2097,131 @@ const URBAN_STOP=[
 function urbanStopPainter(canvas){
   const ctx=canvas.getContext('2d');
   if(!ctx)return null;
+  // El barrio se dibuja una vez, y los fotogramas solo añaden los vehículos y las indicaciones.
+  const background=document.createElement('canvas');
+  background.width=canvas.width;background.height=canvas.height;
   const scale=canvas.width/400;
+  const scene=background.getContext('2d');
+  if(!scene)return null;
+  scene.setTransform(scale,0,0,scale,0,0);
+  const block=urbanDrawing(scene),moving=urbanDrawing(ctx);
+  const {rect,shape,rounded,disk,line,gradient}=block;
+  const incline=context=>context.transform(1,.10,0,.84,0,-11);
+
+  function paving(x,y,w,h){
+    rect(x,y,w,h,'#cbbba7');
+    scene.save();scene.beginPath();scene.rect(x,y,w,h);scene.clip();
+    for(let row=0;row*9<h;row++){
+      for(let col=-1;col*18<w;col++){
+        const tint=(row+col+1)%3===0?'#e0cdb7':'#d7c6af';
+        rect(x+col*18+(row%2)*9,y+row*9,17,8,tint);
+      }
+    }
+    scene.restore();
+  }
+  function building(x,y,w,h,roof,lit){
+    shape([[x,y-2],[x+w,y-2],[x+w+18,y+12],[x+w+18,y+h+19],[x+18,y+h+19],[x,y+h]],'#28342846');
+    rect(x,y,w,h+7,'#9c6951');
+    shape([[x+w-6,y-7],[x+w+3,y-15],[x+w+7,y+h-5],[x+w-6,y+h+7]],'#655146');
+    rect(x,y+h-9,w,3,'#c79b7b');
+    for(let offset=8;offset<w-9;offset+=18){
+      rect(x+offset,y+h-5,10,9,'#523f37');
+      rect(x+offset+1,y+h-4,8,6,'#8ca9b0');
+      rect(x+offset+5,y+h-4,1,6,'#d4c6ac');
+    }
+    const peak=y-12+Math.round(h*.45),far=y+h-12;
+    shape([[x-5,far],[x+w+4,far],[x+w+4,y-14],[x-5,y-14]],'#58483e');
+    shape([[x-4,y-15],[x+w+3,y-15],[x+w+3,peak],[x-4,peak]],roof);
+    shape([[x-4,peak],[x+w+3,peak],[x+w+3,far],[x-4,far]],lit);
+    for(let row=y-10;row<far-1;row+=5){
+      line([[x-3,row],[x+w+2,row]],'#472e2c43',.65);
+      for(let col=x+(row%2?2:7);col<x+w;col+=10)rect(col,row,1,4,'#472e2c2a');
+    }
+    line([[x-3,peak],[x+w+3,peak]],'#f5c399',2);
+    const stackX=x+w-17,stackY=peak-10;
+    rect(stackX+3,stackY+3,9,9,'#483d3565');
+    rect(stackX,stackY,7,8,'#b8a08b');rect(stackX-1,stackY-1,9,3,'#dfc2a2');
+  }
+  function tree(x,y,size){
+    scene.save();scene.translate(x,y);scene.scale(size,size);
+    scene.save();scene.translate(9,5);scene.scale(1.28,.72);disk(0,0,15,'#1a302b47');scene.restore();
+    rect(-1,0,3,8,'#694c35');
+    disk(0,-5,13,'#284e41');disk(5,-6,9,'#3a6b4b');
+    disk(-5,-9,10,'#55875a');disk(-2,-13,6,'#729b64');disk(6,-12,5,'#5d905b');
+    for(const [dx,dy] of [[-7,-13],[-4,-7],[1,-13],[6,-9],[-1,-17]])disk(dx,dy,1.4,'#a1b67b');
+    scene.restore();
+  }
+  function planter(x,y,w){
+    rounded(x+3,y+4,w,13,5,'#263d3550');rounded(x,y,w,12,5,'#b3a28c');
+    rounded(x+2,y+2,w-4,8,3,'#685244');
+    for(let off=5;off<w-4;off+=7){disk(x+off,y+5,3,'#487b58');disk(x+off+1,y+4,1.4,'#a16062');}
+  }
+  function lamp(x,y){
+    line([[x,y],[x+12,y+6]],'#24332f4c',2);
+    line([[x,y],[x,y-12],[x+5,y-15]],'#344450',1.7);
+    rounded(x+3,y-16,7,3,1.3,'#243b44');rect(x+5,y-14,4,1,'#fff0ae');
+  }
+
+  rect(0,0,400,338,'#718b63');
+  incline(scene);
+  rect(-1,-66,402,531,gradient(0,0,400,405,[[0,'#8eaa73'],[1,'#627e62']]));
+  for(const [x,y,w,h] of [[0,84,169,29],[258,82,142,31],[145,-60,24,152],[258,-62,24,159],
+    [0,220,170,58],[258,220,142,45],[145,263,24,185],[258,256,25,193]])paving(x,y,w,h);
+
+  const road=[[-2,112],[169,112],[169,-65],[258,-65],[258,112],[402,112],[402,220],
+    [258,220],[258,448],[169,448],[169,220],[-2,220]];
+  shape(road,gradient(18,95,370,375,[[0,'#55616a'],[.55,'#46535e'],[1,'#35444f']]));
+  let seed=137;
+  const sample=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+  for(let i=0;i<3600;i++){
+    const x=sample()*400,y=sample()*444-30;
+    if((y>=112&&y<220)||(x>=169&&x<258))rect(x,y,.6+sample()*1.1,.7,i%3?'#e4ebe817':'#171f2633');
+  }
+  for(const curb of [[[-2,112],[169,112],[169,-64]],[[258,-64],[258,112],[402,112]],
+    [[-2,220],[169,220],[169,448]],[[402,220],[258,220],[258,448]]]){
+    line(curb.map(([x,y])=>[x,y+3]),'#29394370',5);
+    line(curb,'#e3d3bd',3.2);
+  }
+  const marking='#eae4d6';
+  for(let x=5;x<400;x+=33)if(x+19<169||x>258)rect(x,164,19,1.8,marking);
+  for(let y=-27;y<96;y+=29)rect(212,y,1.8,16,marking);
+  for(let y=313;y<440;y+=31)rect(212,y,1.8,17,marking);
+  rect(215,307,40,4,'#23343c');rect(215,305,40,4,'#fff6e4');
+  block.label('STOP',235,326,12,'#fff6e4');
+
+  rect(12,232,154,32,'#59666c');
+  line([[13,232],[13,263],[165,263],[165,232]],'#f0debb',1.1);
+  line([[56,233],[56,263]],'#e1d2b5',1);
+  for(const x of [284,333,376])planter(x,236,x===333?25:18);
+  paving(34,284,72,22);paving(303,270,70,25);
+  building(5,27,82,47,'#a85f4d','#cd8062');
+  building(97,25,42,43,'#77696a','#a48b83');
+  building(293,19,89,51,'#a86350','#d59169');
+  building(13,313,117,57,'#826369','#b1837a');
+  building(315,310,80,57,'#8d5d48','#c48a65');
+  for(const [x,y,size] of [[86,88,.82],[141,75,.83],[284,80,.81],[388,80,1],
+    [22,293,1.06],[131,284,.86],[294,266,.9],[391,277,.94],[301,326,.7]])tree(x,y,size);
+  for(const [x,y] of [[49,105],[143,102],[279,105],[345,104],[18,270],[283,255],[365,258]])lamp(x,y);
+
+  return (carY,trafficX,stage,braking=false)=>{
+    ctx.setTransform(scale,0,0,scale,0,0);
+    ctx.drawImage(background,0,0,400,338);
+    incline(ctx);
+    const visibleTraffic=stage>=2||carY<280;
+    if(visibleTraffic)urbanVehicle(moving,trafficX,190,Math.PI/2,'orange');
+    urbanVehicle(moving,126,248,Math.PI/2,'van');
+    urbanVehicle(moving,235,carY,0,'blue',braking);
+    if(!visibleTraffic){
+      moving.line([[104,211],[119,220],[124,230]],'#f5e4c4',1.4);
+      moving.disk(124,230,2.2,'#fff3d4');
+      moving.rounded(18,191,122,23,8,'#182b37');
+      moving.label('Visión tapada',79,202.5,11,'#fff3d4');
+    }
+    drawUrbanStopSign(moving);
+  };
+}
+
+function urbanDrawing(ctx){
   const rect=(x,y,w,h,color)=>{ctx.fillStyle=color;ctx.fillRect(x,y,w,h);};
   const shape=(points,color)=>{
     ctx.beginPath();
@@ -2114,114 +2238,78 @@ function urbanStopPainter(canvas){
     ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.font='700 '+size+'px system-ui,sans-serif';ctx.fillText(value,x,y);
   };
-  function building(x,y,w,h,roof){
-    shape([[x,y+h],[x+w,y+h],[x+w+19,y+h+18],[x+19,y+h+18]],'#544b4640');
-    rect(x,y,w,h,'#986e59');
-    rect(x+5,y+4,w,h,'#6d5348');
-    for(let n=x+12;n<x+w-8;n+=18)rect(n,y+h-1,10,8,'#c2d2d2');
-    rounded(x-4,y-13,w+8,h+10,3,'#523b36');
-    rounded(x,y-10,w,h+4,2,roof);
-    rounded(x+5,y-5,w-10,h-6,2,'#26170e22');
-    rect(x+9,y+1,Math.min(w-22,32),12,'#e2b389');
-    rect(x+12,y+4,Math.min(w-27,26),6,'#8a6f59');
-    rect(x+w-22,y+11,11,12,'#463d38');
-  }
-  function tree(x,y){
-    disk(x+8,y+8,15,'#34403144');rect(x-2,y,4,9,'#765845');
-    disk(x,y-5,14,'#2b624b');disk(x-5,y-10,9,'#508765');disk(x+4,y-8,7,'#6d9b70');
-  }
-  function sidewalk(x,y,w,h){
-    rect(x,y,w,h,'#d9c5a8');
-    for(let col=x;col<x+w;col+=14)rect(col,y,1,h,'#97887545');
-    for(let row=y;row<y+h;row+=12)rect(x,row,w,1,'#97887545');
-  }
-  function vehicle(x,y,angle,color,van=false,braking=false){
-    ctx.save();ctx.translate(x,y);ctx.rotate(angle);
-    const length=van?76:43, width=van?27:22, front=-length/2;
-    rounded(-width/2+4,front+6,width+4,length+4,7,'#0e182162');
-    for(const dx of [-width/2-2,width/2-3]){
-      rounded(dx,front+7,5,9,2,'#21262b');
-      rounded(dx,length/2-15,5,9,2,'#21262b');
-    }
-    const paint=ctx.createLinearGradient(-width/2,0,width/2,0);
-    paint.addColorStop(0,color);paint.addColorStop(.48,color);paint.addColorStop(1,'#253649');
-    rounded(-width/2,front,width,length,van?5:9,paint);
-    rounded(-width/2+2,front+3,width-4,length-8,van?4:7,color);
-    shape([[-width/2+3,front+11],[width/2-3,front+11],[width/2-5,front+19],[-width/2+5,front+19]],'#234050');
-    shape([[-width/2+5,front+12],[width/2-4,front+12],[2,front+17],[-width/2+6,front+17]],'#9bbcc9');
-    if(van){
-      rounded(-width/2+3,front+24,width-6,length-31,4,'#ecede2');
-      rect(-width/2+6,front+28,width-12,2,'#b8c3bd');
-      rect(-width/2+6,length/2-11,width-12,1,'#b8c3bd');
-    }else{
-      rounded(-width/2+4,front+21,width-8,8,3,'#ffffff28');
-      rounded(-width/2+4,front+31,width-8,5,2,'#2c4554');
-    }
-    for(const dx of [-width/2+2,width/2-7]){
-      rounded(dx,front+2,5,3,1,'#fff3cf');
-      rounded(dx,length/2-4,5,3,1,braking?'#ff7464':'#b72d33');
-    }
-    ctx.restore();
-  }
-  return (carY,trafficX,stage,braking=false)=>{
-    ctx.setTransform(scale,0,0,scale,0,0);
-    rect(0,0,400,338,'#6d896d');
-    // La inclinación deja visibles las fachadas y conserva las posiciones de la vía.
-    ctx.transform(1,.10,0,.84,0,-11);
-    sidewalk(0,88,169,28);
-    sidewalk(258,88,142,28);
-    sidewalk(145,0,24,93);
-    sidewalk(258,0,24,93);
-    sidewalk(0,220,170,63);
-    sidewalk(258,220,142,41);
-    sidewalk(145,260,24,145);
-    sidewalk(258,260,24,145);
-    rect(0,112,400,108,'#374650');
-    rect(169,-12,89,124,'#394951');
-    rect(169,217,89,196,'#394951');
-    rect(0,112,169,3,'#d9c4a6');
-    rect(258,112,142,3,'#d9c4a6');
-    rect(169,-12,2,124,'#d9c4a6');
-    rect(256,-12,2,124,'#d9c4a6');
-    rect(0,217,169,3,'#e2caaa');
-    rect(258,217,142,3,'#e2caaa');
-    rect(169,220,2,193,'#d9c4a6');
-    rect(256,220,2,193,'#d9c4a6');
-    for(let x=5;x<400;x+=33)if(x+19<169||x>258)rect(x,164,19,2,'#e7ddc3');
-    for(let y=2;y<96;y+=29)rect(212,y,2,16,'#dbd5c9');
-    for(let y=313;y<423;y+=31)rect(212,y,2,17,'#dbd5c9');
-    rect(215,305,40,4,'#fff7df');
-    label('STOP',235,332,13,'#fff7df');
-    rect(12,232,148,32,'#424f53');
-    for(const x of [13,43,165])rect(x,232,1,32,'#f7e6c9');
-    rect(13,263,153,1,'#f7e6c9');
-    rect(275,230,111,14,'#c5b295');
-    for(const x of [278,309,341,373])rect(x,231,1,11,'#e9d7bc');
-    building(9,26,91,52,'#ba7c63');
-    building(111,35,41,38,'#ce996f');
-    building(278,17,103,65,'#aa7669');
-    building(15,311,105,52,'#cc9471');
-    building(306,297,86,54,'#b57b61');
-    for(const [x,y] of [[108,78],[271,76],[390,79],[41,284],[134,293],[281,278],[385,261]])tree(x,y);
-    for(const x of [103,158,294]){
-      rect(x,93,2,13,'#414a4d');disk(x+1,91,4,'#ffe4a5');
-    }
-    // El tráfico fuera del campo de visión solo se muestra al asomarse.
-    if(stage>=2||carY<280)vehicle(trafficX,190,Math.PI/2,'#eea34c');
-    vehicle(126,248,Math.PI/2,'#dbe2dc',true);
-    vehicle(235,carY,0,'#2f8bff',false,braking);
-    rect(273,288,3,32,'#444b54');
-    const oct=Array.from({length:8},(_,i)=>{
-      const angle=(i+.5)*Math.PI/4;return [275+20*Math.cos(angle),285+20*Math.sin(angle)];
-    });
-    shape(oct,'#fff1dc');
-    shape(oct.map(([x,y])=>[275+(x-275)*.87,285+(y-285)*.87]),'#bb3037');
-    label('STOP',275,286,10,'#fff');
-    if(stage===0||stage===1){
-      rounded(13,193,139,23,5,'#24313b');
-      label('Visión tapada',82,204,12,'#fff1da');
-    }
+  const line=(points,color,width)=>{
+    ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
   };
+  const gradient=(x1,y1,x2,y2,stops)=>{
+    const fill=ctx.createLinearGradient(x1,y1,x2,y2);
+    for(const [offset,color] of stops)fill.addColorStop(offset,color);
+    return fill;
+  };
+  return {ctx,rect,shape,rounded,disk,label,line,gradient};
+}
+
+const URBAN_PAINT={
+  blue:['#82c5ff','#2f8bff','#184e9e'],
+  orange:['#ffd08a','#efaa57','#a85a29'],
+  van:['#fff9ec','#e7eaeb','#9daab2']
+};
+
+function urbanVehicle({ctx,rect,shape,rounded,line,gradient},x,y,angle,model,braking=false){
+  const van=model==='van';
+  const [light,body,shade]=URBAN_PAINT[model];
+  const half=van?14:11,front=van?-38:-21.5,rear=-front;
+  ctx.save();
+  ctx.translate(x+5,y+5);ctx.rotate(angle);
+  rounded(-half-2,front-2,half*2+4,rear*2+4,8,'#17232b62');
+  ctx.restore();
+  ctx.save();ctx.translate(x,y);
+  ctx.rotate(angle);
+  for(const edge of [-half-1,half-3]){
+    rounded(edge,front+6,4,9,2,'#202932');
+    rounded(edge,rear-14,4,9,2,'#202932');
+  }
+  const paint=gradient(-half,0,half,0,[[0,light],[.33,body],[.75,body],[1,shade]]);
+  rounded(-half,front,half*2,rear*2,van?4.5:7.5,shade);
+  rounded(-half,front,half*2-1,rear*2-2,van?4.5:7.5,paint);
+  const glassY=front+(van?12:10);
+  shape([[-half+2,glassY],[half-2,glassY],[half-4,glassY+8],[-half+4,glassY+8]],'#253d4c');
+  shape([[-half+3,glassY+1],[half-3,glassY+1],[half-5,glassY+4],[-half+5,glassY+7]],'#9bc2d1');
+  if(van){
+    rounded(-half+2,glassY+11,half*2-5,rear-glassY-16,3,paint);
+    for(const offset of [-5,0,5])rect(offset,glassY+15,1,rear-glassY-23,'#93a0a656');
+    line([[-half+3,rear-5],[half-3,rear-5]],'#637885',.8);
+  }else{
+    for(const side of [-1,1]){
+      shape([[side*(half-2),glassY+4],[side*(half-2),rear-11],[side*(half-4),rear-13],
+        [side*(half-4),glassY+8]],'#284657');
+      rounded(side*half-1,glassY+5,3,2.3,.8,light);
+    }
+    rounded(-half+4,glassY+9,half*2-8,9,2,paint);
+    shape([[-half+4,rear-13],[half-4,rear-13],[half-3,rear-8],[-half+3,rear-8]],'#304955');
+    line([[-half+3,front+6],[half-4,front+6]],light,1);
+  }
+  for(const edge of [-half+2,half-6]){
+    rounded(edge,front+2,4,2.6,1,'#fff6d9');
+    if(braking)rounded(edge-1,rear-6,6,6,2,'#ff504d57');
+    rounded(edge,rear-5,4,2.6,1,braking?'#ff8d75':'#a83941');
+  }
+  rect(-2.5,rear-2.8,5,1.6,'#efece4');
+  ctx.restore();
+}
+
+const URBAN_STOP_OCTAGON=Array.from({length:8},(_,i)=>{
+  const angle=(i+.5)*Math.PI/4;
+  return [Math.cos(angle),Math.sin(angle)];
+});
+
+function drawUrbanStopSign({label,line,rect,shape}){
+  const face=(x,y,r,color)=>shape(URBAN_STOP_OCTAGON.map(([dx,dy])=>[x+dx*r,y+dy*r]),color);
+  line([[276,316],[294,322]],'#21352e61',2.8);
+  rect(274,287,3.5,29,'#394d58');rect(274,287,1,29,'#c2d0cc');
+  face(276,286,19.5,'#742b35');face(275,284.5,19,'#fff5e6');
+  face(275,284.5,17.1,'#ae2534');label('STOP',275,285,10.2,'#fff');
 }
 
 function runUrbanStop(){
