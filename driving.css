@@ -23,7 +23,7 @@
 .road-pillar.left{left:0;clip-path:polygon(0 0,16% 0,100% 100%,65% 100%,0 44%)}
 .road-pillar.right{right:0;transform:scaleX(-1);clip-path:polygon(0 0,12% 0,100% 100%,64% 100%,0 44%)}
 .road-hood{
-  position:absolute;inset:auto -21% 12%;height:13%;
+  position:absolute;inset:auto -21% 12%;height:14%;
   background:linear-gradient(99deg,#2e536c77 22%,transparent 32% 71%,#213e5666 80%),
     linear-gradient(176deg,#89bcc2 1%,#6898ad 32%,#46758a 57%,#274858 70%);
   clip-path:polygon(0 77%,15% 32%,34% 5%,57% 12%,83% 42%,100% 79%,100% 100%,0 100%);
@@ -94,6 +94,10 @@
 .road-results .ok,.road-results .review{font-size:.73rem;margin-left:4px}
 .road-results .ok{color:#a5e3c0}.road-results .review{color:#ffd39d}
 .road-rule{display:inline-block;color:#bfdeeb;font-size:.79rem;margin-top:8px}
+.road-review-view{position:absolute;inset:0;pointer-events:none}
+.road-review-view button{pointer-events:auto}
+.road-review-controls{position:absolute;bottom:var(--road-bottom);inset-inline:var(--road-side);display:flex;justify-content:center;gap:6px}
+.road-review-view [aria-pressed="true"]{background:#a2d8be;border-color:#d2eee1;color:#142e2b}
 @media (orientation:portrait){
   .road-landscape-hint{display:block}
   .road-cabin{transform:translateX(calc(0px - var(--road-look,0%) * .32))}

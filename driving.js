@@ -1,4 +1,4 @@
-import {JUNCTION,createStreetRenderer} from './driving-scene.js';
+import {JUNCTION,PARKED_VAN,SIDE_LOOK,createStreetRenderer,driverEye} from './driving-scene.js';
 import {createDrivingAudio} from './driving-audio.js';
 
 const ROUTE_TEXT=[
@@ -10,32 +10,57 @@ const KEY_ACTION={ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right',ArrowUp
   ArrowDown:'brake',s:'brake',' ':'brake',q:'lookLeft',e:'lookRight'};
 const CAP_SECONDS=1/20;
 const SOUND_SETTING='autoescuela_game_sound';
+const TRAFFIC_PATTERNS=[
+  [[1,43,5.2]],
+  [[-1,50,5.45]],
+  [[1,36,4.95],[-1,65,5.2]],
+  [[-1,39,5.75],[1,64,5.15]]
+];
+const REPLAY_SECONDS=1.6;
 
-export function createRun(){
-  return {x:JUNCTION.laneX,z:27,yaw:0,speed:0,steer:0,look:0,trafficX:JUNCTION.trafficStart,
-    stoppedFor:0,firstStop:false,secondStop:false,clearEntry:null,ending:null};
+export function createRun(pattern=0){
+  const traffic=TRAFFIC_PATTERNS[pattern].map(([direction,distance,speed])=>({
+    direction,x:-direction*distance,z:direction*JUNCTION.trafficZ,speed
+  }));
+  return {x:JUNCTION.laneX,z:27,yaw:0,speed:0,steer:0,look:0,traffic,elapsed:0,entryAt:null,
+    stoppedFor:0,firstStop:false,secondStop:false,clearEntry:null,priorityFrom:0,ending:null};
 }
 
-function closeGap(run){
-  const distance=run.x-run.trafficX;
-  const fastestExpected=Math.max(2.6,run.speed);
-  const timeInPath=(JUNCTION.crossEdge-JUNCTION.trafficZ+2*JUNCTION.carHalfLength)/fastestExpected;
-  return distance>=-3.4 && distance<3.1+JUNCTION.trafficSpeed*(timeInPath+.55);
+function hasViewPastVan(run){
+  const [eyeX,,eyeZ]=driverEye(run);
+  const targetX=-22,targetZ=JUNCTION.trafficZ;
+  const atX=x=>eyeZ+(targetZ-eyeZ)*(x-eyeX)/(targetX-eyeX);
+  const near=atX(PARKED_VAN.x+PARKED_VAN.length/2);
+  const far=atX(PARKED_VAN.x-PARKED_VAN.length/2);
+  return Math.max(near,far)<PARKED_VAN.z-PARKED_VAN.width/2 || Math.min(near,far)>PARKED_VAN.z+PARKED_VAN.width/2;
+}
+
+function crossingConflict(run,car,halfDepth,halfWidth){
+  const clearance=halfWidth+JUNCTION.trafficHalfLength;
+  const lateral=(run.x-car.x)*car.direction;
+  const trafficArrives=(lateral-clearance)/car.speed,trafficClears=(lateral+clearance)/car.speed;
+  const near=car.z+JUNCTION.trafficHalfWidth,far=car.z-JUNCTION.trafficHalfWidth;
+  if(run.z+halfDepth<far || trafficClears<-.38)return false;
+  // Tiempos estimados para esta escena. La aceleración moderada evita asumir una salida a fondo.
+  const speed=Math.max(.25,run.speed),acceleration=.85;
+  const timeTo=distance=>(Math.sqrt(speed*speed+2*acceleration*Math.max(0,distance))-speed)/acceleration;
+  const arriving=timeTo(run.z-halfDepth-near),clearing=timeTo(run.z+halfDepth-far);
+  return trafficArrives<clearing+.5 && trafficClears>arriving-.38;
 }
 
 export function moveThroughJunction(run,controls,dt){
   if(run.ending)return;
+  run.elapsed+=dt;
   const steer=Number(controls.has('right'))-Number(controls.has('left'));
   const look=Number(controls.has('lookRight'))-Number(controls.has('lookLeft'));
   run.steer+=(steer-run.steer)*Math.min(1,7*dt);
-  run.look+=(look*1.18-run.look)*Math.min(1,6*dt);
+  run.look+=(look*SIDE_LOOK-run.look)*Math.min(1,6*dt);
   const acceleration=controls.has('brake')?-7.8:controls.has('gas')?2.65-.055*run.speed:-.68-.075*run.speed;
   run.speed=Math.min(10.6,Math.max(0,run.speed+acceleration*dt));
   run.yaw+=Math.tan(run.steer*.31)*run.speed/2.72*dt;
   run.x+=Math.sin(run.yaw)*run.speed*dt;
   run.z-=Math.cos(run.yaw)*run.speed*dt;
-  run.trafficX+=JUNCTION.trafficSpeed*dt;
-  if(run.trafficX>JUNCTION.trafficEnd)run.trafficX=JUNCTION.trafficStart;
+  for(const car of run.traffic)car.x+=car.direction*car.speed*dt;
   const sin=Math.abs(Math.sin(run.yaw)),cos=Math.abs(Math.cos(run.yaw));
   const halfDepth=JUNCTION.carHalfLength*cos+JUNCTION.carHalfWidth*sin;
   const halfWidth=JUNCTION.carHalfWidth*cos+JUNCTION.carHalfLength*sin;
@@ -44,16 +69,34 @@ export function moveThroughJunction(run,controls,dt){
   run.stoppedFor=run.speed===0?run.stoppedFor+dt:0;
   if(run.stoppedFor>=.18){
     if(nose>=JUNCTION.stopLine+.37 && nose<=JUNCTION.stopLine+3.1)run.firstStop=true;
-    if(nose>=JUNCTION.crossEdge+.17 && nose<=JUNCTION.crossEdge+1.46)run.secondStop=true;
+    if(nose>=JUNCTION.crossEdge+.17 && nose<=JUNCTION.crossEdge+1.46 && hasViewPastVan(run))run.secondStop=true;
   }
-  if(nose<JUNCTION.crossEdge && run.clearEntry===null)run.clearEntry=!closeGap(run);
-  if(Math.abs(run.x-run.trafficX)<halfWidth+2.05 && Math.abs(run.z-JUNCTION.trafficZ)<halfDepth+.83){
-    run.speed=0;run.clearEntry=false;run.ending='collision';
+  if(nose<JUNCTION.crossEdge && run.entryAt===null){
+    run.entryAt=run.elapsed;
+    const conflict=run.traffic.find(car=>crossingConflict(run,car,halfDepth,halfWidth));
+    run.clearEntry=!conflict;run.priorityFrom=conflict?.direction||0;
+  }
+  const collision=run.traffic.find(car=>Math.abs(run.x-car.x)<halfWidth+JUNCTION.trafficHalfLength &&
+    Math.abs(run.z-car.z)<halfDepth+JUNCTION.trafficHalfWidth);
+  if(collision){
+    run.speed=0;run.clearEntry=false;run.priorityFrom=collision.direction;run.ending='collision';
   }else if(Math.abs(run.x)+halfWidth>JUNCTION.roadHalfWidth || Math.abs(run.yaw)>Math.PI*.41){
     run.speed=0;run.ending='offroad';
   }else if(run.z+halfDepth < -JUNCTION.crossEdge-1){
     run.speed=0;run.ending='complete';
   }
+}
+
+function captureFrame({x,z,yaw,look,steer,speed,traffic,elapsed}){
+  return {x,z,yaw,look,steer,speed,elapsed,traffic:traffic.map(car=>({...car}))};
+}
+
+function interpolateFrame(before,after,elapsed){
+  const t=(elapsed-before.elapsed)/(after.elapsed-before.elapsed);
+  const blend=(a,b)=>a+(b-a)*t;
+  return {x:blend(before.x,after.x),z:blend(before.z,after.z),yaw:blend(before.yaw,after.yaw),
+    look:blend(before.look,after.look),steer:blend(before.steer,after.steer),speed:blend(before.speed,after.speed),
+    traffic:before.traffic.map((car,i)=>({...car,x:blend(car.x,after.traffic[i].x)}))};
 }
 
 const CABIN=`
@@ -84,6 +127,14 @@ const CABIN=`
       </div>
     </div>
   </div>
+  <div class="road-review-view" hidden>
+    <div class="road-top"><span class="road-replay-label" role="status"></span><button class="road-tool" type="button" data-road-results>Resultados</button></div>
+    <div class="road-review-controls" aria-label="Vista al entrar al cruce" hidden>
+      <button class="road-tool" type="button" data-road-view="left" aria-pressed="false">Izquierda</button>
+      <button class="road-tool" type="button" data-road-view="original" aria-pressed="true">Tu vista</button>
+      <button class="road-tool" type="button" data-road-view="right" aria-pressed="false">Derecha</button>
+    </div>
+  </div>
   <section class="road-overlay"><div class="road-panel"></div></section>`;
 
 export function openDrivingGame({onExit,onResult,ruleUrl}){
@@ -98,10 +149,14 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
   const soundButton=hud.querySelector('[data-road-sound]');
   const cabin=dialog.querySelector('.road-cabin');
   const overlay=dialog.querySelector('.road-overlay'),panel=dialog.querySelector('.road-panel');
+  const review=dialog.querySelector('.road-review-view'),reviewControls=review.querySelector('.road-review-controls');
+  const replayLabel=review.querySelector('.road-replay-label');
   const buttons=Array.from(dialog.querySelectorAll('[data-drive]'));
   const listeners=new AbortController(),{signal}=listeners;
   const heldPointers=new Map(),heldKeys=new Map(),controls=new Set();
-  let renderer,run=createRun(),frame=0,lastTime=0,lastSpeed=-1;
+  let nextPattern=Math.floor(Math.random()*TRAFFIC_PATTERNS.length);
+  let renderer,run=createRun(nextPattern),frame=0,lastTime=0,lastSpeed=-1;
+  let recent=[],replayFrame=null,replayLook;
   let mode='ready',immersive=false,closed=false;
   let audio,soundOn=true;
   try { soundOn=localStorage.getItem(SOUND_SETTING)!=='off'; } catch {}
@@ -119,18 +174,19 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
 
   function show(content){
     panel.innerHTML=content;
-    overlay.hidden=false;hud.hidden=true;
+    overlay.hidden=false;hud.hidden=true;review.hidden=true;
     panel.querySelector('button')?.focus({preventScroll:true});
   }
   const leave='<button class="road-button" type="button" data-road-exit>Salir</button>';
   const twoButtons=(label,action)=>`<div class="road-panel-actions"><button class="road-button primary" type="button" data-road-${action}>${label}</button>${leave}</div>`;
 
   function paint(){
-    renderer?.draw(run.x,run.z,run.yaw,run.look,run.trafficX);
-    const kmh=Math.round(run.speed*3.6);
+    const view=replayFrame||run,look=replayLook??view.look;
+    renderer?.draw(view,look);
+    const kmh=Math.round(view.speed*3.6);
     if(kmh!==lastSpeed){speed.textContent=kmh;lastSpeed=kmh;}
-    wheel.style.transform=`rotate(${run.steer*72}deg)`;
-    cabin.style.setProperty('--road-look',`${run.look*36}%`);
+    wheel.style.transform=`rotate(${view.steer*72}deg)`;
+    cabin.style.setProperty('--road-look',`${look*36}%`);
   }
   function resize(){
     renderer?.resize(canvas.clientWidth,canvas.clientHeight);
@@ -164,25 +220,71 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
     show(`<h2>Partida en pausa</h2>${twoButtons('Continuar','resume')}`);
   }
   function finish(){
-    stopFrame();mode='finished';
+    onResult([run.firstStop,run.secondStop,run.clearEntry].filter(Boolean).length,ROUTE_TEXT.length);
+    showResults();
+  }
+  function showResults(){
+    stopFrame();mode='finished';replayFrame=null;replayLook=undefined;paint();
     const completed=run.ending==='complete';
     const checks=[run.firstStop,run.secondStop,run.clearEntry];
     const score=checks.filter(Boolean).length;
-    onResult(score,checks.length);
     const title={complete:'Cruce completado',collision:'Choque en el cruce',offroad:'Te saliste del recorrido'}[run.ending];
     const heading=completed?`${score} de ${checks.length} comprobaciones superadas.`:
-      run.ending==='offroad'?'En este recorrido debes atravesar el cruce en línea recta.':'Repite el cruce y deja pasar al coche naranja antes de entrar.';
+      run.ending==='offroad'?'En este recorrido debes atravesar el cruce en línea recta.':'Vuelve a intentarlo cuando la vía transversal quede libre.';
     show(`<h2>${title}</h2><p>${heading}</p><ul class="road-results">${ROUTE_TEXT.map(([name,ok,error],index)=>{
       const check=checks[index];
       const summary=check?'Bien':check===null?'Pendiente':'A mejorar';
-      return `<li><b>${name} <span class="${check?'ok':'review'}">${summary}</span></b><span>${check?ok:check===null?'La partida acabó antes de entrar en el cruce.':error}</span></li>`;
-    }).join('')}</ul>${twoButtons('Volver a jugar','start')}<a class="road-rule" href="${ruleUrl}" target="_blank" rel="noopener">Regla del STOP · RGC, anexo I, R-2</a>`);
+      const direction=run.priorityFrom===1?'la izquierda':'la derecha';
+      const advice=index===2&&run.priorityFrom?`Se acercaba un coche con prioridad por ${direction}. Espera a que pase.`:error;
+      return `<li><b>${name} <span class="${check?'ok':'review'}">${summary}</span></b><span>${check?ok:check===null?'La partida acabó antes de entrar en el cruce.':advice}</span></li>`;
+    }).join('')}</ul><div class="road-panel-actions"><button class="road-button primary" type="button" data-road-start>Volver a jugar</button>
+    ${run.entryAt===null?'':'<button class="road-button" type="button" data-road-replay>Ver repetición</button>'}${leave}</div>
+    <a class="road-rule" href="${ruleUrl}" target="_blank" rel="noopener">Regla del STOP · RGC, anexo I, R-2</a>`);
+  }
+  function rememberApproach(){
+    const previous=recent.at(-1)?.elapsed??-1;
+    if(run.entryAt!==null&&previous>=run.entryAt)return;
+    if(run.entryAt===null&&run.elapsed-previous<1/24)return;
+    recent.push(captureFrame(run));
+    while(recent.length>1&&recent[1].elapsed<run.elapsed-REPLAY_SECONDS)recent.shift();
+  }
+  function selectReviewView(side){
+    replayLook=side==='original'?undefined:side==='left'?-SIDE_LOOK:SIDE_LOOK;
+    for(const button of reviewControls.querySelectorAll('button')){
+      button.setAttribute('aria-pressed',String(button.dataset.roadView===side));
+    }
+    paint();
+  }
+  function freezeAtEntry(){
+    cancelAnimationFrame(frame);frame=0;
+    replayFrame=recent.at(-1);
+    replayLabel.textContent='Al entrar al cruce';reviewControls.hidden=false;
+    selectReviewView('original');
+  }
+  function startReplay(){
+    if(mode!=='finished'||run.entryAt===null)return;
+    mode='replay';overlay.hidden=true;review.hidden=false;reviewControls.hidden=true;
+    replayLabel.textContent='Repetición';
+    review.querySelector('[data-road-results]').focus({preventScroll:true});
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches||recent.length<2){freezeAtEntry();return;}
+    const from=Math.max(recent[0].elapsed,run.entryAt-REPLAY_SECONDS);
+    let start,index=1;
+    replayFrame=recent[0];paint();
+    function advance(now){
+      start??=now;
+      const elapsed=from+(now-start)*.00074;
+      if(elapsed>=run.entryAt){freezeAtEntry();return;}
+      while(recent[index].elapsed<elapsed)index++;
+      replayFrame=interpolateFrame(recent[index-1],recent[index],elapsed);
+      paint();frame=requestAnimationFrame(advance);
+    }
+    frame=requestAnimationFrame(advance);
   }
   function tick(now){
     if(mode!=='running')return;
     const dt=Math.min(CAP_SECONDS,lastTime?(now-lastTime)/1000:0);
     lastTime=now;
-    moveThroughJunction(run,controls,dt);paint();
+    moveThroughJunction(run,controls,dt);rememberApproach();paint();
     audio?.update(run,controls.has('gas')&&!controls.has('brake'));
     if(run.ending)finish();else frame=requestAnimationFrame(tick);
   }
@@ -196,7 +298,10 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
   }
   function play(restart){
     if(!renderer)return;
-    if(restart)run=createRun();
+    if(restart){
+      run=createRun(nextPattern);nextPattern=(nextPattern+1)%TRAFFIC_PATTERNS.length;
+      recent=[];replayFrame=null;replayLook=undefined;
+    }
     mode='running';overlay.hidden=true;hud.hidden=false;
     surface.focus({preventScroll:true});
     syncAudio();enterFullscreen();resize();frame=requestAnimationFrame(tick);
@@ -214,6 +319,9 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
     if(button.hasAttribute('data-road-start'))play(true);
     if(button.hasAttribute('data-road-resume'))play(false);
     if(button.hasAttribute('data-road-pause'))pause();
+    if(button.hasAttribute('data-road-replay'))startReplay();
+    if(button.hasAttribute('data-road-results'))showResults();
+    if(button.dataset.roadView)selectReviewView(button.dataset.roadView);
     if(button.hasAttribute('data-road-sound')){
       soundOn=!soundOn;
       try { localStorage.setItem(SOUND_SETTING,soundOn?'on':'off'); } catch {}
@@ -222,16 +330,17 @@ export function openDrivingGame({onExit,onResult,ruleUrl}){
   },{signal});
   dialog.addEventListener('cancel',event=>{
     event.preventDefault();
-    if(mode==='running')pause();else exit();
+    if(mode==='running')pause();else if(mode==='replay')showResults();else exit();
   },{signal});
   canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();renderer=null;unavailable();},{signal});
   document.addEventListener('fullscreenchange',()=>{
     if(document.fullscreenElement===surface)immersive=true;
-    else if(immersive){immersive=false;pause();}
+    else if(immersive){immersive=false;if(mode==='replay')freezeAtEntry();else pause();}
     resize();
   },{signal});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();},{signal});
-  window.addEventListener('blur',pause,{signal});
+  function pauseOnInterrupt(){if(mode==='replay')freezeAtEntry();else pause();}
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseOnInterrupt();},{signal});
+  window.addEventListener('blur',pauseOnInterrupt,{signal});
   for(const button of buttons){
     button.addEventListener('pointerdown',event=>{
       if(mode!=='running'||event.button!==0)return;

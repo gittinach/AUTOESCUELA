@@ -1,8 +1,14 @@
 export const JUNCTION={
   laneX:1.85,roadHalfWidth:4.5,stopLine:10.5,crossEdge:6,
-  trafficZ:2.75,trafficStart:-48,trafficEnd:66,trafficSpeed:5.5,
+  trafficZ:2.75,trafficHalfLength:2.11,trafficHalfWidth:.895,
   carHalfLength:2.05,carHalfWidth:.87
 };
+export const PARKED_VAN={x:-9.18,z:8.24,length:5.3,width:2.25};
+export const SIDE_LOOK=1.29;
+
+export function driverEye({x,z,yaw}){
+  return [x-.39*Math.cos(yaw)+.38*Math.sin(yaw),1.24,z-.39*Math.sin(yaw)-.38*Math.cos(yaw)];
+}
 
 const SKY=[.75,.83,.85];
 const vertexSource=`
@@ -13,20 +19,21 @@ const vertexSource=`
   uniform vec3 uEye;
   uniform vec2 uHeading;
   uniform vec2 uProjection;
-  uniform float uOffset;
+  uniform vec3 uPlacement;
   varying vec3 vColor;
   varying vec2 vUV;
   varying vec2 vGround;
   varying float vGrain;
   varying float vDepth;
   void main(){
-    vec3 p=aPosition+vec3(uOffset,0.,0.)-uEye;
+    vec2 world=aPosition.xz*uPlacement.z+uPlacement.xy;
+    vec3 p=vec3(world.x,aPosition.y,world.y)-uEye;
     float side=dot(p.xz,uHeading);
     float front=dot(p.xz,vec2(uHeading.y,-uHeading.x));
-    float depth=front*.997-p.y*.078;
-    float up=p.y*.997+front*.078;
+    float depth=front*.996-p.y*.088;
+    float up=p.y*.996+front*.088;
     gl_Position=vec4(side*uProjection.x,up*uProjection.y,depth*1.0016-.20,depth);
-    vColor=aColor; vUV=aUV; vGround=aPosition.xz; vGrain=aGrain; vDepth=depth;
+    vColor=aColor; vUV=aUV; vGround=world; vGrain=aGrain; vDepth=depth;
   }
 `;
 const fragmentSource=`
@@ -40,9 +47,10 @@ const fragmentSource=`
   varying float vDepth;
   void main(){
     vec3 color=vColor;
+    float opacity=1.;
     if(vUV.x>=0.){
-      float ink=texture2D(uPrint,vUV).a;
-      if(ink<.45)discard;
+      opacity=texture2D(uPrint,vUV).a;
+      if(opacity<.04)discard;
     }
     if(vGrain>.0){
       float nearGrain=1.-smoothstep(7.,31.,vDepth);
@@ -51,7 +59,7 @@ const fragmentSource=`
       float patches=sin(vGround.x*1.34+vGround.y*.48)*sin(vGround.y*.82-vGround.x*.62);
       color+=vGrain*((grain-.5)*nearGrain+patches*.16);
     }
-    gl_FragColor=vec4(mix(color,uHaze,smoothstep(27.,105.,vDepth)*.84),1.);
+    gl_FragColor=vec4(mix(color,uHaze,smoothstep(27.,105.,vDepth)*.84)*opacity,opacity);
   }
 `;
 
@@ -205,11 +213,11 @@ function octagon(m,x,y,z,r,hex){
   }
 }
 
-// Los dos vehículos se construyen mirando hacia la derecha del cruce.
-function vehicle(m,x,z,van){
+// Las mallas se dibujan hacia +x. El motor gira el tráfico que circula hacia -x.
+function vehicle(m,x,z,van,paint='#d68a42'){
   const {box,quad}=m;
-  const length=van?5.3:4.22,half=length/2;
-  const width=van?2.25:1.79,body=van?'#e7e6dc':'#e89b4a';
+  const length=van?PARKED_VAN.length:JUNCTION.trafficHalfLength*2,half=length/2;
+  const width=van?PARKED_VAN.width:JUNCTION.trafficHalfWidth*2,body=van?'#e7e6dc':paint;
   groundShade(m,x+.14,z-.09,van?.156:.022,half+.4,width*.76,van?'#707573':'#5c6267',.54,van?.16:.095);
   const raisedStart=m.vertices.length;
   for(const wheel of [-half+.87,half-.82]){
@@ -248,13 +256,24 @@ function vehicle(m,x,z,van){
     quad([r,base,z+s*side],[f,base,z+s*side],[topFront,top,z+s*inner],[topBack,top,z+s*inner],color('#436376',s===1?1.13:.94));
     box(x+(van?1.44:.04),base,z+s*(side-.065),.08,top-base-.05,.15,body);
     box(x+half-.08,base,z+s*(width/2+.065),.22,.11,.17,body);
-    box(x+half+.008,.68,z+s*width*.31,.023,.14,.38,'#fff0cc');
-    box(x-half-.008,.66,z+s*width*.37,.022,van?.27:.14,.19,'#b94742');
+    box(x+half+.008,.65,z+s*width*.31,.027,.174,.38,'#495861');
+    box(x+half+.029,.676,z+s*width*.31,.022,.12,.31,'#faf3d9');
+    box(x-half-.008,.64,z+s*width*.37,.023,van?.27:.18,.22,'#63343a');
+    box(x-half-.024,.666,z+s*width*.37,.020,van?.21:.122,.19,'#cb5148');
+    box(x+.31,base-.088,z+s*(width/2-.041),.21,.030,.017,'#d0d3c9');
   }
   box((topFront+topBack)/2,top-.014,z,topFront-topBack+.10,.08,inner*2+.11,body);
   box(x+half+.012,.51,z,.028,.104,.39,'#e9ece7');
   box(x-half-.012,.51,z,.028,.104,.39,'#e9ece7');
   if(van)for(let i=raisedStart+1;i<m.vertices.length;i+=9)m.vertices[i]+=.154;
+}
+
+function drain(m,x,z){
+  m.ground(x-.16,z-.35,x+.16,z+.35,.015,'#92918b');
+  m.ground(x-.127,z-.313,x+.127,z+.313,.018,'#555d61');
+  for(let slot=-.25;slot<.3;slot+=.085){
+    m.ground(x-.113,z+slot,x+.113,z+slot+.035,.020,'#323c42');
+  }
 }
 
 function hills(m){
@@ -299,13 +318,17 @@ function buildStreet(){
     }
   }
   // Espacio de estacionamiento fuera de la trayectoria del cruce.
-  ground(-14.4,6.01,-6.45,9.22,.153,'#707573',.16);
-  ground(-14.4,9.17,-6.45,9.21,.16,'#ddd9c9');
-  ground(-6.49,6.07,-6.45,9.21,.16,'#ddd9c9');
-  vehicle(m,-9.18,7.63,true);
+  ground(-14.4,6.01,-6.45,9.69,.153,'#707573',.16);
+  ground(-14.4,9.63,-6.45,9.67,.16,'#ddd9c9');
+  ground(-6.49,6.07,-6.45,9.67,.16,'#ddd9c9');
+  vehicle(m,PARKED_VAN.x,PARKED_VAN.z,true);
 
-  ground(.08,JUNCTION.stopLine,4.43,JUNCTION.stopLine+.37,.017,'#fff8e9');
-  quad([.67,.018,14.12],[3.82,.018,14.12],[3.82,.018,12.10],[.67,.018,12.10],color('#fff8e9'),0,true);
+  for(const z of [7.1,13.4,24,37]){
+    drain(m,4.27,z);drain(m,-4.27,-z);
+  }
+
+  ground(.08,JUNCTION.stopLine,4.43,JUNCTION.stopLine+.37,.017,'#fff8e9',.038);
+  quad([.68,.019,14.27],[3.82,.019,14.27],[3.82,.019,11.94],[.68,.019,11.94],color('#fff8e9'),.024,true);
   box(5.24,.13,10.61,.067,2.35,.065,'#6f7b81');
   octagon(m,5.24,2.29,10.613,.45,'#8f292d');
   octagon(m,5.24,2.29,10.652,.439,'#f9f4e8');
@@ -375,12 +398,13 @@ export function createStreetRenderer(canvas){
   if(!gl)return null;
   const program=makeProgram(gl);
   gl.useProgram(program);gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
   gl.clearColor(0,0,0,0);
   const attributes=[['aPosition',3,0],['aColor',3,3],['aUV',2,6],['aGrain',1,8]].map(
     ([name,size,offset])=>[gl.getAttribLocation(program,name),size,offset]);
   for(const [attribute] of attributes)gl.enableVertexAttribArray(attribute);
   const uniform=name=>gl.getUniformLocation(program,name);
-  const eye=uniform('uEye'),heading=uniform('uHeading'),projection=uniform('uProjection'),offset=uniform('uOffset');
+  const eye=uniform('uEye'),heading=uniform('uHeading'),projection=uniform('uProjection'),placement=uniform('uPlacement');
   gl.uniform3fv(uniform('uHaze'),SKY);
   const ink=makePrint(gl);
   function upload(points){
@@ -388,13 +412,14 @@ export function createStreetRenderer(canvas){
     gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points),gl.STATIC_DRAW);
     return {buffer,count:points.length/9};
   }
-  const street=upload(buildStreet()),traffic=mesh();
-  vehicle(traffic,0,JUNCTION.trafficZ,false);
-  const orange=upload(traffic.vertices);
-  function draw(object,shift){
+  const street=upload(buildStreet());
+  const cars=['#d68a42','#507d95'].map(paint=>{
+    const model=mesh();vehicle(model,0,0,false,paint);return upload(model.vertices);
+  });
+  function draw(object,x=0,z=0,direction=1){
     gl.bindBuffer(gl.ARRAY_BUFFER,object.buffer);
     for(const [attribute,size,start] of attributes)gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,36,start*4);
-    gl.uniform1f(offset,shift);gl.drawArrays(gl.TRIANGLES,0,object.count);
+    gl.uniform3f(placement,x,z,direction);gl.drawArrays(gl.TRIANGLES,0,object.count);
   }
   return {
     resize(width,height){
@@ -403,17 +428,22 @@ export function createStreetRenderer(canvas){
       canvas.width=Math.max(1,Math.round(width*ratio));canvas.height=Math.max(1,Math.round(height*ratio));
       gl.viewport(0,0,canvas.width,canvas.height);
       const aspect=canvas.width/canvas.height;
-      const focal=Math.min(2.22,aspect*2.03);
+      const focal=Math.min(2.5,aspect*1.92);
       gl.uniform2f(projection,focal/aspect,focal);
     },
-    draw(x,z,yaw,look,trafficX){
+    draw(frame,look=frame.look){
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-      gl.uniform3f(eye,x-.29*Math.cos(yaw)+.46*Math.sin(yaw),1.35,z-.29*Math.sin(yaw)-.46*Math.cos(yaw));
-      gl.uniform2f(heading,Math.cos(yaw+look),Math.sin(yaw+look));
-      draw(street,0);draw(orange,trafficX);
+      gl.uniform3fv(eye,driverEye(frame));
+      gl.uniform2f(heading,Math.cos(frame.yaw+look),Math.sin(frame.yaw+look));
+      draw(street);
+      for(const car of frame.traffic){
+        if(Math.abs(car.x)<78)draw(cars[car.direction===1?0:1],car.x,car.z,car.direction);
+      }
     },
     dispose(){
-      gl.deleteBuffer(street.buffer);gl.deleteBuffer(orange.buffer);gl.deleteTexture(ink);gl.deleteProgram(program);
+      gl.deleteBuffer(street.buffer);
+      for(const car of cars)gl.deleteBuffer(car.buffer);
+      gl.deleteTexture(ink);gl.deleteProgram(program);
     }
   };
 }
