@@ -79,8 +79,10 @@
 .road-speed b{font-size:clamp(1.35rem,4.8vw,2rem)}
 .road-speed span{display:block;font-size:.64rem;margin-top:3px;color:#d4e3e5}
 .road-instruments{position:relative;flex:none}
-.road-controls .road-gear{position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);
-  min-width:44px;min-height:44px;width:44px;height:44px;padding:0;border-radius:11px}
+.road-assist{position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);display:flex;gap:5px}
+.road-controls .road-assist button{height:44px;min-height:44px;width:auto;padding:0 9px;border-radius:11px;white-space:nowrap}
+.road-controls .road-assist .road-gear{width:44px;padding:0}
+.road-controls .road-camera[aria-pressed="true"]{background:#d0e9e1;color:#1f3636;border-color:#dfedeb}
 .road-controls .road-gear[aria-pressed="true"]{background:#a8cbc7;color:#1f3636;border-color:#dfedeb}
 .road-controls .road-gear:disabled{opacity:.65}
 .road-notice{position:absolute;bottom:calc(var(--road-bottom) + clamp(62px,17vh,100px) + 56px);left:50%;transform:translateX(-50%);
@@ -116,6 +118,12 @@
 .road-review-view button{pointer-events:auto}
 .road-review-controls{position:absolute;bottom:var(--road-bottom);inset-inline:var(--road-side);display:flex;justify-content:center;gap:6px}
 .road-review-view [aria-pressed="true"]{background:#a2d8be;border-color:#d2eee1;color:#142e2b}
+.road-district .road-hood{height:10%;bottom:11%}
+.road-district .road-dash{height:17%}
+.road-district .road-wipers{bottom:17.4%}
+.road-district .road-cluster{bottom:6%;height:11%}
+.road-district .road-pillar{height:86%}
+.road-district .road-wheel{bottom:calc(0px - clamp(93px,15vh,142px))}
 @media (orientation:portrait){
   .road-landscape-hint{display:block}
   .road-cabin{transform:translateX(calc(0px - var(--road-look,0%) * .32))}

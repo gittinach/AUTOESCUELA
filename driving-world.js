@@ -3,6 +3,7 @@ export const STREET_HALF=4.5;
 export const ROUND={inner:6.35,outer:11.85,join:10.8,mark:13.25,lane:9.15};
 export const CITY_LANE=1.85;
 const CAR_LENGTH=2.05,CAR_WIDTH=.87;
+const WHEEL_LENGTH=1.87,WHEEL_WIDTH=.77;
 const PEDESTRIAN_SPEED=1.42;
 export const ROADS=[
   [-56.5,-56.5,56.5,-47.5],[-56.5,47.5,56.5,56.5],
@@ -74,7 +75,7 @@ export function planDistrict(previous={},random=Math.random){
   const circle=[{id:3,model:1,speed:4.15+random()*1.15,velocity:4.1,angle:random()*Math.PI*2,ring:true}];
   const car={...STARTS[start],speed:0,steer:0,look:0};
   const run={...car,goal,start,elapsed:0,reverse:false,traffic:[...cars,...circle],pedestrians,history,
-    checks:[],stops:new Map(),ringApproach:null,contact:null,ending:null,parkTime:0,meters:0};
+    checks:[],stops:new Map(),ringApproach:null,contact:null,clearance:0,ending:null,parkTime:0,meters:0};
   for(const npc of run.traffic){
     placeTraffic(npc);
     if(!npc.ring&&Math.hypot(npc.x-run.x,npc.z-run.z)<11){
@@ -152,9 +153,9 @@ function sameLaneAhead(car,other,distance){
 
 export function wrapAngle(angle){return Math.atan2(Math.sin(angle),Math.cos(angle));}
 function alignment(car,road){return Math.sin(car.yaw)*road.dx-Math.cos(car.yaw)*road.dz;}
-function corners(x,z,yaw){
+function corners(x,z,yaw,length=CAR_LENGTH,width=CAR_WIDTH){
   const a=Math.sin(yaw),b=-Math.cos(yaw);
-  return [[CAR_LENGTH,CAR_WIDTH],[CAR_LENGTH,-CAR_WIDTH],[-CAR_LENGTH,CAR_WIDTH],[-CAR_LENGTH,-CAR_WIDTH]]
+  return [[length,width],[length,-width],[-length,width],[-length,-width]]
     .map(([f,r])=>[x+a*f-b*r,z+b*f+a*r]);
 }
 
@@ -245,6 +246,35 @@ function checkRoundabout(run){
   record(run,'Entrada a la glorieta',!approaching,approaching?'Entraste con un coche circulando cerca de la entrada.':'Te incorporaste con espacio para respetar al tráfico de la glorieta.','roundabout');
 }
 
+function moveAlongStreet(run,distance){
+  if(!distance)return;
+  // A velocidad de maniobra se conserva el giro cerrado. A más velocidad, el volante es menos sensible.
+  const lock=.53-.29*Math.min(1,Math.max(0,(run.speed-4.15)/5.55));
+  const turn=Math.tan(run.steer*lock)*distance/2.62;
+  function tryMove(step,steering){
+    const yaw=wrapAngle(run.yaw+steering);
+    const x=run.x+Math.sin(yaw)*step,z=run.z-Math.cos(yaw)*step;
+    if(!corners(x,z,yaw,WHEEL_LENGTH,WHEEL_WIDTH).every(([wx,wz])=>districtRoad(wx,wz)))return false;
+    run.x=x;run.z=z;run.yaw=yaw;run.meters+=Math.abs(step);
+    return true;
+  }
+  if(tryMove(distance,turn)){
+    if(run.contact){
+      run.clearance+=Math.abs(distance);
+      if(run.clearance>=.48)run.contact=null;
+    }
+    return;
+  }
+  // Se reduce la marcha cuando el giro rebasa el borde. Las ruedas se mantienen sobre la calzada.
+  const slowStep=distance*.32;
+  if(tryMove(slowStep,turn*.32)||tryMove(slowStep,0)){
+    run.speed*=.43;run.contact='roce';
+  }else{
+    run.speed=0;run.contact='bloqueado';
+  }
+  run.clearance=0;
+}
+
 export function driveDistrict(run,controls,dt){
   if(run.ending)return;
   run.dt=dt;run.elapsed+=dt;
@@ -254,16 +284,7 @@ export function driveDistrict(run,controls,dt){
   run.steer+=(steer-run.steer)*Math.min(1,7*dt);run.look+=(look*1.29-run.look)*Math.min(1,6*dt);
   const acceleration=controls.has('brake')?-7.25:controls.has('gas')?2.6-.064*run.speed:-.76-.078*run.speed;
   run.speed=Math.min(run.reverse?3.25:9.7,Math.max(0,run.speed+acceleration*dt));
-  const movement=(run.reverse?-1:1)*run.speed*dt;
-  const yaw=wrapAngle(run.yaw+Math.tan(run.steer*.53)*movement/2.62);
-  const x=run.x+Math.sin(yaw)*movement,z=run.z-Math.cos(yaw)*movement;
-  if(!movement||corners(x,z,yaw).every(([wx,wz])=>districtRoad(wx,wz))){
-    run.x=x;run.z=z;run.yaw=yaw;run.meters+=Math.abs(movement);run.contact=null;
-  }else{
-    run.speed=0;
-    if(!run.contact&&Math.abs(movement)>dt*1.1)record(run,'Control del vehículo',false,'Tocaste el bordillo. Maniobra despacio para volver a la calzada.','vehicle');
-    run.contact='bordillo';
-  }
+  moveAlongStreet(run,(run.reverse?-1:1)*run.speed*dt);
   checkStops(run);checkCrossings(run);checkRoundabout(run);
   const collision=run.traffic.some(car=>bump(run,car));
   const hitsPerson=run.pedestrians.some(person=>bumpPerson(run,person));

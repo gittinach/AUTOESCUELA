@@ -1,4 +1,4 @@
-import {CITY_STOPS,CITY_ENTRIES,CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,PARKING,STOP_LINE,roadPoint} from './driving-world.js';
+import {CITY_STOPS,CITY_ENTRIES,CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,PARKING,STOP_LINE,roadPoint,districtRoad} from './driving-world.js';
 
 export const JUNCTION={
   laneX:1.85,roadHalfWidth:4.5,stopLine:10.5,crossEdge:6,
@@ -32,6 +32,7 @@ const vertexSource=`
   uniform vec3 uEye;
   uniform vec2 uHeading;
   uniform vec2 uProjection;
+  uniform vec2 uPitch;
   uniform vec4 uPlacement;
   uniform float uStride;
   varying vec3 vColor;
@@ -51,8 +52,8 @@ const vertexSource=`
     vec3 p=point-uEye;
     float side=dot(p.xz,uHeading);
     float front=dot(p.xz,vec2(uHeading.y,-uHeading.x));
-    float depth=front*.996-p.y*.088;
-    float up=p.y*.996+front*.088;
+    float depth=front*uPitch.x-p.y*uPitch.y;
+    float up=p.y*uPitch.x+front*uPitch.y;
     gl_Position=vec4(side*uProjection.x,up*uProjection.y,depth*1.0016-.20,depth);
     vColor=aColor; vUV=aUV; vGround=world; vGrain=aGrain; vDepth=depth;
     vMaterial=aMaterial;
@@ -363,7 +364,9 @@ function vehicle(m,x,z,van,paint='#d68a42'){
   for(const s of [-1,1]){
     quad([r,base,z+s*side],[f,base,z+s*side],[topFront,top,z+s*inner],[topBack,top,z+s*inner],color('#436376',s===1?1.13:.94));
     box(x+(van?1.44:.04),base,z+s*(side-.065),.08,top-base-.05,.15,body);
-    box(x+half-.08,base,z+s*(width/2+.065),.22,.11,.17,body);
+    const mirrorX=x+(van?1.72:.82);
+    box(mirrorX,base-.025,z+s*width*.51,.15,.055,.25,'#455159');
+    box(mirrorX,base-.018,z+s*width*.59,.22,.103,.175,body);
     box(x+half+.008,.65,z+s*width*.31,.027,.174,.38,'#495861');
     box(x+half+.029,.676,z+s*width*.31,.022,.12,.31,'#faf3d9');
     box(x-half-.008,.64,z+s*width*.37,.023,van?.27:.18,.22,'#63343a');
@@ -441,6 +444,30 @@ function parkingSign(m,spot){
   letter(.065,2.22,.135,2.36);letter(-.065,2.19,.09,2.26);
 }
 
+function districtCurbs(m){
+  function edge(from,to,fixed,horizontal,side){
+    const point=(position,offset)=>horizontal?[position,fixed+side*offset]:[fixed+side*offset,position];
+    const vertex=(position,offset,y)=>{const [x,z]=point(position,offset);return [x,y,z];};
+    let begin=null;
+    for(let a=from;a<to-.002;){
+      const b=Math.min(a+.5,to);
+      const blocked=!districtRoad(...point((a+b)/2,.16));
+      if(blocked&&begin===null)begin=a;
+      if((!blocked||b===to)&&begin!==null){
+        const end=blocked?b:a;
+        m.quad(vertex(begin,0,.136),vertex(end,0,.136),vertex(end,.23,.136),vertex(begin,.23,.136),color('#e3d4bf'));
+        m.quad(vertex(begin,0,.005),vertex(end,0,.005),vertex(end,0,.136),vertex(begin,0,.136),color('#b2a391'));
+        begin=null;
+      }
+      a=b;
+    }
+  }
+  for(const [x,z,x2,z2] of ROADS){
+    edge(x,x2,z,true,-1);edge(x,x2,z2,true,1);
+    edge(z,z2,x,false,-1);edge(z,z2,x2,false,1);
+  }
+}
+
 function buildDistrict(){
   const m=mesh(),{box,ground}=m;
   hills(m);
@@ -454,6 +481,12 @@ function buildDistrict(){
     m.quad(left,right,p(b,ROUND.inner,.005),p(a,ROUND.inner,.005),color('#575955'),.08,uv,1);
     m.triangle([0,.21,0],p(a,ROUND.inner,.21),p(b,ROUND.inner,.21),color('#7f915d'),.12);
     m.quad(p(a,ROUND.inner,0),p(b,ROUND.inner,0),p(b,ROUND.inner,.21),p(a,ROUND.inner,.21),color('#cdbfa9'));
+    m.quad(p(a,ROUND.inner-.18,.221),p(b,ROUND.inner-.18,.221),p(b,ROUND.inner,.221),p(a,ROUND.inner,.221),color('#e3d4bf'));
+    if(!districtRoad(Math.cos((a+b)*.5)*(ROUND.outer+.15),Math.sin((a+b)*.5)*(ROUND.outer+.15))){
+      const radius=ROUND.outer+.19;
+      m.quad(p(a,ROUND.outer,.13),p(b,ROUND.outer,.13),p(b,radius,.13),p(a,radius,.13),color('#e3d4bf'));
+      m.quad(left,right,p(b,ROUND.outer,.13),p(a,ROUND.outer,.13),color('#b2a391'));
+    }
   }
   const paint='#e9e5d8',stone='#cec4b4';
   for(const sx of [-1,1])for(const sz of [-1,1]){
@@ -471,12 +504,12 @@ function buildDistrict(){
     for(const [i,[x,z]] of landscaping.entries())tree(m,x*sx,z*sz,.70+i%3*.13);
     for(const [x,z] of [[5.35,19],[17,5.35],[5.35,39],[38,5.35],[46.1,21],[23,46.1]])streetlight(m,x*sx,z*sz,-sx);
     for(let offset=17;offset<46;offset+=6.6){
-      ground(-.038,offset*sz-.96,.038,offset*sz+.96,.014,paint);
-      ground(offset*sx-.96,-.038,offset*sx+.96,.038,.014,paint);
+      ground(-.058,offset*sz-.96,.058,offset*sz+.96,.014,paint);
+      ground(offset*sx-.96,-.058,offset*sx+.96,.058,.014,paint);
     }
     for(let offset=7.5;offset<46;offset+=6.7){
-      ground(offset*sx-1.1,52*sz-.034,offset*sx+1.1,52*sz+.034,.019,paint);
-      ground(52*sx-.034,offset*sz-1.1,52*sx+.034,offset*sz+1.1,.019,paint);
+      ground(offset*sx-1.1,52*sz-.058,offset*sx+1.1,52*sz+.058,.019,paint);
+      ground(52*sx-.058,offset*sz-1.1,52*sx+.058,offset*sz+1.1,.019,paint);
     }
   }
   for(const [x,z,size] of [[-.3,2.2,1.25],[-2.6,-1.7,.82],[2.49,-2.03,1.0]])tree(m,x,z,size);
@@ -501,6 +534,7 @@ function buildDistrict(){
     }
     parkingSign(m,spot);
   }
+  districtCurbs(m);
   return m.vertices;
 }
 
@@ -702,7 +736,7 @@ export function createStreetRenderer(canvas,materialReady,district=false){
     ([name,size,offset])=>[gl.getAttribLocation(program,name),size,offset]);
   for(const [attribute] of attributes)gl.enableVertexAttribArray(attribute);
   const uniform=name=>gl.getUniformLocation(program,name);
-  const eye=uniform('uEye'),heading=uniform('uHeading'),projection=uniform('uProjection'),placement=uniform('uPlacement');
+  const eye=uniform('uEye'),heading=uniform('uHeading'),projection=uniform('uProjection'),pitch=uniform('uPitch'),placement=uniform('uPlacement');
   const stride=uniform('uStride');
   gl.uniform3fv(uniform('uHaze'),SKY);
   for(const [unit,name] of ['uPrint','uAsphalt','uStucco','uRoof','uPaving','uShadow'].entries())gl.uniform1i(uniform(name),unit);
@@ -711,7 +745,7 @@ export function createStreetRenderer(canvas,materialReady,district=false){
   gl.activeTexture(gl.TEXTURE0);
   const ink=makePrint(gl);
   const disposeMaterials=loadMaterials(gl,()=>{gl.uniform1i(textured,1);materialReady?.();});
-  const cars=['#d68a42','#507d95'].map(paint=>{
+  const cars=(district?['#d68a42','#507d95','#388dcc']:['#d68a42','#507d95']).map(paint=>{
     const model=mesh();vehicle(model,0,0,false,paint);return upload(model.vertices);
   });
   const human=district?upload(humanModel()):null;
@@ -727,14 +761,21 @@ export function createStreetRenderer(canvas,materialReady,district=false){
       canvas.width=Math.max(1,Math.round(width*ratio));canvas.height=Math.max(1,Math.round(height*ratio));
       gl.viewport(0,0,canvas.width,canvas.height);
       const aspect=canvas.width/canvas.height;
-      const focal=Math.min(2.5,aspect*1.92);
+      const focal=district?Math.min(2.2,aspect*1.76):Math.min(2.5,aspect*1.92);
       gl.uniform2f(projection,focal/aspect,focal);
     },
-    draw(frame,look=frame.look){
+    draw(frame,look=frame.look,highView=false){
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-      gl.uniform3fv(eye,driverEye(frame));
-      gl.uniform2f(heading,Math.cos(frame.yaw+look),Math.sin(frame.yaw+look));
+      const above=district&&highView;
+      const bearing=frame.yaw+look*(above?.62:1);
+      const tilt=above?.96:district?.135:.088;
+      const viewpoint=above?[frame.x-6.9*Math.sin(bearing),9.6,frame.z+6.9*Math.cos(bearing)]:driverEye(frame);
+      if(district&&!above)viewpoint[1]=1.43;
+      gl.uniform3fv(eye,viewpoint);
+      gl.uniform2f(heading,Math.cos(bearing),Math.sin(bearing));
+      gl.uniform2f(pitch,Math.cos(tilt),Math.sin(tilt));
       draw(street);
+      if(above)draw(cars[2],frame.x,frame.z,Math.PI/2-frame.yaw);
       for(const car of frame.traffic){
         if(!district&&Math.abs(car.x)>=78)continue;
         const angle=district?Math.PI/2-car.yaw:car.direction===1?0:Math.PI;
