@@ -10,6 +10,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="driving.css">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
 body{margin:0;font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
@@ -316,7 +317,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.8.1';
+const VERSION='0.9.0';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -1296,7 +1297,7 @@ const SIMS={
 };
 
 /* ================= Motor de animación ================= */
-let animToken=0;
+let animToken=0,closeDrivingGame=null;
 function measure(p){const L=[0];for(let i=1;i<p.length;i++)L.push(L[i-1]+Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]));return L;}
 const pathLengths=new WeakMap();
 function at(p,f){
@@ -1442,6 +1443,7 @@ function header(title){
   else TOP.innerHTML=`<div class="brand">Autoescuela</div><div style="flex:1"></div>${S.profile?`<span class="chip acc">${S.profile.obj==='B'?'B':'A2'}</span>`:''}${themeBtn()}`;
 }
 function render(){
+  closeDrivingGame?.();closeDrivingGame=null;
   animToken++;stopSpeech();
   if(!S.profile){NAV.parentElement.hidden=true;document.body.style.paddingBottom='0';header('');TOP.innerHTML=`<div class="brand">Autoescuela</div>`;viewOnboard();return;}
   NAV.parentElement.hidden=false;document.body.style.paddingBottom='';
@@ -1640,6 +1642,7 @@ const VIEWS={
    ${upcoming.length?`<p class="small muted">${upcoming.length} ${upcoming.length===1?'pregunta para más adelante':'preguntas para más adelante'}.${nextLabel?` La siguiente estará disponible el <time datetime="${next.toISOString()}">${nextLabel}</time>.`:''}</p>`:''}
    ${due?`<button class="btn primary" type="button" data-go="quiz" data-mode="repaso-programado">${due>15?'Repasar las 15 más antiguas':'Empezar repaso'}</button>`:''}
   </section>
+  <div class="section-title">Videojuego</div><div class="list">${item({go:'juego',icon:'wheel',tone:'blue',t:'Conducción en 3D',s:'Cruza un STOP desde el asiento del conductor'})}</div>
   <div class="section-title">Tests</div><div class="list">
    ${item({go:'quiz',mode:'rapido',icon:'bolt',tone:'peach',t:'Test rápido',s:'5 preguntas para un rato libre'})}
    ${ACTIVE_TOPICS.map(topic=>item({go:'quiz',mode:'tema',id:topic.id,icon:'pen',t:`Test del tema ${topic.id}`,s:esc(topic.name)})).join('')}
@@ -1740,7 +1743,7 @@ const VIEWS={
   <details class="card progress-details test-history"><summary>Historial de tests</summary>
    ${historyRows.length?`<ol class="list" role="list">${historyRows.join('')}</ol>`:'<p class="small muted">Aquí aparecerán los tests y repasos que termines.</p>'}
   </details>
-  <div class="section-title">Simuladores</div><div class="list">${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:S.sims['urbano-stop']?`Mejor ${S.sims['urbano-stop'].best}/4 · último ${S.sims['urbano-stop'].last}/4`:'Sin hacer'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
+  <div class="section-title">Simuladores</div><div class="list">${item({go:'juego',icon:'wheel',tone:'blue',t:'Conducción en 3D',s:S.sims['juego-stop']?`Mejor ${S.sims['juego-stop'].best}/3 · último ${S.sims['juego-stop'].last}/3`:'Sin hacer'})}${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:S.sims['urbano-stop']?`Mejor ${S.sims['urbano-stop'].best}/4 · último ${S.sims['urbano-stop'].last}/4`:'Sin hacer'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
   <div class="section-title">Ajustes</div>
   <div class="card"><label for="nm2"><b>Nombre</b></label><input type="text" id="nm2" maxlength="24" value="${esc(S.profile.name||'')}">
    <b>Permiso</b><div class="choice" id="objs2">${Object.entries(OBJ).map(([k,l])=>`<button type="button" class="btn ghost ${k===S.profile.obj?'sel':''}" data-obj="${k}">${l}</button>`).join('')}</div></div>
@@ -1818,6 +1821,7 @@ const VIEWS={
   document.getElementById('delYes').onclick=()=>{const p=S.profile;S={profile:p,q:{},lessons:{},sims:{},tests:[],days:[]};save();render();};
  },
  conducir(){header('Conducción urbana');runUrbanStop();},
+ juego(){header('Conducción en 3D');runDrivingGame();},
  sim(v){const set=SIMS[v.id];header(set.name);runSim(v.id,set);}
 };
 
@@ -2384,6 +2388,28 @@ function runUrbanStop(){
   }
   paint?.(car,traffic,stage);
   drawStep();
+}
+
+function runDrivingGame(){
+  const token=animToken;
+  V.innerHTML='<p class="card" role="status">Cargando el cruce…</p>';
+  import('./driving.js').then(({openDrivingGame})=>{
+    if(token!==animToken)return;
+    V.replaceChildren();
+    closeDrivingGame=openDrivingGame({
+      ruleUrl:RGC+'#A5',
+      onExit:()=>history.back(),
+      onResult(score,total){
+        const previous=S.sims['juego-stop'];
+        S.sims['juego-stop']={last:score,best:Math.max(score,previous?.best||0),total};
+        markDay();save();
+      }
+    });
+  }).catch(()=>{
+    if(token!==animToken)return;
+    V.innerHTML='<section class="card"><p>El videojuego no se ha podido cargar.</p><button class="btn primary" type="button">Reintentar</button></section>';
+    V.querySelector('button').onclick=runDrivingGame;
+  });
 }
 
 rememberView(false);
