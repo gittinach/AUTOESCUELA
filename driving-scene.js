@@ -1,3 +1,5 @@
+import {CITY_STOPS,CITY_ENTRIES,CITY_CROSSINGS,CITY_PARKING,ROADS,ROUND,PARKING,STOP_LINE,roadPoint} from './driving-world.js';
+
 export const JUNCTION={
   laneX:1.85,roadHalfWidth:4.5,stopLine:10.5,crossEdge:6,
   trafficZ:2.75,trafficHalfLength:2.11,trafficHalfWidth:.895,
@@ -30,7 +32,8 @@ const vertexSource=`
   uniform vec3 uEye;
   uniform vec2 uHeading;
   uniform vec2 uProjection;
-  uniform vec3 uPlacement;
+  uniform vec4 uPlacement;
+  uniform float uStride;
   varying vec3 vColor;
   varying vec2 vUV;
   varying vec2 vGround;
@@ -40,7 +43,10 @@ const vertexSource=`
   varying vec3 vShadow;
   ${lightSpace}
   void main(){
-    vec2 world=aPosition.xz*uPlacement.z+uPlacement.xy;
+    vec3 local=aPosition;
+    if(uStride!=0.&&local.y<.86)local.x+=sign(local.z)*uStride*(1.-local.y/.86);
+    vec2 world=vec2(local.x*uPlacement.z+local.z*uPlacement.w,
+                    -local.x*uPlacement.w+local.z*uPlacement.z)+uPlacement.xy;
     vec3 point=vec3(world.x,aPosition.y,world.y);
     vec3 p=point-uEye;
     float side=dot(p.xz,uHeading);
@@ -393,6 +399,126 @@ function hills(m){
   }
 }
 
+function roadSurface(m,node,near,far,left,right,y,tint,print=false){
+  const p=(f,r)=>{const [x,z]=roadPoint(node,f,r);return [x,y,z];};
+  m.quad(p(near,left),p(near,right),p(far,right),p(far,left),color(tint),0,print);
+}
+
+function postSign(m,node,distance,kind){
+  const [x,z]=roadPoint(node,distance,5.15);
+  const facing=roadPoint(node,distance-.055,5.15);
+  const p=(dx,y)=>[facing[0]-node.dz*dx,y,facing[1]+node.dx*dx];
+  m.box(x,.13,z,.061,2.3,.061,'#778386');
+  if(kind==='stop'){
+    for(const [radius,ink] of [[.438,'#fff7e9'],[.382,'#b72e34']])for(let i=0;i<8;i++){
+      const a=(i+.5)*Math.PI/4,b=a+Math.PI/4,step=radius<.4?.004:0;
+      const face=(tx,y)=>{const pt=p(tx,y);return [pt[0]-node.dx*step,pt[1],pt[2]-node.dz*step];};
+      m.triangle(face(0,2.28),face(Math.cos(a)*radius,2.28+Math.sin(a)*radius),
+        face(Math.cos(b)*radius,2.28+Math.sin(b)*radius),color(ink));
+    }
+    const text=(dx,y)=>{const t=p(dx,y);return [t[0]-node.dx*.009,t[1],t[2]-node.dz*.009];};
+    m.quad(text(-.32,2.15),text(.32,2.15),text(.32,2.41),text(-.32,2.41),color('#fff'),0,true);
+  }else{
+    m.triangle(p(-.45,2.61),p(.45,2.61),p(0,1.84),color('#f0e9de'));
+    const inset=(dx,y,layer)=>{const pt=p(dx,y);return [pt[0]-node.dx*layer,pt[1],pt[2]-node.dz*layer];};
+    m.triangle(inset(-.394,2.578,.004),inset(.394,2.578,.004),inset(0,1.93,.004),color('#bf3035'));
+    m.triangle(inset(-.284,2.511,.008),inset(.284,2.511,.008),inset(0,2.055,.008),color('#fff8e8'));
+  }
+}
+
+function parkingSign(m,spot){
+  const [x,z]=roadPoint(spot,2.4,PARKING.end+.16);
+  m.box(x,.07,z,.058,2.25,.058,'#697780');
+  const p=(dx,y)=>[x-spot.dz*dx-spot.dx*.05,y,z+spot.dx*dx-spot.dz*.05];
+  m.quad(p(-.31,1.91),p(.31,1.91),p(.31,2.53),p(-.31,2.53),color('#e7eff1'));
+  const panel=(dx,y)=>{const t=p(dx,y);return [t[0]-spot.dx*.006,t[1],t[2]-spot.dz*.006];};
+  m.quad(panel(-.275,1.945),panel(.275,1.945),panel(.275,2.495),panel(-.275,2.495),color('#2864a0'));
+  const letter=(a,b,c,d)=>{
+    const q=(dx,y)=>{const t=panel(dx,y);return [t[0]-spot.dx*.006,t[1],t[2]-spot.dz*.006];};
+    m.quad(q(a,b),q(c,b),q(c,d),q(a,d),color('#fff'));
+  };
+  letter(-.13,2.03,-.054,2.41);letter(-.065,2.34,.11,2.41);
+  letter(.065,2.22,.135,2.36);letter(-.065,2.19,.09,2.26);
+}
+
+function buildDistrict(){
+  const m=mesh(),{box,ground}=m;
+  hills(m);
+  ground(-108,-108,108,108,-.15,'#8b9b72',.10);
+  for(const rect of ROADS)ground(...rect,0,'#575955',.08,1);
+  for(let i=0;i<72;i++){
+    const a=i*Math.PI/36,b=(i+1)*Math.PI/36;
+    const p=(angle,r,y)=>[Math.cos(angle)*r,y,Math.sin(angle)*r];
+    const [left,right]=[a,b].map(angle=>p(angle,ROUND.outer,.005));
+    const uv=([x,,z])=>[x/2.95,z/2.95];
+    m.quad(left,right,p(b,ROUND.inner,.005),p(a,ROUND.inner,.005),color('#575955'),.08,uv,1);
+    m.triangle([0,.21,0],p(a,ROUND.inner,.21),p(b,ROUND.inner,.21),color('#7f915d'),.12);
+    m.quad(p(a,ROUND.inner,0),p(b,ROUND.inner,0),p(b,ROUND.inner,.21),p(a,ROUND.inner,.21),color('#cdbfa9'));
+  }
+  const paint='#e9e5d8',stone='#cec4b4';
+  for(const sx of [-1,1])for(const sz of [-1,1]){
+    box(28*sx,-.12,28*sz,39,.25,39,stone,4);
+    box(6.5*sx,-.12,30.8*sz,4,.25,33.3,stone,4);
+    box(30.8*sx,-.12,6.5*sz,33.3,.25,4,stone,4);
+    box(58.1*sx,-.13,28.4*sz,3.18,.26,56.8,stone,4);
+    box(27.9*sx,-.13,58.1*sz,55.8,.26,3.18,stone,4);
+    for(const [u,v,w,d,h,wall,roof] of [[15,19,8.6,10,4.4,'#dfc49b','#a3624a'],[35,17,13,8,5.1,'#d6c0a0','#a26953'],
+      [16,35,10,12,5.0,'#dbd4b6','#a26a4f'],[34,34,12,10,4.3,'#c6ccbb','#97674e'],[68,26,11,13,4.8,'#d9c5ac','#9c604d'],
+      [18,64,13,8.8,4.6,'#d6c7a8','#9c684d'],[38,65,13,9.4,4.9,'#c3cbb8','#93614d']]){
+      house(m,u*sx,v*sz,w,d,h,wall,roof);
+    }
+    const landscaping=[[9.7,15],[16.5,8],[25,11.4],[39,10.8],[8.7,31],[11,41],[27,41],[43,24],[60,34],[28,59.9]];
+    for(const [i,[x,z]] of landscaping.entries())tree(m,x*sx,z*sz,.70+i%3*.13);
+    for(const [x,z] of [[5.35,19],[17,5.35],[5.35,39],[38,5.35],[46.1,21],[23,46.1]])streetlight(m,x*sx,z*sz,-sx);
+    for(let offset=17;offset<46;offset+=6.6){
+      ground(-.038,offset*sz-.96,.038,offset*sz+.96,.014,paint);
+      ground(offset*sx-.96,-.038,offset*sx+.96,.038,.014,paint);
+    }
+    for(let offset=7.5;offset<46;offset+=6.7){
+      ground(offset*sx-1.1,52*sz-.034,offset*sx+1.1,52*sz+.034,.019,paint);
+      ground(52*sx-.034,offset*sz-1.1,52*sx+.034,offset*sz+1.1,.019,paint);
+    }
+  }
+  for(const [x,z,size] of [[-.3,2.2,1.25],[-2.6,-1.7,.82],[2.49,-2.03,1.0]])tree(m,x,z,size);
+  for(const stop of CITY_STOPS){
+    roadSurface(m,stop,-STOP_LINE,-STOP_LINE+.27,.06,4.44,.021,paint);
+    roadSurface(m,stop,-STOP_LINE-3.2,-STOP_LINE-1.1,.55,3.94,.022,paint,true);
+    postSign(m,stop,-STOP_LINE,'stop');
+  }
+  for(const entry of CITY_ENTRIES){
+    for(let r=.15;r<4.2;r+=.72)roadSurface(m,entry,-ROUND.mark,-ROUND.mark+.28,r,r+.43,.021,paint);
+    postSign(m,entry,-ROUND.mark,'yield');
+  }
+  for(const crossing of CITY_CROSSINGS)for(let r=-4.27;r<4.33;r+=.98){
+    roadSurface(m,crossing,-1.6,1.6,r,r+.51,.021,paint);
+  }
+  for(const spot of CITY_PARKING){
+    // La plaza está sobre el lado derecho de su calle, con salida directa a la calzada.
+    roadSurface(m,spot,-PARKING.length/2,PARKING.length/2,PARKING.start,PARKING.end,.139,'#757b79');
+    const edge=PARKING.end-.08;
+    for(const [near,far,left,right] of [[-5.48,-5.4,4.51,edge],[5.39,5.48,4.51,edge],[-5.48,5.48,edge-.08,edge]]){
+      roadSurface(m,spot,near,far,left,right,.146,'#f3e6ca');
+    }
+    parkingSign(m,spot);
+  }
+  return m.vertices;
+}
+
+function humanModel(){
+  const m=mesh();
+  m.box(0,.79,0,.28,.5,.47,'#394f76');
+  m.box(0,1.31,0,.13,.12,.14,'#bf896e');
+  m.box(.016,1.43,0,.22,.235,.217,'#d1a081');m.box(0,1.62,0,.22,.086,.227,'#4d3930');
+  for(const side of [-1,1]){
+    m.box(side*.071,.32,side*.122,.153,.50,.16,'#334758');
+    m.box(side*.16,.045,side*.122,.26,.274,.15,'#334758');
+    m.box(side*.22,.03,side*.122,.27,.092,.175,'#2c333b');
+    m.box(side*.067,.78,side*.262,.136,.43,.126,'#435e89');
+    m.box(side*.093,.71,side*.28,.109,.114,.102,'#c99578');
+  }
+  return m.vertices;
+}
+
 function buildStreet(){
   const m=mesh(),{box,ground,quad}=m;
   hills(m);
@@ -558,7 +684,7 @@ function makePrint(gl){
   return texture;
 }
 
-export function createStreetRenderer(canvas,materialReady){
+export function createStreetRenderer(canvas,materialReady,district=false){
   const gl=canvas.getContext('webgl',{alpha:true,antialias:true,depth:true,powerPreference:'high-performance'});
   if(!gl)return null;
   const program=makeProgram(gl,vertexSource,fragmentSource);
@@ -567,7 +693,7 @@ export function createStreetRenderer(canvas,materialReady){
     gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points),gl.STATIC_DRAW);
     return {buffer,count:points.length/VERTEX_SIZE};
   }
-  const street=upload(buildStreet());
+  const street=upload(district?buildDistrict():buildStreet());
   const shadow=makeShadow(gl,street);
   gl.useProgram(program);gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
@@ -577,6 +703,7 @@ export function createStreetRenderer(canvas,materialReady){
   for(const [attribute] of attributes)gl.enableVertexAttribArray(attribute);
   const uniform=name=>gl.getUniformLocation(program,name);
   const eye=uniform('uEye'),heading=uniform('uHeading'),projection=uniform('uProjection'),placement=uniform('uPlacement');
+  const stride=uniform('uStride');
   gl.uniform3fv(uniform('uHaze'),SKY);
   for(const [unit,name] of ['uPrint','uAsphalt','uStucco','uRoof','uPaving','uShadow'].entries())gl.uniform1i(uniform(name),unit);
   gl.uniform1i(uniform('uShadows'),Number(shadow.ready));
@@ -587,10 +714,11 @@ export function createStreetRenderer(canvas,materialReady){
   const cars=['#d68a42','#507d95'].map(paint=>{
     const model=mesh();vehicle(model,0,0,false,paint);return upload(model.vertices);
   });
-  function draw(object,x=0,z=0,direction=1){
+  const human=district?upload(humanModel()):null;
+  function draw(object,x=0,z=0,angle=0,step=0){
     gl.bindBuffer(gl.ARRAY_BUFFER,object.buffer);
     for(const [attribute,size,start] of attributes)gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,VERTEX_SIZE*4,start*4);
-    gl.uniform3f(placement,x,z,direction);gl.drawArrays(gl.TRIANGLES,0,object.count);
+    gl.uniform4f(placement,x,z,Math.cos(angle),Math.sin(angle));gl.uniform1f(stride,step);gl.drawArrays(gl.TRIANGLES,0,object.count);
   }
   return {
     resize(width,height){
@@ -608,12 +736,20 @@ export function createStreetRenderer(canvas,materialReady){
       gl.uniform2f(heading,Math.cos(frame.yaw+look),Math.sin(frame.yaw+look));
       draw(street);
       for(const car of frame.traffic){
-        if(Math.abs(car.x)<78)draw(cars[car.direction===1?0:1],car.x,car.z,car.direction);
+        if(!district&&Math.abs(car.x)>=78)continue;
+        const angle=district?Math.PI/2-car.yaw:car.direction===1?0:Math.PI;
+        draw(cars[district?car.model:car.direction===1?0:1],car.x,car.z,angle);
+      }
+      if(human)for(const person of frame.pedestrians){
+        if(!person.present||person.state==='clear')continue;
+        const step=person.state==='walking'?Math.sin(person.progress*Math.PI*2/.92)*.17:0;
+        draw(human,person.walkX,person.walkZ,Math.atan2(person.dx*person.side,person.dz*person.side),step);
       }
     },
     dispose(){
       gl.deleteBuffer(street.buffer);
       for(const car of cars)gl.deleteBuffer(car.buffer);
+      if(human)gl.deleteBuffer(human.buffer);
       disposeMaterials();gl.deleteTexture(shadow.texture);gl.deleteTexture(ink);gl.deleteProgram(program);
     }
   };

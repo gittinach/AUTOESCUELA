@@ -78,6 +78,13 @@
 .road-speed{min-width:58px;flex:none;text-align:center;padding:4px 7px;font-variant-numeric:tabular-nums;line-height:1}
 .road-speed b{font-size:clamp(1.35rem,4.8vw,2rem)}
 .road-speed span{display:block;font-size:.64rem;margin-top:3px;color:#d4e3e5}
+.road-instruments{position:relative;flex:none}
+.road-controls .road-gear{position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);
+  min-width:44px;min-height:44px;width:44px;height:44px;padding:0;border-radius:11px}
+.road-controls .road-gear[aria-pressed="true"]{background:#a8cbc7;color:#1f3636;border-color:#dfedeb}
+.road-controls .road-gear:disabled{opacity:.65}
+.road-notice{position:absolute;bottom:calc(var(--road-bottom) + clamp(62px,17vh,100px) + 56px);left:50%;transform:translateX(-50%);
+  width:max-content;max-width:68%;margin:0;padding:6px 10px;border-radius:8px;background:#533634ef;color:#fff;text-align:center;font-size:.78rem}
 .road-overlay:not([hidden]){
   position:absolute;inset:0;display:grid;place-items:center;overflow:auto;background:#101f2e7a;
   padding:var(--road-top) var(--road-side) var(--road-bottom);box-sizing:border-box;
@@ -102,6 +109,9 @@
 .road-results .ok,.road-results .review{font-size:.73rem;margin-left:4px}
 .road-results .ok{color:#a5e3c0}.road-results .review{color:#ffd39d}
 .road-rule{display:inline-block;color:#bfdeeb;font-size:.79rem;margin-top:8px}
+.road-map{display:block;width:min(100%,250px,48vh);height:auto;margin:6px auto 9px;border-radius:10px;border:1px solid #718786}
+.road-results .road-clip{float:right;min-height:38px;margin:0 0 3px 6px}
+.road-results li{display:flow-root}
 .road-review-view{position:absolute;inset:0;pointer-events:none}
 .road-review-view button{pointer-events:auto}
 .road-review-controls{position:absolute;bottom:var(--road-bottom);inset-inline:var(--road-side);display:flex;justify-content:center;gap:6px}
@@ -114,4 +124,7 @@
   .road-controls button{width:clamp(50px,14vw,64px);height:64px}
   .road-look{bottom:calc(var(--road-bottom) + 73px)}
   .road-steering,.road-pedals{gap:5px}
+  .road-top .road-tool{padding-inline:8px}
+  .road-top span[data-road-title]{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .road-notice{bottom:calc(var(--road-bottom) + 119px)}
 }

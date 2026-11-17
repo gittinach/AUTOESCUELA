@@ -67,14 +67,17 @@ export function createDrivingAudio(){
       target(engineTone.frequency,340+approach*270+load*130);
       target(road.gain,.043+approach*.19);
       target(roadTone.frequency,315+approach*240);
+      const distanceSquared=other=>(other.x-car.x)**2+(other.z-car.z)**2;
+      const traffic=car.traffic.length>2?car.traffic.slice().sort((a,b)=>distanceSquared(a)-distanceSquared(b)):car.traffic;
       for(const [i,{pan,passing,passingTone,outside}] of passers.entries()){
-        const other=car.traffic[i];
+        const other=traffic[i];
         if(!other){target(passing.gain,0);continue;}
         const dx=other.x-car.x,dz=other.z-car.z,distance=Math.hypot(dx,dz);
         target(pan.pan,.88*(dx*Math.cos(angle)+dz*Math.sin(angle))/Math.max(2,distance));
         target(passing.gain,.41/(1+(distance/7.4)**2));
         target(passingTone.frequency,440+670/(1+distance/11));
-        target(outside.frequency,70+i*8-6*other.direction*dx/Math.max(4,distance));
+        const relativeSpeed=other.yaw===undefined?other.direction*dx:dx*Math.sin(other.yaw)-dz*Math.cos(other.yaw);
+        target(outside.frequency,70+i*8-6*relativeSpeed/Math.max(4,distance));
       }
     },
     dispose(){ clearTimeout(timer);context.close().catch(()=>{}); }

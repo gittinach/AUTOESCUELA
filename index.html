@@ -317,7 +317,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.9.3';
+const VERSION='0.10.0';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -1642,13 +1642,13 @@ const VIEWS={
    ${upcoming.length?`<p class="small muted">${upcoming.length} ${upcoming.length===1?'pregunta para más adelante':'preguntas para más adelante'}.${nextLabel?` La siguiente estará disponible el <time datetime="${next.toISOString()}">${nextLabel}</time>.`:''}</p>`:''}
    ${due?`<button class="btn primary" type="button" data-go="quiz" data-mode="repaso-programado">${due>15?'Repasar las 15 más antiguas':'Empezar repaso'}</button>`:''}
   </section>
-  <div class="section-title">Videojuego</div><div class="list">${item({go:'juego',icon:'wheel',tone:'blue',t:'Conducción en 3D',s:'Cruza un STOP desde el asiento del conductor'})}</div>
+  <div class="section-title">Videojuego</div><div class="list">${item({go:'juego',icon:'wheel',tone:'blue',t:'Conducción libre en 3D',s:'Elige tu ruta por el barrio y conduce hasta el destino'})}</div>
   <div class="section-title">Tests</div><div class="list">
    ${item({go:'quiz',mode:'rapido',icon:'bolt',tone:'peach',t:'Test rápido',s:'5 preguntas para un rato libre'})}
    ${ACTIVE_TOPICS.map(topic=>item({go:'quiz',mode:'tema',id:topic.id,icon:'pen',t:`Test del tema ${topic.id}`,s:esc(topic.name)})).join('')}
    ${item({go:'guardadas',icon:'bookmark',t:'Preguntas guardadas',s:savedCount?`${savedCount} ${savedCount===1?'pregunta':'preguntas'} para practicar`:'Guarda preguntas durante un test'})}
    ${item({go:'quiz',mode:'fallos',icon:'redo',tone:'peach',t:'Test de fallos',s:pending.length?'Practica tus fallos cuando quieras':'Aún no tienes fallos',disabled:!pending.length})}</div>
-   <div class="section-title">Simuladores de conducción</div><div class="list">${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:'Cruce jugable con STOP y visibilidad reducida'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>
+  <div class="section-title">Simuladores de conducción</div><div class="list">${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:'Cruce jugable con STOP y visibilidad reducida'})}${item({go:'juego',mode:'stop',icon:'wheel',tone:'blue',t:'Ejercicio de STOP en 3D',s:'Practica las dos paradas con visibilidad reducida'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>
    <p class="note">Más tipos de ejercicios y simuladores llegarán con el resto del temario.</p>`;
  },
  guardadas(view){
@@ -1743,7 +1743,7 @@ const VIEWS={
   <details class="card progress-details test-history"><summary>Historial de tests</summary>
    ${historyRows.length?`<ol class="list" role="list">${historyRows.join('')}</ol>`:'<p class="small muted">Aquí aparecerán los tests y repasos que termines.</p>'}
   </details>
-  <div class="section-title">Simuladores</div><div class="list">${item({go:'juego',icon:'wheel',tone:'blue',t:'Conducción en 3D',s:S.sims['juego-stop']?`Mejor ${S.sims['juego-stop'].best}/3 · último ${S.sims['juego-stop'].last}/3`:'Sin hacer'})}${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:S.sims['urbano-stop']?`Mejor ${S.sims['urbano-stop'].best}/4 · último ${S.sims['urbano-stop'].last}/4`:'Sin hacer'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
+  <div class="section-title">Simuladores</div><div class="list">${item({go:'juego',icon:'wheel',tone:'blue',t:'Conducción libre en 3D',s:S.sims['barrio-3d']?`Mejor ${S.sims['barrio-3d'].best}% · último ${S.sims['barrio-3d'].last}%`:'Sin hacer'})}${item({go:'juego',mode:'stop',icon:'wheel',tone:'blue',t:'Ejercicio de STOP en 3D',s:S.sims['juego-stop']?`Mejor ${S.sims['juego-stop'].best}/3 · último ${S.sims['juego-stop'].last}/3`:'Sin hacer'})}${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:S.sims['urbano-stop']?`Mejor ${S.sims['urbano-stop'].best}/4 · último ${S.sims['urbano-stop'].last}/4`:'Sin hacer'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
   <div class="section-title">Ajustes</div>
   <div class="card"><label for="nm2"><b>Nombre</b></label><input type="text" id="nm2" maxlength="24" value="${esc(S.profile.name||'')}">
    <b>Permiso</b><div class="choice" id="objs2">${Object.entries(OBJ).map(([k,l])=>`<button type="button" class="btn ghost ${k===S.profile.obj?'sel':''}" data-obj="${k}">${l}</button>`).join('')}</div></div>
@@ -1821,7 +1821,7 @@ const VIEWS={
   document.getElementById('delYes').onclick=()=>{const p=S.profile;S={profile:p,q:{},lessons:{},sims:{},tests:[],days:[]};save();render();};
  },
  conducir(){header('Conducción urbana');runUrbanStop();},
- juego(){header('Conducción en 3D');runDrivingGame();},
+ juego(view){const district=view.mode!=='stop';header(district?'Conducción libre en 3D':'Ejercicio de STOP en 3D');runDrivingGame(district);},
  sim(v){const set=SIMS[v.id];header(set.name);runSim(v.id,set);}
 };
 
@@ -2390,25 +2390,26 @@ function runUrbanStop(){
   drawStep();
 }
 
-function runDrivingGame(){
+function runDrivingGame(district){
   const token=animToken;
-  V.innerHTML='<p class="card" role="status">Cargando el cruce…</p>';
+  V.innerHTML='<p class="card" role="status">Cargando el videojuego…</p>';
   import('./driving.js').then(({openDrivingGame})=>{
     if(token!==animToken)return;
     V.replaceChildren();
     closeDrivingGame=openDrivingGame({
-      ruleUrl:RGC+'#A5',
+      district,ruleUrl:RGC+(district?'#a56':'#A5'),
       onExit:()=>history.back(),
       onResult(score,total){
-        const previous=S.sims['juego-stop'];
-        S.sims['juego-stop']={last:score,best:Math.max(score,previous?.best||0),total};
+        const key=district?'barrio-3d':'juego-stop';
+        const last=district?Math.round(100*score/total):score;
+        S.sims[key]={last,best:Math.max(last,S.sims[key]?.best||0),total:district?100:total};
         markDay();save();
       }
     });
   }).catch(()=>{
     if(token!==animToken)return;
     V.innerHTML='<section class="card"><p>El videojuego no se ha podido cargar.</p><button class="btn primary" type="button">Reintentar</button></section>';
-    V.querySelector('button').onclick=runDrivingGame;
+    V.querySelector('button').onclick=()=>runDrivingGame(district);
   });
 }
 
