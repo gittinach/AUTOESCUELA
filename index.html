@@ -119,6 +119,11 @@ figure{margin:0}
 .signs svg{width:54px;height:54px}
 .lesson-gallery{grid-template-columns:repeat(3,minmax(0,1fr))}
 .parking-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
+.emergency-lanes{padding:14px;display:grid;gap:10px;text-align:center}
+.emergency-road{display:flex;background:var(--surface2);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.emergency-road span{flex:1;display:grid;place-items:center;padding:8px 3px;font-size:12px}
+.emergency-road span+span{border-inline-start:1px dashed var(--control-line)}
+.emergency-road .emergency-gap{flex:1.3;background:var(--accent-soft);color:var(--accent);font-weight:600}
 .lesson-ref a{color:var(--accent)}
 .stopping-distance{padding:14px;text-align:center}
 .stopping-distance .grid2{gap:4px}
@@ -165,6 +170,19 @@ figure{margin:0}
 .review{display:flex;flex-direction:column;gap:8px;text-align:left;width:100%}
 .review div{background:var(--surface2);border-radius:12px;padding:10px 12px;font-size:14px}
 /* Sim */
+.drive{gap:10px}
+.drive-scene{position:relative;overflow:hidden;border-radius:20px;background:#46554e;max-width:100%}
+.drive-scene canvas{display:block;width:100%;height:auto}
+.drive-key{display:flex;flex-wrap:wrap;gap:6px 14px}
+.drive-key span{display:flex;align-items:center;gap:5px}
+.drive-key i{width:10px;height:10px;border-radius:4px;background:#2f8bff}
+.drive-key span+span i{background:#efaa57}
+.drive-feedback{min-height:1.55em}
+.drive-feedback.is-error{color:var(--bad);background:var(--bad-bg);padding:8px 10px;border-radius:10px}
+.drive-feedback a{color:var(--accent)}
+.drive-actions{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.drive-actions .btn{min-height:48px;padding:8px 10px}
+.drive-actions .btn:only-child{grid-column:1/-1}
 .scene{background:#C9C4B8;border-radius:16px;overflow:hidden;aspect-ratio:1/1;max-width:100%;position:relative}
 .scene svg{display:block;width:100%;height:100%}
 .scene.shake{animation:shake .45s}
@@ -298,7 +316,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.7.4';
+const VERSION='0.8.0';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -471,6 +489,12 @@ const RGC='https://www.boe.es/buscar/act.php?id=BOE-A-2003-23514';
 const lightIcon=lights=>`<svg viewBox="0 0 54 72" aria-hidden="true"><rect x="11" y="2" width="32" height="68" rx="7" fill="#272D30"/>${lights.map((color,index)=>`<circle cx="27" cy="${16+20*index}" r="7" fill="${color}"/>`).join('')}</svg>`;
 /* ================= Tema 5: lecciones ================= */
 const ILL={
+  emergencyLane:()=>`<figure class="fig"><div class="emergency-lanes">
+   <b class="small">Dos carriles en el mismo sentido</b>
+   <div class="emergency-road"><span>← Izquierdo</span><span class="emergency-gap">Paso de emergencia</span><span>Derecho →</span></div>
+   <b class="small">Tres carriles en el mismo sentido</b>
+   <div class="emergency-road"><span>← Izquierdo</span><span class="emergency-gap">Paso de emergencia</span><span>Central →</span><span>Derecho →</span></div>
+  </div><figcaption>Las flechas indican hacia qué lado se apartan los vehículos para dejar paso.</figcaption></figure>`,
   parkingSigns:()=>`<figure class="fig"><div class="signs parking-gallery"><div>${SIGN.noStopping}<b>R-307</b>Prohíbe parar y estacionar</div><div>${SIGN.noParking}<b>R-308</b>Prohíbe estacionar</div></div></figure>`,
   stoppingDistance:()=>`<figure class="fig"><div class="stopping-distance"><div class="grid2"><span>Reacción<br><b>10 m</b></span><span>Frenado<br><b>15 m</b></span></div><p class="small"><b>Distancia total de detención · 25 m</b></p></div><figcaption>Ejemplo para ver cómo se suman las distancias. En la vía, los metros dependen de las condiciones.</figcaption></figure>`,
   trafficLights:()=>`<figure class="fig"><div class="signs lesson-gallery"><div>${lightIcon(['#FF6661','#6C6963','#6C6963'])}Rojo fijo</div><div>${lightIcon(['#6C6963','#FFD150','#6C6963'])}Amarillo fijo</div><div>${lightIcon(['#6C6963','#6C6963','#62DB85'])}Verde fijo</div></div><figcaption>En un semáforo circular, fíjate en la posición de la luz y en si está fija o parpadea.</figcaption></figure>`,
@@ -1020,13 +1044,185 @@ const PARKING_QUESTIONS=[
  {id:'q181',l:'T8L6',q:'La ordenanza permite estacionar motos en determinadas aceras. ¿Puedes hacerlo si dificultas el paso de una persona con movilidad reducida?',o:['Sí, si la moto está dentro de los límites de la acera','Sí, si solo vas a tardar unos minutos','No, se debe preservar el tránsito peatonal'],c:2,e:'La ordenanza debe proteger el paso de peatones y prestar especial atención a la seguridad y movilidad de las personas con movilidad reducida o discapacidad.',r:'RGC, art. 156.2'}
 ];
 
+/* ================= Tema 9: alumbrado y señales del vehículo ================= */
+const LIGHTING_LESSONS=[
+ {id:'T9L1',t:'Posición, cruce y luces diurnas',min:5,
+  key:'Las luces de posición indican dónde está el vehículo. Para circular de noche por una vía iluminada, un turismo o una moto debe llevar también las de cruce.',
+  body:`<p>El alumbrado de <b>posición</b> permite que te vean. Se usa, entre otros casos, entre la puesta y la salida del sol, en túneles y pasos inferiores, y cuando la visibilidad se reduce sensiblemente. En esas condiciones también se ilumina la matrícula trasera. Si el vehículo mide más de 2,10 metros de ancho, debe llevar además el alumbrado de gálibo.</p>
+  <p>Las luces de <b>cruce</b> o de corto alcance iluminan la vía sin el alcance de las largas. Úsalas de noche al circular por poblado y por vías interurbanas suficientemente iluminadas. En un túnel suficientemente iluminado se usan junto con las de posición también de día.</p>
+  <p>Durante el día, las motocicletas deben llevar encendida la luz de cruce. También deben llevarla los vehículos que circulan por un carril reversible, adicional circunstancial o habilitado en sentido contrario al habitual, entre los supuestos del Reglamento. Las luces diurnas no sustituyen al alumbrado de cruce cuando este es obligatorio.</p>`,
+  tip:'Antes de entrar en un túnel, comprueba qué luces están encendidas.',
+  errs:['Circular de noche con las luces de posición como único alumbrado.','Dejar la moto con las luces diurnas cuando debe llevar las de cruce.'],
+  ref:'RGC, arts. 98, 99, 101, 103 y 104',source:'#a98'},
+ {id:'T9L2',t:'Luces largas y deslumbramiento',min:6,
+  key:'Cambia de largas a cruce tan pronto como puedas deslumbrar a alguien, tanto de frente como por el retrovisor.',
+  body:`<p>En un vehículo equipado con luces de <b>carretera o largo alcance</b>, se usan por regla general al circular a más de 40 km/h de noche por una vía interurbana insuficientemente iluminada, o a cualquier hora en un túnel, paso inferior o tramo señalizado como túnel que esté insuficientemente iluminado. Si existe riesgo de deslumbrar, usa las de cruce. En poblado se usa cruce aunque la vía esté poco iluminada.</p>
+  <p>Una vía se considera insuficientemente iluminada si, con vista normal y en algún punto de su calzada, no se puede leer una matrícula a 10 metros o no se distingue un vehículo oscuro a 50 metros. En los tramos interurbanos o túneles poco iluminados, usa cruce si careces de largas o si vas a 40 km/h o menos y no utilizas las largas.</p>
+  <p>No recuperes las luces largas antes de rebasar al vehículo que viene de frente. Si tú sufres el deslumbramiento, reduce la velocidad lo necesario, incluso hasta detenerte si hace falta. Las largas están prohibidas con el vehículo parado o estacionado.</p>`,
+  tip:'Piensa también en quien va delante: sus retrovisores reciben tu luz.',
+  errs:['Esperar al cruce para quitar las largas.','Mantener las largas detrás de otro vehículo aunque puedas deslumbrarlo.'],
+  ref:'RGC, arts. 100 a 102',source:'#a100'},
+ {id:'T9L3',t:'Niebla, lluvia y alumbrado en avería',min:6,
+  key:'El antiniebla trasero se reserva para visibilidad especialmente mala. La lluvia ordinaria o una ligera bruma no lo justifican.',
+  body:`<p>Si niebla, lluvia intensa, nieve, humo o polvo reducen sensiblemente la visibilidad, usa el alumbrado correspondiente. Con las luces de posición, el Reglamento prevé la delantera antiniebla o el alumbrado de cruce o carretera. Si usas las largas, respeta la regla de deslumbramiento. En niebla, el cruce suele darte mejor visión que las largas.</p>
+  <p>El <b>antiniebla delantero</b> puede emplearse sin cruce o largas, o combinado con estas luces, según proceda. También se permite en una calzada de hasta 6,50 metros de ancho señalizada con una sucesión de curvas próximas. El <b>trasero</b> debe encenderse cuando las condiciones sean especialmente desfavorables, como niebla espesa, lluvia muy intensa, nevada fuerte o nubes densas de humo o polvo. Apágalo cuando desaparezcan esas condiciones.</p>
+  <p>Si una avería irreparable en ruta te obliga a circular con alumbrado de menor intensidad, reduce la velocidad hasta poder detenerte dentro de la zona iluminada.</p>`,
+  tip:'Para usar el antiniebla trasero, valora si la visibilidad es especialmente mala.',
+  errs:['Encender el antiniebla trasero por cualquier lluvia.','Mantener la velocidad si una avería acorta el tramo iluminado.'],
+  ref:'RGC, arts. 99, 102, 106 y 107',source:'#a106'},
+ {id:'T9L4',t:'Intermitentes, freno y avisos acústicos',min:6,
+  key:'Avisa antes de desplazarte. El intermitente indica hacia dónde vas; la prioridad sigue dependiendo de las reglas de la maniobra.',
+  body:`<p>Usa el intermitente del lado hacia el que vas a desplazarte, con antelación suficiente. Apágalo al adoptar la nueva trayectoria. Si necesitas usar el brazo, haz la señal de forma visible: brazo horizontal con palma hacia abajo para el lado que indica la mano, o doblado hacia arriba con palma extendida para el contrario.</p>
+  <p>Para retroceder, usa la luz de marcha atrás si el vehículo dispone de ella. Si carece de ella, extiende el brazo en horizontal con la palma hacia atrás. Para avisar de una frenada considerable o de que vas a inmovilizarte, usa repetidamente las luces de freno siempre que sea posible, o haz movimientos breves de arriba abajo con el brazo. Para parar o estacionar hacia un lado, usa también el intermitente de ese lado si lo tienes.</p>
+  <p>El <b>claxon</b> se usa excepcionalmente: para evitar un accidente, para avisar de un adelantamiento fuera de poblado o para advertir la presencia en el supuesto de un servicio urgente excepcional de un vehículo no prioritario. Para esos fines se pueden sustituir las señales acústicas por destellos breves que no deslumbren.</p>`,
+  tip:'Señaliza el movimiento que vas a hacer, antes de hacerlo.',
+  errs:['Pitar para apremiar a quien tarda en arrancar.','Dar por hecho que otros han visto el intermitente y te dejarán pasar.'],
+  ref:'RGC, arts. 70 y 108 a 110',source:'#a108'},
+ {id:'T9L5',t:'Avería, luces de emergencia y baliza V-16',min:7,
+  key:'En un turismo matriculado en España, desde el 1 de enero de 2026 el dispositivo válido de preseñalización es la baliza V-16 conectada y certificada.',
+  body:`<p>Si el vehículo queda inmovilizado por avería o accidente y crea un peligro, enciende las luces de emergencia si dispone de ellas y las de posición y gálibo cuando proceda. En calzada o arcén, las de posición se exigen de noche o con visibilidad reducida; también las de gálibo cuando correspondan. Un vehículo estacionado en una calle urbana que no sea travesía puede prescindir de las de posición si la iluminación permite distinguirlo a distancia suficiente.</p>
+  <p>La <b>V-16 conectada</b> se activa y se coloca en la parte exterior más alta que puedas alcanzar con seguridad, procurando la máxima visibilidad. Emite destellos y comunica la ubicación de la incidencia. En turismos matriculados en España, los triángulos y las balizas sin conexión quedaron fuera del régimen aplicable desde 2026. Las motos no están obligadas a llevar la V-16, aunque la DGT aconseja su uso.</p>
+  <p>La baliza avisa del peligro y transmite la posición. Para pedir ayuda, contacta con el 112 si hay una emergencia o con el servicio de asistencia si necesitas una grúa. Sal por el lado contrario al tráfico si puedes alcanzar con seguridad un lugar fuera de la calzada y del arcén. Si no puedes salir con seguridad, permanece dentro con el cinturón abrochado.</p>`,
+  tip:'Para colocar la baliza, prioriza un punto visible al que puedas llegar sin exponerte al tráfico.',
+  errs:['Confiar en que la baliza pide una ambulancia o una grúa.','Salir del coche aunque no exista un lugar seguro al que llegar.'],
+  ref:'RGC, arts. 105 y 130. Reglamento General de Vehículos, anexos XI y XII',source:'#a130'},
+ {id:'T9L6',t:'Otras señales del vehículo: V-1, V-13 y V-20',min:6,
+  key:'Aprende a reconocer tres avisos distintos: el servicio urgente de un vehículo prioritario, el conductor novel y la carga que sobresale.',
+  body:`<p>La señal luminosa <b>V-1</b> identifica al vehículo prioritario en servicio urgente. Como regla general se usa junto con la señal acústica especial. Puede usarse sola cuando prescindir de la señal acústica no supone peligro. Si adviertes su aproximación, facilita el paso según el lugar y el tráfico.</p>
+  <p>La <b>V-13</b> es la placa con la letra L. Se lleva durante el primer año al obtener por primera vez un permiso. En un turismo va detrás, a la izquierda y visible. En una motocicleta basta con que esté visible en la parte trasera. El Reglamento contempla excepciones y el cómputo del plazo cuando se suspende el permiso.</p>
+  <p>La <b>V-20</b> es el panel de franjas rojas y blancas que señaliza la carga que sobresale por detrás en los casos del artículo 15. Va al extremo posterior de la carga, perpendicular al eje del vehículo. Si sobresale por toda la anchura trasera, se colocan dos paneles en los extremos, con las franjas formando una V invertida. De noche o con visibilidad sensiblemente reducida se añade una luz roja cuando la carga sobresale por detrás.</p>`,
+  tip:'Relaciona el número con su función: V-1, servicio urgente; V-13, novel; V-20, carga saliente.',
+  errs:['Confundir la L con una limitación de velocidad.','Colocar un solo panel si la carga sobresale por toda la anchura posterior.'],
+  ref:'RGC, arts. 15.6, 68 y 69. Reglamento General de Vehículos, anexo XI',source:'https://www.boe.es/buscar/act.php?id=BOE-A-1999-1826#anxi'}
+];
+
+const LIGHTING_QUESTIONS=[
+ {id:'q182',l:'T9L1',q:'Circulas de noche con un turismo por una calle suficientemente iluminada. ¿Qué alumbrado debes llevar?',o:['Posición y cruce','Solo posición','Posición y largas'],c:0,e:'La iluminación de la calle no elimina la obligación de llevar las luces de cruce junto con las de posición.',r:'RGC, arts. 99 y 101.1'},
+ {id:'q183',l:'T9L1',q:'A pleno día, entras con un turismo en un túnel suficientemente iluminado. ¿Qué luces debes encender?',o:['Solo las luces diurnas','Posición y cruce','Solo posición'],c:1,e:'En túneles suficientemente iluminados se exige posición y cruce aunque fuera sea de día.',r:'RGC, arts. 98, 99 y 101.1'},
+ {id:'q184',l:'T9L1',q:'Conduces una motocicleta de día por una vía pública con buena visibilidad. ¿Qué luz debes llevar encendida?',o:['Solo posición','Largo alcance','Cruce'],c:2,e:'El Reglamento exige la luz de cruce durante el día a las motocicletas que circulan por las vías a las que se aplica.',r:'RGC, art. 104.a'},
+ {id:'q185',l:'T9L1',q:'De día, circulas con un turismo por un carril reversible. ¿Qué luz debes llevar encendida?',o:['Cruce','Solo posición','Antiniebla trasera'],c:0,e:'El carril reversible es uno de los supuestos en los que debe encenderse la luz de cruce durante el día.',r:'RGC, art. 104.b'},
+ {id:'q186',l:'T9L1',q:'Conduces de noche un vehículo de 2,30 metros de ancho. Además de las luces de posición y las que correspondan para iluminar la vía, ¿qué alumbrado debes llevar por su anchura?',o:['Luces antiniebla delanteras','Luces de gálibo','Luces de emergencia'],c:1,e:'Si el vehículo supera los 2,10 metros de anchura debe llevar encendido el alumbrado de gálibo en las condiciones del artículo 99.',r:'RGC, art. 99.1'},
+ {id:'q187',l:'T9L2',q:'De noche, vas a 70 km/h con un coche equipado con largas por una carretera fuera de poblado insuficientemente iluminada. No puedes deslumbrar a nadie. ¿Qué alumbrado debes utilizar para iluminar la vía?',o:['Solo las luces de posición','Cruce obligatoriamente en todas las carreteras','Largo alcance'],c:2,e:'Al circular a más de 40 km/h en ese supuesto se usa el alumbrado de carretera, salvo que corresponda sustituirlo por cruce.',r:'RGC, arts. 100.1 y 101.2'},
+ {id:'q188',l:'T9L2',q:'Con las largas encendidas, adviertes que puedes deslumbrar al conductor de un coche que viene de frente. ¿Cuándo cambias a cruce?',o:['En cuanto advierto esa posibilidad','Solo cuando vea que el otro ya cambió sus luces','Cuando esté a la altura del otro vehículo'],c:0,e:'Debes cambiar a cruce al apreciar que puedes deslumbrar, aunque la otra persona todavía no haya cambiado sus luces.',r:'RGC, art. 102.1'},
+ {id:'q189',l:'T9L2',q:'Alcanzas a otro turismo de noche con las largas encendidas. ¿Importa si puedes deslumbrar a quien conduce a través de su retrovisor?',o:['No, el cambio a cruce solo es para vehículos de frente','Sí, debes pasar a cruce si puedes deslumbrarle','Solo si la vía está dentro de poblado'],c:1,e:'También hay que cambiar a cruce ante la posibilidad de deslumbrar a quienes circulan en tu mismo sentido por sus retrovisores.',r:'RGC, art. 102.2'},
+ {id:'q190',l:'T9L2',q:'Las luces de otro vehículo te deslumbran y te cuesta distinguir la vía. ¿Qué debes hacer?',o:['Mantener la velocidad para que el cruce dure menos','Encender las largas para que el otro cambie','Reducir lo necesario, incluso hasta detenerte si hace falta'],c:2,e:'Si sufres deslumbramiento, la prioridad es evitar un alcance. Reduce la velocidad hasta poder controlar la situación.',r:'RGC, art. 102.3'},
+ {id:'q191',l:'T9L2',q:'Circulas de noche por una calle en poblado que está poco iluminada. ¿Qué luces debes usar para iluminar la calzada?',o:['Las de cruce, junto con las de posición','Las largas, si vas a más de 40 km/h','Las de posición como único alumbrado'],c:0,e:'Dentro de poblado se emplea el alumbrado de cruce aunque la vía esté insuficientemente iluminada.',r:'RGC, arts. 99 y 101.1'},
+ {id:'q192',l:'T9L3',q:'¿En cuál de estos supuestos debes encender el antiniebla trasero?',o:['Al caer la tarde con buena visibilidad','Con niebla espesa','Siempre que llueva, aunque se vea bien'],c:1,e:'El antiniebla trasero debe usarse cuando las condiciones son especialmente desfavorables, como con niebla espesa.',r:'RGC, art. 106.2'},
+ {id:'q193',l:'T9L3',q:'Sin niebla ni lluvia, ¿en qué tramo permite el Reglamento usar el antiniebla delantero por el trazado?',o:['En cualquier carretera con un carril por sentido','En cualquier tramo con una sola curva señalizada','En una calzada de hasta 6,50 metros señalizada con curvas próximas entre sí'],c:2,e:'La excepción exige una calzada de 6,50 metros o menos de anchura y señalización de una sucesión de curvas próximas.',r:'RGC, art. 106.2'},
+ {id:'q194',l:'T9L3',q:'La lluvia intensa reduce sensiblemente la visibilidad. Llevas luces de posición y cruce y no se dan condiciones especialmente desfavorables. ¿Debes encender también el antiniebla delantero?',o:['No es obligatorio añadirlo si ya llevas el cruce','Sí, es obligatorio junto con el cruce en toda lluvia intensa','Sí, y debes apagar las luces de cruce'],c:0,e:'Con visibilidad sensiblemente reducida, el artículo 106 permite el alumbrado de cruce como alternativa al antiniebla delantero.',r:'RGC, arts. 99 y 106.2'},
+ {id:'q195',l:'T9L3',q:'Ya has salido de la niebla espesa y ahora tienes buena visibilidad. ¿Qué haces con el antiniebla trasero?',o:['Lo dejo encendido hasta terminar el viaje','Lo apago','Lo sustituyo por las luces de emergencia'],c:1,e:'El antiniebla trasero se reserva a condiciones especialmente desfavorables. Apágalo cuando dejen de darse.',r:'RGC, art. 106.2'},
+ {id:'q196',l:'T9L3',q:'Una avería irreparable en ruta te obliga a circular con un alumbrado de menor intensidad. ¿Cómo ajustas la velocidad?',o:['Mantengo el límite si nadie viene de frente','Circulo a la mínima genérica aunque ilumine poco','Reduzco hasta poder detenerme dentro de la zona iluminada'],c:2,e:'Debes adaptar la velocidad al tramo que todavía puedes iluminar y detenerte dentro de él.',r:'RGC, art. 107'},
+ {id:'q197',l:'T9L4',q:'Vas a desplazarte al carril de la izquierda. ¿Cómo indicas la maniobra con las luces del vehículo?',o:['Con el intermitente izquierdo antes de empezar','Con los dos intermitentes a la vez','Con el intermitente izquierdo después de entrar'],c:0,e:'El aviso debe indicar el lado del desplazamiento y hacerse con antelación.',r:'RGC, art. 109.1 y 109.2.a'},
+ {id:'q198',l:'T9L4',q:'Has terminado el desplazamiento lateral y ya sigues la nueva trayectoria. ¿Qué haces con el intermitente?',o:['Lo dejo encendido hasta superar el siguiente cruce','Dejo de señalizar el desplazamiento','Pongo el del lado contrario para indicar que acabé'],c:1,e:'La advertencia debe cesar cuando el vehículo adopta la nueva trayectoria.',r:'RGC, art. 109.2.a'},
+ {id:'q199',l:'T9L4',q:'¿Qué señal usas para advertir la marcha atrás en un vehículo que dispone de la luz correspondiente?',o:['Intermitente del lado hacia el que giran las ruedas','Luces de emergencia','Luz de marcha atrás'],c:2,e:'Cuando existe luz de marcha atrás, es la señal prevista para advertir la maniobra.',r:'RGC, art. 109.2.b'},
+ {id:'q200',l:'T9L4',q:'Si vas a reducir considerablemente la velocidad y puedes avisar con antelación, ¿qué luces puedes emplear para advertirlo?',o:['Las de frenado, de forma reiterada','Las de largo alcance, fijas','El intermitente izquierdo'],c:0,e:'El Reglamento prevé el empleo reiterado de las luces de frenado para advertir esa reducción, siempre que sea posible.',r:'RGC, arts. 53 y 109.2.c'},
+ {id:'q201',l:'T9L4',q:'En poblado y sin peligro de accidente, ¿puedes tocar el claxon solo para anunciar que vas a adelantar?',o:['Sí, si el toque es breve','No, el aviso acústico de adelantamiento se contempla fuera de poblado','Sí, si el vehículo de delante es grande'],c:1,e:'El claxon para anunciar un adelantamiento está previsto fuera de poblado. Evitar un accidente es un supuesto distinto.',r:'RGC, art. 110.2'},
+ {id:'q202',l:'T9L5',q:'Tu turismo, matriculado en España, se avería y queda inmovilizado en la calzada. ¿Qué dispositivo reglamentario de preseñalización debes usar en 2026?',o:['Los triángulos de emergencia','Una baliza sin conexión','Una V-16 conectada y certificada'],c:2,e:'Para un turismo matriculado en España, desde el 1 de enero de 2026 el dispositivo válido es la V-16 conectada y certificada.',r:'RGC, art. 130.4. Reglamento General de Vehículos, anexos XI y XII'},
+ {id:'q203',l:'T9L5',q:'¿Dónde colocas la baliza V-16 para advertir de que el turismo está inmovilizado?',o:['En la parte exterior más alta posible, procurando la máxima visibilidad y sin exponerte al tráfico','En el salpicadero aunque quede oculta','En el suelo detrás del vehículo'],c:0,e:'La parte más alta posible permite que la baliza se vea mejor. Colócala en el exterior desde un punto seguro.',r:'Reglamento General de Vehículos, anexo XI, V-16'},
+ {id:'q204',l:'T9L5',q:'¿Es obligatorio que una motocicleta lleve la baliza V-16 como parte de su dotación?',o:['Sí, en los mismos términos que un turismo','No. La DGT aconseja llevarla y utilizarla','Solo si la motocicleta supera los 125 cm³'],c:1,e:'Las motocicletas no tienen obligación de llevar la V-16 como dotación. La DGT aconseja su uso para señalizar incidencias.',r:'Reglamento General de Vehículos, anexo XII. DGT, preguntas sobre la V-16'},
+ {id:'q205',l:'T9L5',q:'Te has quedado inmovilizado y no puedes salir con seguridad por el tráfico. ¿Qué deben hacer los ocupantes?',o:['Bajarse por el lado del tráfico y caminar por el arcén','Bajarse y esperar de pie junto al coche','Permanecer dentro con el cinturón abrochado'],c:2,e:'Si las condiciones no permiten salir sin riesgo, permanece en el habitáculo con el cinturón abrochado.',r:'RGC, art. 130.3'},
+ {id:'q206',l:'T9L5',q:'Tras un accidente has activado la V-16 y necesitas asistencia sanitaria urgente. ¿Qué debes hacer?',o:['Llamar al 112: la baliza no solicita asistencia sanitaria','Esperar a que la baliza pida una ambulancia','Reiniciar la baliza para que llame al 112'],c:0,e:'La V-16 hace visible el peligro y transmite la ubicación. Para solicitar ayuda urgente debes llamar al 112.',r:'Reglamento General de Vehículos, anexo XI, V-16. DGT, preguntas sobre la V-16'},
+ {id:'q207',l:'T9L6',q:'¿Puede un vehículo prioritario en servicio urgente usar solo la señal luminosa especial?',o:['No, debe usar la sirena en todos los casos','Sí, si prescindir de la sirena no entraña peligro para los demás','Solo si está parado'],c:1,e:'El Reglamento permite usar la señal luminosa sola cuando omitir la acústica especial no supone peligro.',r:'RGC, art. 68.2'},
+ {id:'q208',l:'T9L6',q:'¿Dónde debe ir la placa L de conductor novel en un turismo?',o:['Delante, en el lado izquierdo','Detrás, en el lado derecho','Detrás, en el lado izquierdo y visible'],c:2,e:'La placa V-13 en un turismo se coloca en un lugar visible de la parte posterior izquierda.',r:'Reglamento General de Vehículos, anexo XI, V-13'},
+ {id:'q209',l:'T9L6',q:'Acabas de obtener tu primer permiso y el cómputo del plazo no se interrumpe. ¿Durante cuánto tiempo se exige la L cuando conduces?',o:['Un año','Dos años','Seis meses'],c:0,e:'La señal V-13 se lleva durante el primer año cuando se obtiene un permiso por primera vez, salvo las situaciones previstas por el Reglamento.',r:'Reglamento General de Vehículos, anexo XI, V-13'},
+ {id:'q210',l:'T9L6',q:'Una carga sobresale por detrás en un caso en que debes señalizarla con la V-20. ¿Dónde va el panel?',o:['Dentro de la luneta trasera','En el extremo posterior de la carga y perpendicular al eje del vehículo','En la parte delantera del vehículo'],c:1,e:'La V-20 se coloca en el extremo que sobresale por detrás, perpendicular al eje del vehículo.',r:'RGC, art. 15.6'},
+ {id:'q211',l:'T9L6',q:'La carga sobresale por detrás a lo largo de toda la anchura del vehículo. ¿Cómo dispones las V-20?',o:['Un panel en el centro de la carga','Dos paneles juntos en el lado izquierdo','Dos paneles, uno en cada extremo, formando con sus franjas una V invertida'],c:2,e:'Cuando el saliente ocupa toda la anchura posterior, el Reglamento exige un panel en cada extremo con las franjas en V invertida.',r:'RGC, art. 15.6'}
+];
+
+/* ================= Tema 10: autopistas, autovías y túneles ================= */
+const HIGHWAY_LESSONS=[
+ {id:'T10L1',t:'Autopista o autovía: accesos y usuarios',min:5,
+  key:'Las dos tienen calzadas separadas y carecen de cruces a nivel. Las condiciones de acceso y circulación no son idénticas.',
+  body:`<p>La <b>autopista</b> carece de acceso desde las propiedades colindantes y está concebida para uso exclusivo de automóviles. En la <b>autovía</b> el acceso desde esas propiedades es limitado. En ambas, cada sentido discurre por una calzada diferenciada, salvo las separaciones excepcionales que admite la definición legal.</p>
+  <p>Como regla general, se prohíbe circular por ambas con bicicletas, ciclomotores, vehículos de tracción animal, vehículos de movilidad personal y vehículos para personas con movilidad reducida. Los peatones tampoco pueden circular por ellas, salvo los supuestos de emergencia que regula el Reglamento.</p>
+  <p>Quienes tienen <b>más de 14 años</b> y conducen una bicicleta pueden circular por el <b>arcén de una autovía</b> si la señalización no lo prohíbe. Si se prohíbe, un panel indica el itinerario alternativo. Esta excepción no permite circular en bicicleta por una autopista.</p>`,
+  tip:'Recuerda la excepción de la bicicleta con tres datos: edad, arcén y autovía.',
+  errs:['Confundir una motocicleta con un ciclomotor a efectos de acceso.','Aplicar a una autopista la excepción para bicicletas de una autovía.'],
+  ref:'RGC, arts. 38 y 125. Ley de Tráfico, anexo I, puntos 66 y 67',source:'#a38'},
+ {id:'T10L2',t:'Incorporación, carriles y salidas',min:6,
+  key:'Quien se incorpora cede el paso. Circula normalmente por la derecha fuera de poblado y prepara la salida con tiempo.',
+  body:`<p>En un carril de aceleración, comprueba desde el principio si te puedes incorporar sin peligro y detente ahí si hace falta. Luego adapta la velocidad para incorporarte al final, señalizando y cediendo a quienes ya circulan. Los demás deben facilitar la maniobra si pueden hacerlo con seguridad.</p>
+  <p>Fuera de poblado, circula normalmente por el carril más a la derecha de tu sentido. Usa los demás cuando la situación lo aconseje y sin entorpecer a quienes te siguen. Durante los desplazamientos laterales, respeta a quienes ya ocupan el carril al que quieres pasar.</p>
+  <p>Para salir, colócate con tiempo en el carril más próximo a la salida y entra lo antes posible en el carril de deceleración si lo hay. Si te pasas la salida, sigue hasta la siguiente que te sirva. La marcha atrás está prohibida. El cambio de sentido solo se permite en lugares habilitados.</p>`,
+  tip:'Prepara el cambio de carril antes de llegar al desvío.',
+  errs:['Suponer que el intermitente te da prioridad al entrar.','Retroceder por el arcén tras pasar de largo una salida.'],
+  ref:'RGC, arts. 31, 72 a 74, 77, 79 y 80',source:'#a72'},
+ {id:'T10L3',t:'Retenciones, nieve y carril de emergencia',min:7,ill:'emergencyLane',
+  key:'Cuando una retención deja a los vehículos parados o a paso de peatón, deja el hueco por el que puedan pasar los vehículos prioritarios.',
+  body:`<p>Con <b>dos carriles</b> en tu sentido, el hueco queda entre ambos. Con <b>tres o más</b>, se forma entre el de más a la izquierda y el inmediatamente contiguo. Quienes van por el carril izquierdo se orillan a la izquierda; el resto, a la derecha.</p>
+  <p>Si la nieve dificulta la circulación, no adelantes. Usa el carril derecho. Cuando haya tres o más carriles por sentido, también puedes utilizar el contiguo al derecho. Deja libres los demás carriles de la izquierda para los vehículos de emergencia y quitanieves.</p>
+  <p>Fuera de poblado, el máximo genérico de turismos y motocicletas en estas vías es 120 km/h. El mínimo general para vehículos a motor es 60 km/h, con excepciones cuando no sea seguro mantenerlo. Respeta cualquier límite aplicable y ajusta tu velocidad a la visibilidad y al tráfico. Una retención puede obligarte a ir mucho más despacio.</p>`,
+  tip:'En retención, identifica primero el carril del extremo izquierdo y su vecino.',
+  errs:['Abrir el hueco entre los dos carriles de la derecha cuando hay tres.','Tomar los 60 km/h como una obligación incluso cuando hay retención.'],
+  ref:'RGC, arts. 32, 45, 48 y 49',source:'#a32'},
+ {id:'T10L4',t:'Averías e inmovilización en vía rápida',min:6,
+  key:'Si puedes continuar con seguridad, abandona los carriles de circulación. Si tienes que detenerte, señaliza y decide si se puede salir del vehículo con seguridad.',
+  body:`<p>Si una emergencia te obliga a circular a velocidad anormalmente reducida en autopista o autovía, abandónala por la <b>primera salida</b>. Tras una avería o accidente, si puedes circular con seguridad pero necesitas auxilio, sal de los carriles de circulación cuanto antes y dirígete hacia la primera salida disponible por el arcén derecho. Si no es posible, detente en el arcén derecho o donde menos estorbes.</p>
+  <p>En caso de inmovilización, activa las luces de emergencia si el vehículo dispone de ellas, añade posición y gálibo si procede y emplea el dispositivo reglamentario de preseñalización. Para un turismo matriculado en España, se usa la baliza <b>V-16 conectada y certificada</b> desde el 1 de enero de 2026.</p>
+  <p>Si existe un lugar seguro fuera de la calzada y el arcén y puedes alcanzarlo, sal por el lado contrario al tráfico. No permanezcas en los carriles ni en el arcén. Si no puedes salir con seguridad, quédate dentro con el cinturón abrochado. Solicita el auxilio que corresponda.</p>`,
+  tip:'Valora primero si es posible continuar con seguridad y después si es seguro abandonar el habitáculo.',
+  errs:['Seguir por el carril normal a velocidad anormalmente reducida cuando puedes tomar la primera salida.','Esperar de pie en el arcén junto al vehículo averiado.'],
+  ref:'RGC, arts. 38.2, 49.3 y 130. Reglamento General de Vehículos, anexos XI y XII',source:'#a130'},
+ {id:'T10L5',t:'Entrada y circulación por túneles',min:6,
+  key:'Obedece el semáforo de entrada, enciende el alumbrado que corresponda y aumenta el margen con quien va delante.',
+  body:`<p>Si el semáforo de la boca no permite el paso, el conductor particular debe esperar fuera. Dentro sigue los semáforos, paneles y avisos por megafonía. Usa el alumbrado correspondiente también de día. En un túnel suficientemente iluminado, un turismo lleva posición y cruce.</p>
+  <p>Si no vas a adelantar, deja al menos <b>100 metros o cuatro segundos</b> respecto al vehículo de delante. Si la masa máxima autorizada de tu vehículo supera 3.500 kg, el mínimo es <b>150 metros o seis segundos</b>.</p>
+  <p>En túneles y pasos inferiores no puedes parar ni estacionar voluntariamente, cambiar de sentido ni dar marcha atrás. Si hay un solo carril en tu sentido, tampoco puedes adelantar. Si hay varios, el adelantamiento solo se hace sin invadir el sentido contrario y si lo permiten las demás reglas.</p>`,
+  tip:'Al entrar, comprueba la señal, las luces y la separación.',
+  errs:['Confiar en las luces diurnas al entrar en un túnel iluminado.','Aprovechar que no viene nadie para adelantar por el sentido contrario.'],
+  ref:'RGC, arts. 79, 87, 94 a 96 y 98 a 102',source:'#a95'},
+ {id:'T10L6',t:'Retención, avería e incendio en un túnel',min:7,
+  key:'Dentro de un túnel actúa según la causa: si solo hay una retención, permanece en el vehículo; ante una emergencia, sigue las señales y el procedimiento correspondiente.',
+  body:`<p>Si quedas inmovilizado por el tráfico, permanece dentro, enciende brevemente las luces de emergencia para avisar a quienes se acercan, deja las de posición encendidas, apaga el motor y guarda toda la distancia posible con el vehículo precedente.</p>
+  <p>Si hay una avería y el vehículo aún puede avanzar, continúa hasta la salida o, si no es posible, hasta una zona de emergencia. Si queda inmovilizado por emergencia, apaga el motor, conecta las luces de emergencia y mantén las de posición. Si puedes moverlo, sitúalo en la zona de emergencia más próxima en tu sentido o junto al borde derecho si no la hay. Activa el dispositivo reglamentario de preseñalización y solicita auxilio en el poste SOS próximo si existe. Dirígete con los demás ocupantes al refugio o salida más próximos. Usa las zonas excluidas del tráfico si existen.</p>
+  <p>En caso de incendio, aproxima el vehículo a la derecha en lo posible, para dejar paso a los equipos de emergencia. Apaga el motor, deja la llave puesta y las puertas abiertas. Sal con los demás ocupantes y dirígete a un refugio o salida en sentido contrario al fuego. Usa las zonas fuera de la calzada cuando existan y sigue las instrucciones del túnel.</p>`,
+  tip:'Identifica la causa antes de decidir si debes quedarte dentro o dirigirte a un refugio.',
+  errs:['Bajarte del vehículo para ver qué pasa durante un atasco.','Intentar salir dando marcha atrás o cambiando de sentido.'],
+  ref:'RGC, arts. 95.7 y 97.3',source:'#a97'}
+];
+
+const HIGHWAY_QUESTIONS=[
+ {id:'q212',l:'T10L1',q:'Según la definición legal, ¿qué diferencia hay entre autopista y autovía respecto a las propiedades colindantes?',o:['La autopista no admite acceso desde ellas y en la autovía es limitado','La autovía siempre tiene accesos directos sin límite','Las dos admiten los mismos accesos desde las fincas'],c:0,e:'La autopista no tiene acceso desde propiedades colindantes. La definición de autovía establece un acceso limitado.',r:'Ley de Tráfico, anexo I, puntos 66 y 67'},
+ {id:'q213',l:'T10L1',q:'¿Puede un ciclomotor circular por el arcén de una autovía?',o:['Sí, si su conductor tiene más de 14 años','No, la excepción del arcén de autovía se refiere a bicicletas','Sí, si lleva encendida la luz de cruce'],c:1,e:'Los ciclomotores tienen prohibido circular por autopistas y autovías. La excepción se refiere a bicicletas en autovías.',r:'RGC, art. 38.1'},
+ {id:'q214',l:'T10L1',q:'Una persona adulta va en bicicleta por el arcén de una autovía. No hay señal que lo prohíba. ¿Está permitido?',o:['No, la excepción solo se aplica a autopistas','Solo si la bicicleta lleva motor eléctrico','Sí, puede circular por el arcén en esas condiciones'],c:2,e:'Las personas mayores de 14 años pueden circular en bicicleta por el arcén de una autovía salvo prohibición señalizada.',r:'RGC, art. 38.1'},
+ {id:'q215',l:'T10L1',q:'¿Puede una persona en bicicleta circular por el arcén de una autopista aplicando la excepción de las autovías?',o:['No, esa excepción solo se aplica a autovías','Sí, si tiene más de 14 años','Sí, si no hay una señal que lo prohíba'],c:0,e:'La excepción de circulación en bicicleta se limita a los arcenes de autovías.',r:'RGC, art. 38.1'},
+ {id:'q216',l:'T10L1',q:'¿Puede un patinete eléctrico clasificado como vehículo de movilidad personal circular por una autovía?',o:['Sí, por el arcén si no hay otra vía','No, los vehículos de movilidad personal tienen prohibido el acceso','Sí, si su conductor es mayor de edad'],c:1,e:'Los vehículos de movilidad personal no pueden circular por autopistas ni autovías.',r:'RGC, art. 38.4.a'},
+ {id:'q217',l:'T10L2',q:'Vas a incorporarte a una autovía por el carril de aceleración. ¿Cuándo haces la primera comprobación del tráfico?',o:['Únicamente al final, después de acelerar','Cuando tus ruedas ya estén en la calzada principal','Al principio del carril, deteniéndote allí si hace falta'],c:2,e:'Comprueba al principio si puedes incorporarte sin peligro. Si es necesario, detente y después adapta la velocidad para incorporarte.',r:'RGC, art. 72.4'},
+ {id:'q218',l:'T10L2',q:'Un vehículo se aproxima por la calzada de la autovía mientras tú vas a incorporarte por el carril de aceleración. ¿Quién debe ceder el paso?',o:['Tú, que te incorporas','El que ya circula por la autovía','Quien circule a menor velocidad'],c:0,e:'Quien se incorpora debe ceder a quienes ya circulan. Los demás le facilitarán la maniobra cuando puedan hacerlo.',r:'RGC, arts. 72 y 73'},
+ {id:'q219',l:'T10L2',q:'Circulas con un turismo por una autopista fuera de poblado y la calzada está despejada. ¿Qué carril usas normalmente?',o:['El central para evitar las incorporaciones','El situado más a la derecha de tu sentido','El izquierdo si circulas al límite'],c:1,e:'Fuera de poblado se circula normalmente por el carril derecho. Se pueden usar los demás cuando las circunstancias lo aconsejen, sin entorpecer.',r:'RGC, art. 31.1'},
+ {id:'q220',l:'T10L2',q:'Se acerca tu salida de la autopista y dispone de carril de deceleración. ¿Qué haces?',o:['Mantengo mi carril hasta el desvío y luego cruzo hacia la salida','Espero a estar al final del carril de deceleración para entrar','Me coloco con antelación en el carril próximo a la salida y entro cuanto antes en el de deceleración'],c:2,e:'La salida se prepara circulando con tiempo por el carril más próximo y entrando lo antes posible en el carril de deceleración.',r:'RGC, art. 77'},
+ {id:'q221',l:'T10L2',q:'Has rebasado tu salida en la autovía. ¿Puedes retroceder por el arcén para tomarla?',o:['No, sigue hacia otra salida','Sí, si no recorres más de 15 metros','Sí, si usas las luces de emergencia'],c:0,e:'La marcha atrás está prohibida en autopistas y autovías. El límite de 15 metros en otras maniobras no crea una excepción aquí.',r:'RGC, art. 80.2 y 80.3'},
+ {id:'q222',l:'T10L3',q:'En una retención en una autovía con dos carriles en tu sentido avanzáis a paso de peatón. ¿Dónde dejas el paso para vehículos prioritarios?',o:['Solo en el arcén derecho','Entre los dos carriles','Entre la mediana y el carril izquierdo'],c:1,e:'Con dos carriles por sentido, el carril de emergencia se forma entre ambos.',r:'RGC, art. 32.1'},
+ {id:'q223',l:'T10L3',q:'En una autopista con tres carriles en tu sentido, el tráfico está detenido por una retención. ¿Entre qué carriles se forma el paso de emergencia?',o:['Entre el central y el derecho','Entre el derecho y el arcén','Entre el izquierdo y el central'],c:2,e:'Con tres o más carriles, el paso queda entre el situado más a la izquierda y el contiguo a él.',r:'RGC, art. 32.1'},
+ {id:'q224',l:'T10L3',q:'En una retención con cuatro carriles en tu sentido, estás en el segundo empezando por la izquierda. ¿Hacia qué lado te orillas para formar el paso de emergencia?',o:['Hacia la derecha','Hacia la izquierda junto a quienes van por el carril izquierdo','Hacia el centro del carril sin apartarme'],c:0,e:'Solo el carril situado más a la izquierda se orilla a la izquierda. Los demás se orillan a la derecha.',r:'RGC, art. 32.1'},
+ {id:'q225',l:'T10L3',q:'En un tramo de autopista de dos carriles en tu sentido, la nieve dificulta la circulación. ¿Puedes adelantar por la izquierda si no hay tráfico allí?',o:['Sí, si el adelantamiento es breve','No, debes circular por el carril derecho y dejar libre el izquierdo','Sí, si el vehículo precedente va despacio'],c:1,e:'Cuando la nieve dificulta la circulación, se prohíbe adelantar y, con dos carriles, se ocupa el derecho.',r:'RGC, art. 32.2'},
+ {id:'q226',l:'T10L3',q:'Una retención te obliga a ir a menos de 60 km/h en la autovía para evitar un alcance. ¿Es compatible con la regla de velocidad mínima?',o:['No, debes mantener siempre al menos 60 km/h','Solo si el vehículo lleva un remolque','Sí, cuando mantener la mínima no es seguro por el tráfico'],c:2,e:'Se puede circular por debajo de la mínima cuando las circunstancias del tráfico impiden mantenerla sin riesgo.',r:'RGC, art. 49.1 y 49.2'},
+ {id:'q227',l:'T10L4',q:'Una emergencia te obliga a circular a velocidad anormalmente reducida por una autopista. Puedes seguir con seguridad. ¿Cuándo debes abandonarla?',o:['Por la primera salida','Por la salida que tenías prevista, aunque esté más lejos','Cuando se acabe el arcén'],c:0,e:'La emergencia que obliga a circular a velocidad anormalmente reducida exige tomar la primera salida.',r:'RGC, art. 38.2'},
+ {id:'q228',l:'T10L4',q:'Tras una avería en autopista necesitas una grúa, pero el coche aún puede circular con seguridad y el arcén derecho es utilizable. ¿Qué debes hacer?',o:['Seguir por el carril normal hasta la salida que tenías prevista','Abandonar los carriles de circulación cuanto antes y dirigirte a la primera salida disponible por el arcén derecho','Detenerte en el carril normal para que la grúa te localice'],c:1,e:'Si puedes continuar con seguridad y necesitas auxilio, dirígete por el arcén derecho a la primera salida disponible y deja libres los carriles.',r:'RGC, art. 130.2'},
+ {id:'q229',l:'T10L4',q:'Un turismo matriculado en España queda averiado en la calzada. Además de encender las luces que procedan, ¿qué dispositivo se usa en 2026 para advertir del peligro?',o:['Los triángulos como dispositivo habitual','Una baliza V-16 sin conexión','Una baliza V-16 conectada y certificada'],c:2,e:'Desde el 1 de enero de 2026 se usa una V-16 conectada y certificada para un turismo matriculado en España.',r:'RGC, art. 130.4. Reglamento General de Vehículos, anexos XI y XII'},
+ {id:'q230',l:'T10L4',q:'El coche queda inmovilizado y podéis llegar con seguridad a un lugar fuera de la calzada y el arcén. ¿Por qué lado debéis salir?',o:['Por el lado contrario al flujo de tráfico','Por el lado más cercano a los vehículos que circulan','Por cualquiera, para esperar en el arcén'],c:0,e:'Si hay un lugar seguro fuera de la plataforma y es seguro salir, se abandona el vehículo por el lado contrario al tráfico.',r:'RGC, art. 130.3'},
+ {id:'q231',l:'T10L4',q:'El coche se ha averiado y el tráfico impide que los ocupantes salgan sin riesgo. ¿Qué deben hacer?',o:['Esperar en el arcén al lado de la puerta','Permanecer dentro con los cinturones abrochados','Caminar hacia la salida por el carril menos ocupado'],c:1,e:'Si las condiciones impiden abandonar con seguridad el vehículo, los ocupantes permanecen dentro con el cinturón abrochado.',r:'RGC, art. 130.3'},
+ {id:'q232',l:'T10L5',q:'Conduces un turismo y el semáforo de la boca del túnel está rojo. ¿Puedes entrar si no ves a nadie dentro?',o:['Sí, si el trayecto parece despejado','Sí, si enciendes las luces de cruce','No, debes esperar a que el semáforo permita el paso'],c:2,e:'El semáforo que impide el paso en la boca de un túnel no puede rebasarse en un turismo particular.',r:'RGC, art. 96.3'},
+ {id:'q233',l:'T10L5',q:'Al mediodía entras con un turismo en un túnel suficientemente iluminado. ¿Qué luces corresponden?',o:['Posición y cruce','Solo las luces diurnas','Solo las luces de posición'],c:0,e:'En un túnel suficientemente iluminado se utilizan posición y cruce, incluso de día.',r:'RGC, arts. 98, 99 y 101.1'},
+ {id:'q234',l:'T10L5',q:'Circulas con un turismo por un túnel detrás de otro vehículo y no vas a adelantar. ¿Qué separación mínima se exige?',o:['50 metros o dos segundos','100 metros o cuatro segundos','150 metros o seis segundos'],c:1,e:'Cuando no se pretende adelantar, para un turismo se exigen al menos 100 metros o un intervalo de cuatro segundos.',r:'RGC, art. 95.6'},
+ {id:'q235',l:'T10L5',q:'Circulas por un túnel con un vehículo de más de 3.500 kg de masa máxima autorizada y no pretendes adelantar. ¿Qué distancia o intervalo mínimo guardas?',o:['100 metros o cuatro segundos','50 metros o dos segundos','150 metros o seis segundos'],c:2,e:'Para vehículos de más de 3.500 kg de masa máxima autorizada, el mínimo es de 150 metros o seis segundos.',r:'RGC, art. 95.6'},
+ {id:'q236',l:'T10L5',q:'En un túnel de doble sentido hay dos carriles para tu sentido. Si es seguro y las señales lo permiten, ¿cómo puedes adelantar?',o:['Usando otro carril de tu sentido sin invadir el contrario','Usando la parte de sentido contrario si no viene nadie','En un túnel siempre está prohibido adelantar, sea cual sea el número de carriles'],c:0,e:'Con más de un carril en tu sentido, la excepción permite adelantar sin invadir el sentido contrario y respetando el resto de las reglas.',r:'RGC, arts. 87.1.d y 95.6'},
+ {id:'q237',l:'T10L6',q:'El tráfico se detiene dentro del túnel y no hay avería ni incendio. ¿Qué debes hacer?',o:['Salir del coche y dirigirte al refugio','Permanecer dentro, avisar temporalmente con las luces de emergencia, mantener las de posición y apagar el motor','Dejar el motor encendido y apagar todas las luces'],c:1,e:'Por necesidades de la circulación, los ocupantes permanecen dentro. La señal de emergencia se usa temporalmente, se mantienen las luces de posición y se apaga el motor.',r:'RGC, art. 97.3'},
+ {id:'q238',l:'T10L6',q:'Aparece una avería dentro del túnel, pero el coche permite seguir con seguridad. ¿Hasta dónde debes continuar?',o:['Hasta el primer hueco aunque no sea de emergencia','Hasta el centro del túnel, donde será más visible','Hasta la salida o, si no puedes llegar, hasta una zona reservada para emergencias'],c:2,e:'Cuando una avería permite avanzar, se continúa hasta la salida. Si no es posible, se busca una zona reservada para emergencias.',r:'RGC, art. 97.3.f'},
+ {id:'q239',l:'T10L6',q:'Tu vehículo queda inmovilizado por una emergencia en un túnel y hay un poste SOS accesible. ¿Cómo solicita auxilio el conductor según el Reglamento?',o:['A través del poste SOS más próximo y siguiendo las instrucciones que reciba','Esperando señales de otro conductor antes de avisar','Saliendo del túnel marcha atrás para buscar cobertura'],c:0,e:'El Reglamento indica solicitar auxilio sin demora por el poste SOS más próximo, si existe.',r:'RGC, art. 97.3.d'},
+ {id:'q240',l:'T10L6',q:'Hay un incendio en el túnel y debéis abandonar el vehículo. ¿Hacia dónde os dirigís?',o:['En el sentido del humo para seguir el tráfico','Al refugio o salida más próximos en sentido contrario al fuego','Al carril central para que os vean los equipos de emergencia'],c:1,e:'En caso de incendio, los ocupantes se dirigen al refugio o salida en sentido contrario al fuego y evitan la calzada si existe una zona excluida del tráfico.',r:'RGC, art. 97.3'},
+ {id:'q241',l:'T10L6',q:'Por emergencia debes dejar el vehículo inmovilizado en el túnel. Ya está junto al borde derecho y puedes señalizar con seguridad. ¿Qué medidas indica el Reglamento?',o:['Apagar todas las luces y seguir sentado hasta que avance el tráfico','Mantener el motor encendido para que funcione el alumbrado','Apagar el motor, encender las luces de emergencia, mantener las de posición y activar el dispositivo de preseñalización'],c:2,e:'Estas medidas permiten advertir del peligro antes de solicitar auxilio y dirigirse a un refugio o salida.',r:'RGC, art. 97.3.a a 97.3.e'}
+];
+
 const TOPIC_CONTENT={
  '3':{desc:'Aprende a interpretar las señales, las órdenes de los agentes, los semáforos y las marcas de la calzada.',lessons:SIGN_LESSONS,questions:SIGN_QUESTIONS,sims:[]},
  '4':{desc:'Aprende los límites de velocidad, cuándo reducir la marcha y qué distancia dejar para detenerte con seguridad.',lessons:SPEED_LESSONS,questions:SPEED_QUESTIONS,sims:[]},
  '5':{desc:'Quién pasa primero en cruces, glorietas y estrechamientos, y cuándo ceder a peatones, ciclistas y emergencias.',lessons:PRIORITY_LESSONS,questions:PRIORITY_QUESTIONS,sims:['cruces','glorietas']},
  '6':{desc:'Practica cómo entrar y salir de una vía, cambiar de carril, girar, dar media vuelta y retroceder con seguridad.',lessons:MANEUVER_LESSONS,questions:MANEUVER_QUESTIONS,sims:[]},
  '7':{desc:'Aprende cuándo y cómo adelantar, cómo proteger a los usuarios vulnerables y en qué casos puedes rebasar un obstáculo.',lessons:OVERTAKING_LESSONS,questions:OVERTAKING_QUESTIONS,sims:[]},
- '8':{desc:'Distingue la detención, la parada y el estacionamiento, y practica dónde y cómo dejar el vehículo.',lessons:PARKING_LESSONS,questions:PARKING_QUESTIONS,sims:[]}
+ '8':{desc:'Distingue la detención, la parada y el estacionamiento, y practica dónde y cómo dejar el vehículo.',lessons:PARKING_LESSONS,questions:PARKING_QUESTIONS,sims:[]},
+ '9':{desc:'Practica cuándo usar las luces, cómo avisar de una maniobra y cómo señalizar una avería o una carga que sobresale.',lessons:LIGHTING_LESSONS,questions:LIGHTING_QUESTIONS,sims:[]},
+ '10':{desc:'Practica cómo circular por vías rápidas, abrir paso a vehículos prioritarios y actuar ante una avería o un incendio en un túnel.',lessons:HIGHWAY_LESSONS,questions:HIGHWAY_QUESTIONS,sims:[]}
 };
 const TOPICS=[...COMUN,...MOTO].map(([id,name])=>({id,name,...TOPIC_CONTENT[id]}));
 const TOPIC_BY_ID=Object.fromEntries(TOPICS.map(topic=>[topic.id,topic]));
@@ -1449,7 +1645,7 @@ const VIEWS={
    ${ACTIVE_TOPICS.map(topic=>item({go:'quiz',mode:'tema',id:topic.id,icon:'pen',t:`Test del tema ${topic.id}`,s:esc(topic.name)})).join('')}
    ${item({go:'guardadas',icon:'bookmark',t:'Preguntas guardadas',s:savedCount?`${savedCount} ${savedCount===1?'pregunta':'preguntas'} para practicar`:'Guarda preguntas durante un test'})}
    ${item({go:'quiz',mode:'fallos',icon:'redo',tone:'peach',t:'Test de fallos',s:pending.length?'Practica tus fallos cuando quieras':'Aún no tienes fallos',disabled:!pending.length})}</div>
-   <div class="section-title">Simuladores de conducción</div><div class="list">${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>
+   <div class="section-title">Simuladores de conducción</div><div class="list">${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:'Cruce jugable con STOP y visibilidad reducida'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>
    <p class="note">Más tipos de ejercicios y simuladores llegarán con el resto del temario.</p>`;
  },
  guardadas(view){
@@ -1544,7 +1740,7 @@ const VIEWS={
   <details class="card progress-details test-history"><summary>Historial de tests</summary>
    ${historyRows.length?`<ol class="list" role="list">${historyRows.join('')}</ol>`:'<p class="small muted">Aquí aparecerán los tests y repasos que termines.</p>'}
   </details>
-  <div class="section-title">Simuladores</div><div class="list">${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
+  <div class="section-title">Simuladores</div><div class="list">${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:S.sims['urbano-stop']?`Mejor ${S.sims['urbano-stop'].best}/4 · último ${S.sims['urbano-stop'].last}/4`:'Sin hacer'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
   <div class="section-title">Ajustes</div>
   <div class="card"><label for="nm2"><b>Nombre</b></label><input type="text" id="nm2" maxlength="24" value="${esc(S.profile.name||'')}">
    <b>Permiso</b><div class="choice" id="objs2">${Object.entries(OBJ).map(([k,l])=>`<button type="button" class="btn ghost ${k===S.profile.obj?'sel':''}" data-obj="${k}">${l}</button>`).join('')}</div></div>
@@ -1621,6 +1817,7 @@ const VIEWS={
   document.getElementById('delNo').onclick=()=>{document.getElementById('delConf').hidden=true;};
   document.getElementById('delYes').onclick=()=>{const p=S.profile;S={profile:p,q:{},lessons:{},sims:{},tests:[],days:[]};save();render();};
  },
+ conducir(){header('Conducción urbana');runUrbanStop();},
  sim(v){const set=SIMS[v.id];header(set.name);runSim(v.id,set);}
 };
 
@@ -1879,6 +2076,226 @@ function runSim(simId,set){
     document.getElementById('again').onclick=()=>{animToken++;runSim(simId,set);};
   }
   load();
+}
+
+/* ================= Conducción urbana ================= */
+const URBAN_STOP=[
+  {prompt:'Te acercas a un STOP. La furgoneta aparcada te tapa la vista del cruce.',
+   good:'Frenar en la línea',bad:'Avanzar sin parar',error:'El STOP exige una detención completa antes de la línea, aunque no veas tráfico.',
+   result:'Primera parada hecha. Desde aquí aún no ves bien la calle transversal.',car:332,traffic:-34,duration:690},
+  {prompt:'Estás detenido antes de la línea. Todavía no tienes visibilidad suficiente.',
+   good:'Avanzar despacio y parar',bad:'Cruzar de una vez',error:'Asómate despacio y vuelve a detenerte donde puedas ver, sin invadir la trayectoria de otros vehículos.',
+   result:'Segunda parada hecha. Ya puedes ver el coche naranja que viene por la izquierda.',car:249,traffic:90,duration:1080},
+  {prompt:'Ya ves la calle transversal. El coche naranja se acerca y tiene preferencia.',
+   good:'Esperar a que pase',bad:'Cruzar ahora',error:'Si cruzas ahora obligarías al otro vehículo a frenar o desviarse. Mantente detenido y cédele el paso.',
+   result:'Has cedido el paso. El coche naranja ya ha pasado y la calle queda libre.',car:249,traffic:438,duration:1300},
+  {prompt:'Has mirado en ambos sentidos. No se aproxima ningún otro vehículo.',
+   good:'Cruzar con precaución',bad:'Esperar a que cambie el STOP',error:'El STOP no cambia como un semáforo. Tras detenerte y ceder, puedes cruzar si la vía está libre.',
+   result:'Has cruzado con seguridad.',car:62,traffic:438,duration:1070}
+];
+
+function urbanStopPainter(canvas){
+  const ctx=canvas.getContext('2d');
+  if(!ctx)return null;
+  const scale=canvas.width/400;
+  const rect=(x,y,w,h,color)=>{ctx.fillStyle=color;ctx.fillRect(x,y,w,h);};
+  const shape=(points,color)=>{
+    ctx.beginPath();
+    points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.closePath();ctx.fillStyle=color;ctx.fill();
+  };
+  const rounded=(x,y,w,h,r,color)=>{
+    ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=color;ctx.fill();
+  };
+  const disk=(x,y,r,color)=>{
+    ctx.beginPath();ctx.arc(x,y,r,0,2*Math.PI);ctx.fillStyle=color;ctx.fill();
+  };
+  const label=(value,x,y,size,color)=>{
+    ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font='700 '+size+'px system-ui,sans-serif';ctx.fillText(value,x,y);
+  };
+  function building(x,y,w,h,roof){
+    shape([[x,y+h],[x+w,y+h],[x+w+19,y+h+18],[x+19,y+h+18]],'#544b4640');
+    rect(x,y,w,h,'#986e59');
+    rect(x+5,y+4,w,h,'#6d5348');
+    for(let n=x+12;n<x+w-8;n+=18)rect(n,y+h-1,10,8,'#c2d2d2');
+    rounded(x-4,y-13,w+8,h+10,3,'#523b36');
+    rounded(x,y-10,w,h+4,2,roof);
+    rounded(x+5,y-5,w-10,h-6,2,'#26170e22');
+    rect(x+9,y+1,Math.min(w-22,32),12,'#e2b389');
+    rect(x+12,y+4,Math.min(w-27,26),6,'#8a6f59');
+    rect(x+w-22,y+11,11,12,'#463d38');
+  }
+  function tree(x,y){
+    disk(x+8,y+8,15,'#34403144');rect(x-2,y,4,9,'#765845');
+    disk(x,y-5,14,'#2b624b');disk(x-5,y-10,9,'#508765');disk(x+4,y-8,7,'#6d9b70');
+  }
+  function sidewalk(x,y,w,h){
+    rect(x,y,w,h,'#d9c5a8');
+    for(let col=x;col<x+w;col+=14)rect(col,y,1,h,'#97887545');
+    for(let row=y;row<y+h;row+=12)rect(x,row,w,1,'#97887545');
+  }
+  function vehicle(x,y,angle,color,van=false,braking=false){
+    ctx.save();ctx.translate(x,y);ctx.rotate(angle);
+    const length=van?76:43, width=van?27:22, front=-length/2;
+    rounded(-width/2+4,front+6,width+4,length+4,7,'#0e182162');
+    for(const dx of [-width/2-2,width/2-3]){
+      rounded(dx,front+7,5,9,2,'#21262b');
+      rounded(dx,length/2-15,5,9,2,'#21262b');
+    }
+    const paint=ctx.createLinearGradient(-width/2,0,width/2,0);
+    paint.addColorStop(0,color);paint.addColorStop(.48,color);paint.addColorStop(1,'#253649');
+    rounded(-width/2,front,width,length,van?5:9,paint);
+    rounded(-width/2+2,front+3,width-4,length-8,van?4:7,color);
+    shape([[-width/2+3,front+11],[width/2-3,front+11],[width/2-5,front+19],[-width/2+5,front+19]],'#234050');
+    shape([[-width/2+5,front+12],[width/2-4,front+12],[2,front+17],[-width/2+6,front+17]],'#9bbcc9');
+    if(van){
+      rounded(-width/2+3,front+24,width-6,length-31,4,'#ecede2');
+      rect(-width/2+6,front+28,width-12,2,'#b8c3bd');
+      rect(-width/2+6,length/2-11,width-12,1,'#b8c3bd');
+    }else{
+      rounded(-width/2+4,front+21,width-8,8,3,'#ffffff28');
+      rounded(-width/2+4,front+31,width-8,5,2,'#2c4554');
+    }
+    for(const dx of [-width/2+2,width/2-7]){
+      rounded(dx,front+2,5,3,1,'#fff3cf');
+      rounded(dx,length/2-4,5,3,1,braking?'#ff7464':'#b72d33');
+    }
+    ctx.restore();
+  }
+  return (carY,trafficX,stage,braking=false)=>{
+    ctx.setTransform(scale,0,0,scale,0,0);
+    rect(0,0,400,338,'#6d896d');
+    // La inclinación deja visibles las fachadas y conserva las posiciones de la vía.
+    ctx.transform(1,.10,0,.84,0,-11);
+    sidewalk(0,88,169,28);
+    sidewalk(258,88,142,28);
+    sidewalk(145,0,24,93);
+    sidewalk(258,0,24,93);
+    sidewalk(0,220,170,63);
+    sidewalk(258,220,142,41);
+    sidewalk(145,260,24,145);
+    sidewalk(258,260,24,145);
+    rect(0,112,400,108,'#374650');
+    rect(169,-12,89,124,'#394951');
+    rect(169,217,89,196,'#394951');
+    rect(0,112,169,3,'#d9c4a6');
+    rect(258,112,142,3,'#d9c4a6');
+    rect(169,-12,2,124,'#d9c4a6');
+    rect(256,-12,2,124,'#d9c4a6');
+    rect(0,217,169,3,'#e2caaa');
+    rect(258,217,142,3,'#e2caaa');
+    rect(169,220,2,193,'#d9c4a6');
+    rect(256,220,2,193,'#d9c4a6');
+    for(let x=5;x<400;x+=33)if(x+19<169||x>258)rect(x,164,19,2,'#e7ddc3');
+    for(let y=2;y<96;y+=29)rect(212,y,2,16,'#dbd5c9');
+    for(let y=313;y<423;y+=31)rect(212,y,2,17,'#dbd5c9');
+    rect(215,305,40,4,'#fff7df');
+    label('STOP',235,332,13,'#fff7df');
+    rect(12,232,148,32,'#424f53');
+    for(const x of [13,43,165])rect(x,232,1,32,'#f7e6c9');
+    rect(13,263,153,1,'#f7e6c9');
+    rect(275,230,111,14,'#c5b295');
+    for(const x of [278,309,341,373])rect(x,231,1,11,'#e9d7bc');
+    building(9,26,91,52,'#ba7c63');
+    building(111,35,41,38,'#ce996f');
+    building(278,17,103,65,'#aa7669');
+    building(15,311,105,52,'#cc9471');
+    building(306,297,86,54,'#b57b61');
+    for(const [x,y] of [[108,78],[271,76],[390,79],[41,284],[134,293],[281,278],[385,261]])tree(x,y);
+    for(const x of [103,158,294]){
+      rect(x,93,2,13,'#414a4d');disk(x+1,91,4,'#ffe4a5');
+    }
+    // El tráfico fuera del campo de visión solo se muestra al asomarse.
+    if(stage>=2||carY<280)vehicle(trafficX,190,Math.PI/2,'#eea34c');
+    vehicle(126,248,Math.PI/2,'#dbe2dc',true);
+    vehicle(235,carY,0,'#2f8bff',false,braking);
+    rect(273,288,3,32,'#444b54');
+    const oct=Array.from({length:8},(_,i)=>{
+      const angle=(i+.5)*Math.PI/4;return [275+20*Math.cos(angle),285+20*Math.sin(angle)];
+    });
+    shape(oct,'#fff1dc');
+    shape(oct.map(([x,y])=>[275+(x-275)*.87,285+(y-285)*.87]),'#bb3037');
+    label('STOP',275,286,10,'#fff');
+    if(stage===0||stage===1){
+      rounded(13,193,139,23,5,'#24313b');
+      label('Visión tapada',82,204,12,'#fff1da');
+    }
+  };
+}
+
+function runUrbanStop(){
+  const token=animToken;
+  V.innerHTML=`<section class="card drive" aria-labelledby="drive-title">
+   <h2 id="drive-title">Cruce con STOP</h2>
+   <div class="drive-scene"><canvas width="800" height="676" role="img" aria-label="Cruce urbano visto desde arriba"></canvas></div>
+   <div class="drive-key small muted"><span><i aria-hidden="true"></i>Tu coche</span><span><i aria-hidden="true"></i>Tráfico transversal</span></div>
+   <p class="eyebrow drive-step"></p><p class="drive-prompt" tabindex="-1"></p>
+   <p class="drive-feedback small" role="status"></p>
+   <div class="drive-actions"></div>
+  </section>`;
+  const game=V.querySelector('.drive'),actions=game.querySelector('.drive-actions');
+  const prompt=game.querySelector('.drive-prompt'),feedback=game.querySelector('.drive-feedback');
+  const stepLabel=game.querySelector('.drive-step');
+  const paint=urbanStopPainter(game.querySelector('canvas'));
+  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
+  const total=URBAN_STOP.length;
+  let stage=0,car=360,traffic=-34,score=0,missed=false,busy=false;
+  function drawStep(focus=false){
+    const step=URBAN_STOP[stage];
+    stepLabel.textContent=`Decisión ${stage+1} de ${total}`;
+    prompt.textContent=step.prompt;
+    actions.replaceChildren();
+    const options=[[step.good,true],[step.bad,false]];
+    if(stage%2)options.reverse();
+    for(const [label,correct] of options){
+      const button=document.createElement('button');
+      button.type='button';button.className='btn ghost';button.textContent=label;
+      button.onclick=()=>choose(correct);actions.appendChild(button);
+    }
+    if(focus)prompt.focus({preventScroll:true});
+  }
+  function finish(){
+    const last=S.sims['urbano-stop'];
+    S.sims['urbano-stop']={last:score,best:Math.max(score,last?.best||0),total};
+    markDay();save();
+    stepLabel.textContent='Cruce completado';
+    prompt.textContent=`${score} de ${total} decisiones acertadas a la primera.`;
+    feedback.innerHTML=`<a href="${RGC}#A5" target="_blank" rel="noopener">Regla del STOP · RGC, anexo I, señal R-2</a>`;
+    actions.innerHTML='<button class="btn primary" type="button">Repetir cruce</button><button class="btn ghost" type="button" data-back>Volver</button>';
+    actions.firstElementChild.onclick=render;
+    actions.firstElementChild.focus({preventScroll:true});
+  }
+  function choose(correct){
+    if(busy)return;
+    const step=URBAN_STOP[stage];
+    if(!correct){
+      missed=true;feedback.className='drive-feedback small is-error';
+      feedback.textContent=step.error;return;
+    }
+    busy=true;
+    if(!missed)score++;
+    actions.querySelectorAll('button').forEach(button=>{button.disabled=true;});
+    feedback.className='drive-feedback small';
+    feedback.textContent='Maniobra en curso…';
+    const fromCar=car,fromTraffic=traffic,start=performance.now();
+    function advance(now){
+      if(token!==animToken||!game.isConnected)return;
+      const t=reduced.matches||!paint?1:Math.min(1,(now-start)/step.duration);
+      const eased=ease(t);
+      car=fromCar+(step.car-fromCar)*eased;
+      traffic=fromTraffic+(step.traffic-fromTraffic)*t;
+      paint?.(car,traffic,stage,t>.45&&stage<2);
+      if(t<1){requestAnimationFrame(advance);return;}
+      stage++;missed=false;busy=false;
+      paint?.(car,traffic,stage,stage<3);
+      feedback.textContent=step.result;
+      if(stage===total)finish();else drawStep(true);
+    }
+    advance(start);
+  }
+  paint?.(car,traffic,stage);
+  drawStep();
 }
 
 rememberView(false);
