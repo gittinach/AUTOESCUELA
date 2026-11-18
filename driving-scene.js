@@ -864,7 +864,92 @@ function driverLights(upload){
   return Object.fromEntries(Object.entries(named).map(([name,model])=>[name,upload(model.vertices)]));
 }
 
-export function createStreetRenderer(canvas,materialReady,district=false){
+// Los ejercicios comparten materiales y vehículos con el barrio, con cámara fija elevada.
+function buildPracticeStreet(spec){
+  const m=mesh(),round=spec.scene==='round',half=3.75,extent=27;
+  const ink='#f6f1e4';
+  const segment=(a,b,width,y,hex)=>{
+    const dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),nx=-dz/length*width/2,nz=dx/length*width/2;
+    m.quad([a[0]+nx,y,a[1]+nz],[b[0]+nx,y,b[1]+nz],[b[0]-nx,y,b[1]-nz],[a[0]-nx,y,a[1]-nz],color(hex));
+  };
+  function ring(inner,outer,y,hex,dashed=false){
+    const count=192;
+    for(let i=0;i<count;i++){
+      if(dashed&&i%12>=7)continue;
+      const a=i*Math.PI*2/count,b=(i+1)*Math.PI*2/count;
+      m.quad([Math.cos(a)*inner,y,Math.sin(a)*inner],[Math.cos(a)*outer,y,Math.sin(a)*outer],
+        [Math.cos(b)*outer,y,Math.sin(b)*outer],[Math.cos(b)*inner,y,Math.sin(b)*inner],color(hex));
+    }
+  }
+  m.ground(-extent,-extent,extent,extent,-.15,'#8fa575',.07);
+  for(const sx of [-1,1])for(const sz of [-1,1]){
+    const x=sx*15.4,z=sz*15.4;
+    m.box(x,-.13,z,23.2,.23,23.2,'#d5ccbb',4);
+    m.ground(x-9,z-9,x+9,z+9,.108,'#8fa575',.045);
+    house(m,sx*15.3,sz*16.4,7.6,6.1,2.8,sx===sz?'#e0c5a4':'#d5d2ba',sx===sz?'#ad7057':'#91816e');
+    tree(m,sx*9.5,sz*15.5,.86);tree(m,sx*17.8,sz*9.3,.8);
+    streetlight(m,sx*5.1,sz*15.2,-sx);
+  }
+  if(round){
+    // El pavimento exterior de la glorieta evita esquinas de acera sobre el anillo.
+    ring(0,11.5,.12,'#d5ccbb');
+  }
+  m.ground(-extent,-half,extent,half,.14,'#555e62',.055,1);
+  m.ground(-half,-extent,half,extent,.141,'#555e62',.055,1);
+  if(spec.dirt)m.ground(half,-half,extent,half,.145,'#b79b70',.24);
+  const arm=round?10.7:half;
+  for(const side of [-1,1]){
+    for(let d=arm+.8;d<extent;d+=3.1){
+      m.ground(-.055,side*d-.9,.055,side*d+.9,.155,ink);
+      if(!(spec.dirt&&side===1))m.ground(side*d-.9,-.055,side*d+.9,.055,.156,ink);
+    }
+    for(const across of [-1,1]){
+      m.box(across*(half+.08),.09,side*(arm+extent)/2,.16,.18,extent-arm,'#e6ddcb');
+      if(!(spec.dirt&&side===1))m.box(side*(arm+extent)/2,.09,across*(half+.08),extent-arm,.18,.16,'#e6ddcb');
+    }
+  }
+  function sign(x,z,stop,rotation=0){
+    const s=mesh();s.box(0,.1,0,.075,2.1,.075,'#728086');
+    if(stop){
+      octagon(s,0,2.08,.01,.48,'#f6f2e8');octagon(s,0,2.08,.022,.424,'#bd303a');
+      s.quad([-.35,1.94,.028],[.35,1.94,.028],[.35,2.22,.028],[-.35,2.22,.028],color('#fff'),0,true);
+    }else{
+      s.triangle([-.57,2.55,.01],[.57,2.55,.01],[0,1.58,.01],color('#bd303a'));
+      s.triangle([-.42,2.46,.023],[.42,2.46,.023],[0,1.73,.023],color('#fff7e8'));
+    }
+    for(let i=0;i<s.vertices.length;i+=VERTEX_SIZE){
+      const px=s.vertices[i],pz=s.vertices[i+2];
+      s.vertices[i]=x+px*Math.cos(rotation)+pz*Math.sin(rotation);
+      s.vertices[i+2]=z-px*Math.sin(rotation)+pz*Math.cos(rotation);
+    }
+    m.vertices.push(...s.vertices);
+  }
+  if(round){
+    ring(0,10,.146,'#555e62');ring(6.68,6.82,.163,ink,true);
+    ring(0,3.88,.17,'#e3dbc9');ring(0,3.55,.182,'#91a76e');
+    tree(m,0,0,.68);
+    for(let turn=0;turn<4;turn++){
+      const a=turn*Math.PI/2,rotate=([x,z])=>[x*Math.cos(a)-z*Math.sin(a),x*Math.sin(a)+z*Math.cos(a)];
+      for(let x=.22;x<3.6;x+=.87)segment(rotate([x,10.25]),rotate([Math.min(x+.53,3.6),10.25]),.26,.17,ink);
+      const p=rotate([5.05,12.4]);sign(p[0],p[1],false,-a);
+      const triangle=[[.9,13.1],[2.85,13.1],[1.875,14.7]].map(rotate);
+      for(let j=0;j<3;j++)segment(triangle[j],triangle[(j+1)%3],.13,.166,ink);
+    }
+  }else if(spec.stop){
+    const line=spec.limited?11.25:4.5;
+    m.ground(.15,line,3.62,line+.27,.17,ink);
+    m.quad([.48,.175,line+3.7],[3.28,.175,line+3.7],[3.28,.175,line+1.7],[.48,.175,line+1.7],color(ink),0,true);
+    sign(4.85,line+.4,true);
+  }
+  if(spec.limited){
+    m.ground(-9.4,6.5,-3.86,9.4,.148,'#677175',.055,1);
+    segment([-9.4,9.4],[-3.86,9.4],.09,.17,ink);
+    vehicle(m,-6.5,8,true);
+  }
+  return m.vertices;
+}
+
+export function createStreetRenderer(canvas,materialReady,district=false,practice=null){
   const gl=canvas.getContext('webgl',{alpha:true,antialias:true,depth:true,powerPreference:'high-performance'});
   if(!gl)return null;
   const program=makeProgram(gl,vertexSource,fragmentSource);
@@ -873,7 +958,11 @@ export function createStreetRenderer(canvas,materialReady,district=false){
     gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points),gl.STATIC_DRAW);
     return {buffer,count:points.length/VERTEX_SIZE};
   }
-  const street=upload(district?buildDistrict():buildStreet());
+  function uploadCar(points){
+    if(practice)for(let i=1;i<points.length;i+=VERTEX_SIZE)points[i]+=.15;
+    return upload(points);
+  }
+  const street=upload(practice?buildPracticeStreet(practice):district?buildDistrict():buildStreet());
   const shadow=makeShadow(gl,street);
   gl.useProgram(program);gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
@@ -893,17 +982,27 @@ export function createStreetRenderer(canvas,materialReady,district=false){
   gl.activeTexture(gl.TEXTURE0);
   const ink=makePrint(gl);
   const disposeMaterials=loadMaterials(gl,()=>{gl.uniform1i(textured,1);materialReady?.();});
-  const cars=(district?['#d68a42','#507d95','#388dcc']:['#d68a42','#507d95']).map(paint=>{
-    const model=mesh();vehicle(model,0,0,false,paint);return upload(model.vertices);
+  const cars=(practice?['#3289ec','#e9a04a','#8b999f']:district?['#d68a42','#507d95','#388dcc']:['#d68a42','#507d95']).map(paint=>{
+    const model=mesh();vehicle(model,0,0,false,paint);return uploadCar(model.vertices);
   });
   const human=district?upload(humanModel()):null;
-  const lamps=district?driverLights(upload):null;
+  const lamps=district||practice?driverLights(uploadCar):null;
+  let ambulance=null;
+  if(practice){
+    const model=mesh();vehicle(model,0,0,true);
+    model.box(-.6,2.51,0,.66,.16,.75,'#2376df');
+    for(const side of [-1,1]){
+      model.box(-.6,1.57,side*1.12,.81,.19,.025,'#169987');
+      model.box(-.6,1.29,side*1.12,.19,.75,.028,'#169987');
+    }
+    ambulance=uploadCar(model.vertices);
+  }
   const trafficSignal=district?upload(trafficSignalModel()):null;
   const lensModels=district?signalLensModels().map(upload):[];
-  function draw(object,x=0,z=0,angle=0,step=0){
+  function draw(object,x=0,z=0,angle=0,step=0,scale=1){
     gl.bindBuffer(gl.ARRAY_BUFFER,object.buffer);
     for(const [attribute,size,start] of attributes)gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,VERTEX_SIZE*4,start*4);
-    gl.uniform4f(placement,x,z,Math.cos(angle),Math.sin(angle));gl.uniform1f(stride,step);gl.drawArrays(gl.TRIANGLES,0,object.count);
+    gl.uniform4f(placement,x,z,Math.cos(angle)*scale,Math.sin(angle)*scale);gl.uniform1f(stride,step);gl.drawArrays(gl.TRIANGLES,0,object.count);
   }
   return {
     resize(width,height){
@@ -912,11 +1011,26 @@ export function createStreetRenderer(canvas,materialReady,district=false){
       canvas.width=Math.max(1,Math.round(width*ratio));canvas.height=Math.max(1,Math.round(height*ratio));
       gl.viewport(0,0,canvas.width,canvas.height);
       const aspect=canvas.width/canvas.height;
-      const focal=district?Math.min(2.2,aspect*1.76):Math.min(2.5,aspect*1.92);
+      const focal=practice?Math.min(1.88,aspect*1.88):district?Math.min(2.2,aspect*1.76):Math.min(2.5,aspect*1.92);
       gl.uniform2f(projection,focal/aspect,focal);
     },
     draw(frame,look=frame.look,camera='cabin'){
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+      if(practice){
+        gl.uniform3fv(eye,[0,36,19]);gl.uniform2f(heading,1,0);
+        const tilt=Math.atan2(36,19);gl.uniform2f(pitch,Math.cos(tilt),Math.sin(tilt));
+        gl.uniform3fv(tint,[1,1,1]);gl.uniform3fv(hazeColor,SKY);gl.uniform2f(fog,150,300);
+        gl.uniform1f(wet,0);gl.uniform1i(beams,0);
+        draw(street);
+        for(const [id,car] of Object.entries(frame.positions)){
+          const kind=car.kind||'grey',model=kind==='amb'?ambulance:cars[kind==='you'?0:kind==='oth'?1:2];
+          const x=(car.x-150)/8,z=(car.y-150)/8,angle=Math.PI/2-car.h*Math.PI/180;
+          draw(model,x,z,angle,0,.9);
+          if(car.braking)draw(lamps.brake,x,z,angle,0,.9);
+          if(car.indicator)draw(car.indicator==='right'?lamps.right:lamps.left,x,z,angle,0,.9);
+        }
+        return;
+      }
       const time=frame.environment?.time||'day',weather=districtWeather(frame),night=time==='night';
       const light=night?[.16,.22,.32]:time==='sunset'?[1.04,.79,.60]:[1,1,1];
       const haze=night?[.035,.065,.10]:weather==='fog'?[.68,.73,.74]:time==='sunset'?[.65,.55,.48]:SKY;
@@ -961,6 +1075,7 @@ export function createStreetRenderer(canvas,materialReady,district=false){
     dispose(){
       gl.deleteBuffer(street.buffer);
       for(const car of cars)gl.deleteBuffer(car.buffer);
+      if(ambulance)gl.deleteBuffer(ambulance.buffer);
       if(human)gl.deleteBuffer(human.buffer);
       if(lamps)for(const lamp of Object.values(lamps))gl.deleteBuffer(lamp.buffer);
       if(trafficSignal)gl.deleteBuffer(trafficSignal.buffer);
