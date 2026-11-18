@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="driving.css">
+<link rel="stylesheet" href="simulators.css">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
 body{margin:0;font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
@@ -346,7 +347,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.13.0';
+const VERSION='0.14.0';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -518,7 +519,15 @@ function pill(x,y,t){const w=t.length*6.1+18;return `<g><rect x="${x-w/2}" y="${
 function polyD(p){return 'M'+p.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join(' L');}
 const C=150,RE=67,RI=41;
 const arc=(r,a0,a1)=>{const n=Math.max(8,Math.round(Math.abs(a1-a0)/4));const p=[];for(let i=0;i<=n;i++){const a=(a0+(a1-a0)*i/n)*Math.PI/180;p.push([C+r*Math.cos(a),C+r*Math.sin(a)]);}return p;};
-const exitEast=()=>[[165,244],[165,215.3]].concat(arc(RE,77.1,12.9)).concat([[340,165]]);
+function drivingCurve(a,b,c,d,steps=20){return Array.from({length:steps+1},(_,i)=>{const t=i/steps,u=1-t;return [0,1].map(k=>u*u*u*a[k]+3*u*u*t*b[k]+3*u*t*t*c[k]+t*t*t*d[k]);});}
+function roundExit(from,side='east'){
+  const turn={east:0,north:-90,west:-180,south:90}[side],angle=turn*Math.PI/180;
+  let end=32+turn;while(end>from)end-=360;
+  const rotate=([x,y])=>[150+x*Math.cos(angle)-y*Math.sin(angle),150+x*Math.sin(angle)+y*Math.cos(angle)];
+  const p=[RE*Math.cos(32*Math.PI/180),RE*Math.sin(32*Math.PI/180)];
+  return arc(RE,from,end).concat(drivingCurve(p,[p[0]+6,p[1]-9.6],[78,15],[94,15]).slice(1).map(rotate),[rotate([190,15])]);
+}
+const exitEast=()=>drivingCurve([165,250],[165,233],[174,215],arc(RE,55,55)[0]).concat(roundExit(55).slice(1));
 
 const arw=(x,y1,y2,w,col)=>{const up=y2<y1,hd=w*1.9,hy=up?y2+hd:y2-hd;return `<rect x="${x-w/2}" y="${Math.min(y1,hy)}" width="${w}" height="${Math.abs(hy-y1)}" fill="${col}"/><polygon points="${x-w*1.6},${hy} ${x+w*1.6},${hy} ${x},${y2}" fill="${col}"/>`;};
 const parkingRestriction=bands=>`<svg viewBox="0 0 60 60" role="img" aria-label="Círculo azul con borde rojo y ${bands===2?'dos bandas diagonales cruzadas':'una banda diagonal'}"><circle cx="30" cy="30" r="26" fill="#144D9A" stroke="#D6222D" stroke-width="6"/><path d="M12 12L48 48${bands===2?'M48 12L12 48':''}" stroke="#D6222D" stroke-width="6"/></svg>`;
@@ -2088,34 +2097,34 @@ const SIMS={
   {title:'Cruce atascado',desc:'No viene nadie por tu derecha, pero la calle de enfrente tiene cola y apenas queda sitio.',scene:{scene:'cross'},
    cars:{you:[[165,320],[165,202]],e1:{p:[[165,107],[165,104]],kind:'grey'},e2:{p:[[165,73],[165,70]],kind:'grey'},oth:[[380,135],[379,135]]},
    opts:[{label:'Entro en el cruce',ok:false,type:'block',bubble:'oth',moves:[{c:'you',p:[[165,202],[165,134]],s:0,d:1100},{c:'oth',p:[[379,135],[200,135]],s:700,d:1300}]},
-         {label:'Espero fuera',ok:true,type:'go',moves:[{c:'e1',p:[[165,104],[165,-60]],s:0,d:1600},{c:'e2',p:[[165,70],[165,-90]],s:0,d:1600},{c:'you',p:[[165,202],[165,-40]],s:900,d:1800}]}],
+         {label:'Espero fuera',ok:true,type:'go',moves:[{c:'e1',p:[[165,104],[165,-120]],s:0,d:1600},{c:'e2',p:[[165,70],[165,-155]],s:0,d:1600},{c:'you',p:[[165,202],[165,-40]],s:900,d:1800}]}],
    badTitle:'Has bloqueado el cruce',okMsg:'Esperas fuera hasta que la cola avanza y hay sitio al otro lado.',expl:'Aunque tengas preferencia, no entres en un cruce si es previsible que te quedes parado dentro: bloquearías a los que circulan por la otra calle.',norma:'RGC, art. 59'}
  ]},
  glorietas:{name:'Glorietas',desc:'5 situaciones: entrar, elegir carril, salir desde el interior y preferencia dentro',list:[
   {title:'Coche en el anillo',desc:'Quieres entrar. Un coche circula por la glorieta y se acerca a tu entrada.',scene:{scene:'round'},
-   cars:{you:[[165,330],[165,244]],oth:{p:arc(RE,215,155),lin:true}},
-   opts:[{label:'Entro',ok:false,type:'crash',p:{you:[[165,244],[164,222]],oth:arc(RE,155,84)},at:[160,215]},
-         {label:'Espero',ok:true,type:'go',moves:[{c:'oth',p:arc(RE,155,-77.1).concat([[165,-40]]),s:0,d:2100},{c:'you',p:exitEast(),s:1500,d:1800}]}],
+   cars:{you:[[165,330],[165,250]],oth:{p:arc(RE,215,155),lin:true}},
+   opts:[{label:'Entro',ok:false,type:'crash',p:{you:[[165,250],[164,222]],oth:arc(RE,155,84)},at:[160,215]},
+         {label:'Espero',ok:true,type:'go',moves:[{c:'oth',p:roundExit(155,'north'),s:0,d:2100},{c:'you',p:exitEast(),s:1500,d:1800}]}],
    okMsg:'Esperas en la entrada hasta que el anillo queda libre.',expl:'Dentro de una glorieta tienen preferencia los que ya circulan por ella. Quien quiere entrar debe ceder el paso.',norma:'RGC, art. 57.1 c) · Señal R-1'},
   {title:'Anillo libre',desc:'Llegas a la glorieta y no circula nadie por ella. Detrás de ti viene otro coche.',scene:{scene:'round'},
-   cars:{you:[[165,330],[165,244]],e1:{p:[[165,380],[165,288]],kind:'grey'}},
-   opts:[{label:'Entro',ok:true,type:'go',moves:[{c:'you',p:exitEast(),s:0,d:1800},{c:'e1',p:[[165,288],[165,244]],s:600,d:1000}]},
-         {label:'Espero',ok:false,type:'hesitate',bubble:'e1',moves:[{c:'you',p:exitEast(),s:0,d:1800},{c:'e1',p:[[165,288],[165,244]],s:600,d:1000}]}],
+   cars:{you:[[165,330],[165,250]],e1:{p:[[165,380],[165,288]],kind:'grey'}},
+   opts:[{label:'Entro',ok:true,type:'go',moves:[{c:'you',p:exitEast(),s:0,d:1800},{c:'e1',p:[[165,288],[165,250]],s:600,d:1000}]},
+         {label:'Espero',ok:false,type:'hesitate',bubble:'e1',moves:[{c:'you',p:exitEast(),s:0,d:1800},{c:'e1',p:[[165,288],[165,250]],s:600,d:1000}]}],
    badTitle:'El anillo estaba libre',okMsg:'Como no viene nadie, entras sin detenerte.',expl:'Ceder el paso no obliga a parar si no viene nadie. Detenerte sin motivo en la entrada frena al tráfico de detrás y puede provocar un alcance.',norma:'Señal R-1 «Ceda el paso»'},
   {title:'Primera salida',desc:'Vas a tomar la primera salida, a la derecha. Un coche circula por el carril exterior, todavía lejos. ¿Por qué carril vas?',scene:{scene:'round'},
-   cars:{you:[[165,330],[165,244]],oth:{p:arc(RE,240,190),lin:true}},
-   opts:[{label:'Carril exterior',ok:true,type:'go',moves:[{c:'you',p:exitEast(),s:0,d:1700},{c:'oth',p:arc(RE,190,-77.1).concat([[165,-40]]),s:300,d:3000}]},
-         {label:'Carril interior',ok:false,type:'crash',p:{you:[[165,244],[165,188]].concat(arc(RI,68.5,25)).concat([[211,163]]),oth:arc(RE,190,16)},at:[212,165]}],
+   cars:{you:[[165,330],[165,250]],oth:{p:arc(RE,240,190),lin:true}},
+   opts:[{label:'Carril exterior',ok:true,type:'go',moves:[{c:'you',p:exitEast(),s:0,d:1700},{c:'oth',p:roundExit(190,'north'),s:300,d:3000}]},
+         {label:'Carril interior',ok:false,type:'crash',p:{you:[[165,250],[165,188]].concat(arc(RI,68.5,25)).concat([[211,163]]),oth:arc(RE,190,16)},at:[212,165]}],
    okMsg:'Para la primera salida entras y circulas por el carril exterior.',expl:'Si vas a tomar la primera salida, usa el carril exterior. Desde el interior tendrías que cruzar el exterior para salir y cortarías el paso a quien circula por él.',norma:'RGC, art. 74 · Recomendaciones de la DGT sobre glorietas'},
   {title:'Salir desde el interior',desc:'Vas por el carril interior y quieres tomar la próxima salida, abajo. Un coche circula a tu lado por el exterior.',scene:{scene:'round'},
    cars:{you:{p:arc(RI,250,190),lin:true},oth:{p:arc(RE,250,190),lin:true}},
    opts:[{label:'Cambio ahora, con el exterior ocupado',ok:false,type:'crash',p:{you:arc(RI,190,150).concat([[114.5,206.8]]),oth:arc(RE,190,122)},at:[115,205]},
-         {label:'Sigo dentro y cambio cuando haya hueco',ok:true,type:'go',moves:[{c:'oth',p:arc(RE,190,102.9).concat([[135,340]]),s:0,d:1500},{c:'you',p:arc(RI,190,105).concat(arc(50,94,88),arc(59,82,76),arc(RE,70,12.9),[[340,165]]),s:0,d:5000}]}],
+         {label:'Sigo dentro y cambio cuando haya hueco',ok:true,type:'go',moves:[{c:'oth',p:roundExit(190,'south'),s:0,d:1500},{c:'you',p:arc(RI,190,110).concat(drivingCurve(arc(RI,110,110)[0],[147.5,192.6],[157.9,217.4],arc(RE,74,74)[0]).slice(1),roundExit(74).slice(1)),s:0,d:5000}]}],
    okMsg:'Dejas pasar al coche del exterior, cambias de carril cuando es seguro y sales por la siguiente salida.',expl:'Para salir desde el carril interior debes pasar antes al exterior, cediendo el paso a quien circula por él. Si no puedes hacerlo a tiempo, sigue y sal por la siguiente o da otra vuelta.',norma:'RGC, art. 74 (cambio de carril)'},
   {title:'Ya estás dentro',desc:'Circulas por la glorieta. En la entrada de la izquierda espera un coche para entrar.',scene:{scene:'round'},
    cars:{you:{p:arc(RE,270,215),lin:true},oth:[[-40,165],[56,165]]},
-   opts:[{label:'Sigo circulando',ok:true,type:'go',moves:[{c:'you',p:arc(RE,215,12.9).concat([[340,165]]),s:0,d:2600},{c:'oth',p:[[56,165],[84.7,165]].concat(arc(RE,167.1,-77.1)).concat([[165,-40]]),s:1500,d:2800}]},
-         {label:'Me paro para dejarle entrar',ok:false,type:'hesitate',bubble:'oth',moves:[{c:'you',p:arc(RE,215,12.9).concat([[340,165]]),s:0,d:2600},{c:'oth',p:[[56,165],[84.7,165]].concat(arc(RE,167.1,-77.1)).concat([[165,-40]]),s:1500,d:2800}]}],
+   opts:[{label:'Sigo circulando',ok:true,type:'go',moves:[{c:'you',p:roundExit(215),s:0,d:2600},{c:'oth',p:[[56,165],[84.7,165]].concat(arc(RE,167.1,-77.1)).concat([[165,-40]]),s:1500,d:2800}]},
+         {label:'Me paro para dejarle entrar',ok:false,type:'hesitate',bubble:'oth',moves:[{c:'you',p:roundExit(215),s:0,d:2600},{c:'oth',p:[[56,165],[84.7,165]].concat(arc(RE,167.1,-77.1)).concat([[165,-40]]),s:1500,d:2800}]}],
    badTitle:'Tenías preferencia',okMsg:'Sigues circulando: dentro de la glorieta tienes preferencia.',expl:'El que espera en la entrada debe cederte el paso. Detenerte dentro para dejarle entrar confunde a los demás y puede provocar un alcance por detrás.',norma:'RGC, art. 57.1 c)'}
  ]}
 };
@@ -2474,7 +2483,7 @@ const VIEWS={
    ${studyTopics().map(topic=>item({go:'quiz',mode:'tema',id:topic.id,icon:'pen',t:`Test del tema ${topic.id}`,s:esc(topic.name)})).join('')}
    ${item({go:'guardadas',icon:'bookmark',t:'Preguntas guardadas',s:savedCount?`${savedCount} ${savedCount===1?'pregunta':'preguntas'} para practicar`:'Guarda preguntas durante un test'})}
    ${item({go:'quiz',mode:'fallos',icon:'redo',tone:'peach',t:'Test de fallos',s:pending.length?'Practica tus fallos cuando quieras':'Aún no tienes fallos',disabled:!pending.length})}</div>
-  <div class="section-title">Simuladores de conducción</div><div class="list">${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:'Cruce jugable con STOP y visibilidad reducida'})}${item({go:'juego',mode:'stop',icon:'wheel',tone:'blue',t:'Ejercicio de STOP en 3D',s:'Practica las dos paradas con visibilidad reducida'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>
+  <div class="section-title">Simuladores de conducción</div><div class="list">${item({go:'conducir',icon:'wheel',tone:'blue',t:'STOP y visibilidad reducida',s:'Vista elevada en 3D · 4 decisiones guiadas'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor resultado: ${S.sims[k].best}/${S.sims[k].total}`:s.desc})).join('')}</div>
    <p class="note">Los tests rápidos y los repasos automáticos se adaptan a tu permiso. Puedes abrir los temas opcionales desde Temario. Las preguntas son propias de práctica, no una reproducción del banco oficial de la DGT.</p>`;
  },
  guardadas(view){
@@ -2567,7 +2576,7 @@ const VIEWS={
   <details class="card progress-details test-history"><summary>Historial de tests</summary>
    ${historyRows.length?`<ol class="list" role="list">${historyRows.join('')}</ol>`:'<p class="small muted">Aquí aparecerán los tests y repasos que termines.</p>'}
   </details>
-  <div class="section-title">Simuladores</div><div class="list">${item({go:'juego',icon:'wheel',tone:'blue',t:'Conducción libre en 3D',s:S.sims['barrio-3d']?`Mejor ${S.sims['barrio-3d'].best}% · último ${S.sims['barrio-3d'].last}%`:'Sin hacer'})}${item({go:'juego',mode:'stop',icon:'wheel',tone:'blue',t:'Ejercicio de STOP en 3D',s:S.sims['juego-stop']?`Mejor ${S.sims['juego-stop'].best}/3 · último ${S.sims['juego-stop'].last}/3`:'Sin hacer'})}${item({go:'conducir',icon:'wheel',tone:'blue',t:'Conducción urbana',s:S.sims['urbano-stop']?`Mejor ${S.sims['urbano-stop'].best}/4 · último ${S.sims['urbano-stop'].last}/4`:'Sin hacer'})}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
+  <div class="section-title">Simuladores</div><div class="list">${item({go:'juego',icon:'wheel',tone:'blue',t:'Conducción libre en 3D',s:S.sims['barrio-3d']?`Mejor ${S.sims['barrio-3d'].best}% · último ${S.sims['barrio-3d'].last}%`:'Sin hacer'})}${item({go:'conducir',icon:'wheel',tone:'blue',t:'STOP y visibilidad reducida',s:S.sims['urbano-stop']?`Mejor ${S.sims['urbano-stop'].best}/4 · último ${S.sims['urbano-stop'].last}/4`:'Sin hacer'})}${S.sims['juego-stop']?`<p class="small muted">STOP anterior: mejor ${S.sims['juego-stop'].best}/3 · último ${S.sims['juego-stop'].last}/3</p>`:''}${Object.entries(SIMS).map(([k,s])=>item({go:'sim',id:k,icon:'wheel',tone:'blue',t:s.name,s:S.sims[k]?`Mejor ${S.sims[k].best}/${S.sims[k].total} · último ${S.sims[k].last}/${S.sims[k].total}`:'Sin hacer'})).join('')}</div>
   <div class="section-title">Ajustes</div>
   <div class="card"><label for="nm2"><b>Nombre</b></label><input type="text" id="nm2" maxlength="24" value="${esc(S.profile.name||'')}">
    <b>Permiso</b><div class="choice" id="objs2">${Object.entries(OBJ).map(([k,l])=>`<button type="button" class="btn ghost ${k===S.profile.obj?'sel':''}" data-obj="${k}">${l}</button>`).join('')}</div></div>
@@ -2644,8 +2653,8 @@ const VIEWS={
   document.getElementById('delNo').onclick=()=>{document.getElementById('delConf').hidden=true;};
   document.getElementById('delYes').onclick=()=>{const p=S.profile;S={profile:p,q:{},lessons:{},sims:{},tests:[],days:[]};save();render();};
  },
- conducir(){header('Conducción urbana');runUrbanStop();},
- juego(view){const district=view.mode!=='stop';header(district?'Conducción libre en 3D':'Ejercicio de STOP en 3D');runDrivingGame(district);},
+ conducir(){header('STOP y visibilidad reducida');runUrbanStop();},
+ juego(view){const district=view.mode!=='stop';header(district?'Conducción libre en 3D':'STOP y visibilidad reducida');if(district)runDrivingGame(true);else runUrbanStop();},
  sim(v){const set=SIMS[v.id];header(set.name);runSim(v.id,set);}
 };
 
@@ -3019,377 +3028,53 @@ function runQuiz(ids,v){
 }
 
 /* ================= Simulador ================= */
-function runSim(simId,set){
-  const L=set.list;let idx=0,score=0,results=[],busy=false,pos={},cars={};const token=animToken;
-  V.innerHTML=`<div class="qprog" id="sp"></div>
-   <div class="scene" id="scene"><svg viewBox="0 0 300 300" id="svg" role="img" aria-labelledby="st sd"></svg></div>
-   <div class="legend"><span><i style="background:#3A86F5"></i>Tu coche</span><span><i style="background:#F5A23A"></i>Otro vehículo</span></div>
-   <div><h3 id="st"></h3><p class="muted" id="sd"></p></div>
-   <div class="simopts" id="so"></div>
-   <div class="fb" id="sfb" tabindex="-1" hidden><span class="v" id="sv"></span><p id="se"></p><span class="ref" id="sn"></span><button class="btn primary" type="button" id="snext" style="margin-top:4px"></button></div>`;
-  const svg=document.getElementById('svg'),$=id=>document.getElementById(id);
-  const place=(c,pt)=>{pos[c]=pt;if(cars[c])cars[c].setAttribute('transform',`translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)}) rotate(${pt.h.toFixed(1)})`);};
-  function run(moves,done,fn=ease){
-    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-      moves.forEach(m=>place(m.c,at(m.p,1)));
-      done?.();
-      return;
-    }
-    const end=Math.max(...moves.map(m=>m.s+m.d)),t0=performance.now();
-    (function f(now){if(token!==animToken)return;const t=now-t0;
-      moves.forEach(m=>{const k=Math.min(1,Math.max(0,(t-m.s)/m.d));if(t>=m.s)place(m.c,at(m.p,(m.fn||fn)(k)));});
-      t<end?requestAnimationFrame(f):done&&done();})(t0);
-  }
-  const prog=()=>{$('sp').innerHTML=L.map((_,k)=>`<span class="${results[k]===true?'ok':results[k]===false?'bad':k===idx?'now':''}" style="width:28px"></span>`).join('');};
-  function load(){
-    const s=L[idx];busy=true;
-    const specs=Object.entries(s.cars).map(([id,v])=>{const o=Array.isArray(v)?{p:v}:v;return [id,{p:o.p,lin:o.lin,kind:o.kind||(id==='you'?'you':id==='oth'?'oth':'grey')}];});
-    svg.innerHTML=DEFS+bg(s.scene)+specs.filter(([id])=>id!=='you').map(([id,o])=>`<g id="car-${id}">${carBody(o.kind)}</g>`).join('')+`<g id="car-you">${carBody('you')}</g><g id="fx"></g>`;
-    cars={};specs.forEach(([id])=>cars[id]=document.getElementById('car-'+id));
-    specs.forEach(([id,o])=>place(id,at(o.p,0)));
-    $('st').textContent=s.title;$('sd').textContent=s.desc;$('sfb').hidden=true;
-    $('so').innerHTML=s.opts.map((o,k)=>`<button class="btn" type="button" data-k="${k}" disabled>${esc(o.label)}</button>`).join('');
-    $('so').querySelectorAll('button').forEach(b=>b.onclick=()=>answer(+b.dataset.k));
-    prog();
-    run(specs.map(([id,o])=>({c:id,p:o.p,s:0,d:1300,fn:o.lin?lin:decel})),()=>{busy=false;$('so').querySelectorAll('button').forEach(b=>b.disabled=false);});
-  }
-  function boom(x,y){const pts=[];for(let i=0;i<16;i++){const r=i%2?9:20,a=i*Math.PI/8;pts.push((x+r*Math.cos(a)).toFixed(1)+','+(y+r*Math.sin(a)).toFixed(1));}
-    $('fx').innerHTML=`<polygon points="${pts.join(' ')}" fill="#FFD23F" stroke="#D0302B" stroke-width="3"/>`;
-    const sc=$('scene');sc.classList.remove('shake');void sc.offsetWidth;sc.classList.add('shake');}
-  function bubble(c,ch){const p=pos[c];if(!p)return;const x=Math.min(285,Math.max(15,p.x)),y=Math.max(40,p.y);
-    $('fx').innerHTML=`<circle cx="${x}" cy="${y-28}" r="11" fill="#fff" stroke="#333"/><text x="${x}" y="${y-23.5}" font-family="Arial,sans-serif" font-weight="700" font-size="14" text-anchor="middle" fill="#333">${ch}</text>`;}
-  function answer(k){
-    if(busy)return;busy=true;$('so').querySelectorAll('button').forEach(b=>b.disabled=true);
-    const s=L[idx],o=s.opts[k],ok=o.ok;results[idx]=ok;if(ok)score++;
-    const show=()=>{
-      $('sfb').className='fb '+(ok?'ok':'bad');
-      $('sv').textContent=ok?'¡Bien hecho!':o.type==='crash'?'¡Colisión!':(s.badTitle||'No es correcto');
-      $('se').textContent=(ok?s.okMsg+' ':'')+s.expl;$('sn').innerHTML=withSigns(esc(s.norma));
-      $('snext').textContent=idx<L.length-1?'Siguiente situación':'Ver resultado';
-      $('sfb').hidden=false;prog();$('sfb').focus({preventScroll:true});
-      $('sfb').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'nearest'});
-    };
-    if(o.type==='go')run(o.moves,show);
-    else if(o.type==='hesitate'){bubble(o.bubble,'?');setTimeout(()=>{if(token!==animToken)return;$('fx').innerHTML='';run(o.moves,show);},1300);}
-    else if(o.type==='block')run(o.moves,()=>{bubble(o.bubble,'!');setTimeout(show,500);});
-    else run(Object.entries(o.p).map(([c,p])=>({c,p,s:0,d:800})),()=>{boom(o.at[0],o.at[1]);setTimeout(show,350);},lin);
-  }
-  $('snext').onclick=()=>{idx++;if(idx<L.length){load();window.scrollTo(0,0);}else finish();};
-  function finish(){
-    const prev=S.sims[simId];S.sims[simId]={best:Math.max(score,prev?prev.best:0),last:score,total:L.length};if(markDay())setTimeout(()=>celebrate('streak'),1900);save();celebrate('sim');if(score===L.length)setTimeout(()=>celebrate('perfect'),1500);
-    V.innerHTML=`<div class="card result"><div class="mascot-c">${mascot(80)}</div><div class="big">${score}/${L.length}</div><p class="muted">${score===L.length?'Perfecto. Dominas estas situaciones.':score>=L.length*.6?'Vas bien. Repite para afianzar las que fallaste.':'Repasa las lecciones del tema y vuelve a intentarlo.'}</p>
-     <div class="grid2" style="width:100%"><button class="btn ghost" type="button" data-back>Volver</button><button class="btn primary" type="button" id="again">Repetir</button></div></div>`;
-    document.getElementById('again').onclick=()=>{animToken++;runSim(simId,set);};
-  }
-  load();
+function simulatorFallback(spec,vehicles){
+  let ground=bg(spec.limited?{scene:'cross'}:spec);
+  if(spec.limited)ground+='<path d="M151 240H179" stroke="#fff" stroke-width="4"/><text x="165" y="278" fill="#fff" font-size="15" text-anchor="middle">STOP</text><rect x="74" y="205" width="43" height="18" rx="4" fill="#f2eee4" stroke="#647077"/><rect x="105" y="207" width="9" height="14" rx="2" fill="#7898a7"/>';
+  return '<svg viewBox="0 0 300 300" role="img" aria-label="Vista sencilla de la situación">'+DEFS+ground+
+    Object.entries(vehicles).map(([id,p])=>'<g data-car="'+esc(id)+'">'+carBody(p.kind||'grey')+'</g>').join('')+'</svg>';
 }
-
-/* ================= Conducción urbana ================= */
-const URBAN_STOP=[
-  {prompt:'Te acercas a un STOP. La furgoneta aparcada te tapa la vista del cruce.',
-   good:'Frenar en la línea',bad:'Avanzar sin parar',error:'El STOP exige una detención completa antes de la línea, aunque no veas tráfico.',
-   result:'Primera parada hecha. Desde aquí aún no ves bien la calle transversal.',car:332,traffic:-34,duration:690},
-  {prompt:'Estás detenido antes de la línea. Todavía no tienes visibilidad suficiente.',
-   good:'Avanzar despacio y parar',bad:'Cruzar de una vez',error:'Asómate despacio y vuelve a detenerte donde puedas ver, sin invadir la trayectoria de otros vehículos.',
-   result:'Segunda parada hecha. Ya puedes ver el coche naranja que viene por la izquierda.',car:249,traffic:90,duration:1080},
-  {prompt:'Ya ves la calle transversal. El coche naranja se acerca y tiene preferencia.',
-   good:'Esperar a que pase',bad:'Cruzar ahora',error:'Si cruzas ahora obligarías al otro vehículo a frenar o desviarse. Mantente detenido y cédele el paso.',
-   result:'Has cedido el paso. El coche naranja ya ha pasado y la calle queda libre.',car:249,traffic:438,duration:1300},
-  {prompt:'Has mirado en ambos sentidos. No se aproxima ningún otro vehículo.',
-   good:'Cruzar con precaución',bad:'Esperar a que cambie el STOP',error:'El STOP no cambia como un semáforo. Tras detenerte y ceder, puedes cruzar si la vía está libre.',
-   result:'Has cruzado con seguridad.',car:62,traffic:438,duration:1070}
-];
-
-function urbanStopPainter(canvas){
-  const ctx=canvas.getContext('2d');
-  if(!ctx)return null;
-  // El barrio se dibuja una vez, y los fotogramas solo añaden los vehículos y las indicaciones.
-  const background=document.createElement('canvas');
-  background.width=canvas.width;background.height=canvas.height;
-  const scale=canvas.width/400;
-  const scene=background.getContext('2d');
-  if(!scene)return null;
-  scene.setTransform(scale,0,0,scale,0,0);
-  const block=urbanDrawing(scene),moving=urbanDrawing(ctx);
-  const {rect,shape,rounded,disk,line,gradient}=block;
-  const incline=context=>context.transform(1,.10,0,.84,0,-11);
-
-  function paving(x,y,w,h){
-    rect(x,y,w,h,'#cbbba7');
-    scene.save();scene.beginPath();scene.rect(x,y,w,h);scene.clip();
-    for(let row=0;row*9<h;row++){
-      for(let col=-1;col*18<w;col++){
-        const tint=(row+col+1)%3===0?'#e0cdb7':'#d7c6af';
-        rect(x+col*18+(row%2)*9,y+row*9,17,8,tint);
-      }
-    }
-    scene.restore();
-  }
-  function building(x,y,w,h,roof,lit){
-    shape([[x,y-2],[x+w,y-2],[x+w+18,y+12],[x+w+18,y+h+19],[x+18,y+h+19],[x,y+h]],'#28342846');
-    rect(x,y,w,h+7,'#9c6951');
-    shape([[x+w-6,y-7],[x+w+3,y-15],[x+w+7,y+h-5],[x+w-6,y+h+7]],'#655146');
-    rect(x,y+h-9,w,3,'#c79b7b');
-    for(let offset=8;offset<w-9;offset+=18){
-      rect(x+offset,y+h-5,10,9,'#523f37');
-      rect(x+offset+1,y+h-4,8,6,'#8ca9b0');
-      rect(x+offset+5,y+h-4,1,6,'#d4c6ac');
-    }
-    const peak=y-12+Math.round(h*.45),far=y+h-12;
-    shape([[x-5,far],[x+w+4,far],[x+w+4,y-14],[x-5,y-14]],'#58483e');
-    shape([[x-4,y-15],[x+w+3,y-15],[x+w+3,peak],[x-4,peak]],roof);
-    shape([[x-4,peak],[x+w+3,peak],[x+w+3,far],[x-4,far]],lit);
-    for(let row=y-10;row<far-1;row+=5){
-      line([[x-3,row],[x+w+2,row]],'#472e2c43',.65);
-      for(let col=x+(row%2?2:7);col<x+w;col+=10)rect(col,row,1,4,'#472e2c2a');
-    }
-    line([[x-3,peak],[x+w+3,peak]],'#f5c399',2);
-    const stackX=x+w-17,stackY=peak-10;
-    rect(stackX+3,stackY+3,9,9,'#483d3565');
-    rect(stackX,stackY,7,8,'#b8a08b');rect(stackX-1,stackY-1,9,3,'#dfc2a2');
-  }
-  function tree(x,y,size){
-    scene.save();scene.translate(x,y);scene.scale(size,size);
-    scene.save();scene.translate(9,5);scene.scale(1.28,.72);disk(0,0,15,'#1a302b47');scene.restore();
-    rect(-1,0,3,8,'#694c35');
-    disk(0,-5,13,'#284e41');disk(5,-6,9,'#3a6b4b');
-    disk(-5,-9,10,'#55875a');disk(-2,-13,6,'#729b64');disk(6,-12,5,'#5d905b');
-    for(const [dx,dy] of [[-7,-13],[-4,-7],[1,-13],[6,-9],[-1,-17]])disk(dx,dy,1.4,'#a1b67b');
-    scene.restore();
-  }
-  function planter(x,y,w){
-    rounded(x+3,y+4,w,13,5,'#263d3550');rounded(x,y,w,12,5,'#b3a28c');
-    rounded(x+2,y+2,w-4,8,3,'#685244');
-    for(let off=5;off<w-4;off+=7){disk(x+off,y+5,3,'#487b58');disk(x+off+1,y+4,1.4,'#a16062');}
-  }
-  function lamp(x,y){
-    line([[x,y],[x+12,y+6]],'#24332f4c',2);
-    line([[x,y],[x,y-12],[x+5,y-15]],'#344450',1.7);
-    rounded(x+3,y-16,7,3,1.3,'#243b44');rect(x+5,y-14,4,1,'#fff0ae');
-  }
-
-  rect(0,0,400,338,'#718b63');
-  incline(scene);
-  rect(-1,-66,402,531,gradient(0,0,400,405,[[0,'#8eaa73'],[1,'#627e62']]));
-  for(const [x,y,w,h] of [[0,84,169,29],[258,82,142,31],[145,-60,24,152],[258,-62,24,159],
-    [0,220,170,58],[258,220,142,45],[145,263,24,185],[258,256,25,193]])paving(x,y,w,h);
-
-  const road=[[-2,112],[169,112],[169,-65],[258,-65],[258,112],[402,112],[402,220],
-    [258,220],[258,448],[169,448],[169,220],[-2,220]];
-  shape(road,gradient(18,95,370,375,[[0,'#55616a'],[.55,'#46535e'],[1,'#35444f']]));
-  let seed=137;
-  const sample=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
-  for(let i=0;i<3600;i++){
-    const x=sample()*400,y=sample()*444-30;
-    if((y>=112&&y<220)||(x>=169&&x<258))rect(x,y,.6+sample()*1.1,.7,i%3?'#e4ebe817':'#171f2633');
-  }
-  for(const curb of [[[-2,112],[169,112],[169,-64]],[[258,-64],[258,112],[402,112]],
-    [[-2,220],[169,220],[169,448]],[[402,220],[258,220],[258,448]]]){
-    line(curb.map(([x,y])=>[x,y+3]),'#29394370',5);
-    line(curb,'#e3d3bd',3.2);
-  }
-  const marking='#eae4d6';
-  for(let x=5;x<400;x+=33)if(x+19<169||x>258)rect(x,164,19,1.8,marking);
-  for(let y=-27;y<96;y+=29)rect(212,y,1.8,16,marking);
-  for(let y=313;y<440;y+=31)rect(212,y,1.8,17,marking);
-  rect(215,307,40,4,'#23343c');rect(215,305,40,4,'#fff6e4');
-  block.label('STOP',235,326,12,'#fff6e4');
-
-  rect(12,232,154,32,'#59666c');
-  line([[13,232],[13,263],[165,263],[165,232]],'#f0debb',1.1);
-  line([[56,233],[56,263]],'#e1d2b5',1);
-  for(const x of [284,333,376])planter(x,236,x===333?25:18);
-  paving(34,284,72,22);paving(303,270,70,25);
-  building(5,27,82,47,'#a85f4d','#cd8062');
-  building(97,25,42,43,'#77696a','#a48b83');
-  building(293,19,89,51,'#a86350','#d59169');
-  building(13,313,117,57,'#826369','#b1837a');
-  building(315,310,80,57,'#8d5d48','#c48a65');
-  for(const [x,y,size] of [[86,88,.82],[141,75,.83],[284,80,.81],[388,80,1],
-    [22,293,1.06],[131,284,.86],[294,266,.9],[391,277,.94],[301,326,.7]])tree(x,y,size);
-  for(const [x,y] of [[49,105],[143,102],[279,105],[345,104],[18,270],[283,255],[365,258]])lamp(x,y);
-
-  return (carY,trafficX,stage,braking=false)=>{
-    ctx.setTransform(scale,0,0,scale,0,0);
-    ctx.drawImage(background,0,0,400,338);
-    incline(ctx);
-    const visibleTraffic=stage>=2||carY<280;
-    if(visibleTraffic)urbanVehicle(moving,trafficX,190,Math.PI/2,'orange');
-    urbanVehicle(moving,126,248,Math.PI/2,'van');
-    urbanVehicle(moving,235,carY,0,'blue',braking);
-    if(!visibleTraffic){
-      moving.line([[104,211],[119,220],[124,230]],'#f5e4c4',1.4);
-      moving.disk(124,230,2.2,'#fff3d4');
-      moving.rounded(18,191,122,23,8,'#182b37');
-      moving.label('Visión tapada',79,202.5,11,'#fff3d4');
-    }
-    drawUrbanStopSign(moving);
-  };
-}
-
-function urbanDrawing(ctx){
-  const rect=(x,y,w,h,color)=>{ctx.fillStyle=color;ctx.fillRect(x,y,w,h);};
-  const shape=(points,color)=>{
-    ctx.beginPath();
-    points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
-    ctx.closePath();ctx.fillStyle=color;ctx.fill();
-  };
-  const rounded=(x,y,w,h,r,color)=>{
-    ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=color;ctx.fill();
-  };
-  const disk=(x,y,r,color)=>{
-    ctx.beginPath();ctx.arc(x,y,r,0,2*Math.PI);ctx.fillStyle=color;ctx.fill();
-  };
-  const label=(value,x,y,size,color)=>{
-    ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.font='700 '+size+'px system-ui,sans-serif';ctx.fillText(value,x,y);
-  };
-  const line=(points,color,width)=>{
-    ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
-    ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
-  };
-  const gradient=(x1,y1,x2,y2,stops)=>{
-    const fill=ctx.createLinearGradient(x1,y1,x2,y2);
-    for(const [offset,color] of stops)fill.addColorStop(offset,color);
-    return fill;
-  };
-  return {ctx,rect,shape,rounded,disk,label,line,gradient};
-}
-
-const URBAN_PAINT={
-  blue:['#82c5ff','#2f8bff','#184e9e'],
-  orange:['#ffd08a','#efaa57','#a85a29'],
-  van:['#fff9ec','#e7eaeb','#9daab2']
-};
-
-function urbanVehicle({ctx,rect,shape,rounded,line,gradient},x,y,angle,model,braking=false){
-  const van=model==='van';
-  const [light,body,shade]=URBAN_PAINT[model];
-  const half=van?14:11,front=van?-38:-21.5,rear=-front;
-  ctx.save();
-  ctx.translate(x+5,y+5);ctx.rotate(angle);
-  rounded(-half-2,front-2,half*2+4,rear*2+4,8,'#17232b62');
-  ctx.restore();
-  ctx.save();ctx.translate(x,y);
-  ctx.rotate(angle);
-  for(const edge of [-half-1,half-3]){
-    rounded(edge,front+6,4,9,2,'#202932');
-    rounded(edge,rear-14,4,9,2,'#202932');
-  }
-  const paint=gradient(-half,0,half,0,[[0,light],[.33,body],[.75,body],[1,shade]]);
-  rounded(-half,front,half*2,rear*2,van?4.5:7.5,shade);
-  rounded(-half,front,half*2-1,rear*2-2,van?4.5:7.5,paint);
-  const glassY=front+(van?12:10);
-  shape([[-half+2,glassY],[half-2,glassY],[half-4,glassY+8],[-half+4,glassY+8]],'#253d4c');
-  shape([[-half+3,glassY+1],[half-3,glassY+1],[half-5,glassY+4],[-half+5,glassY+7]],'#9bc2d1');
-  if(van){
-    rounded(-half+2,glassY+11,half*2-5,rear-glassY-16,3,paint);
-    for(const offset of [-5,0,5])rect(offset,glassY+15,1,rear-glassY-23,'#93a0a656');
-    line([[-half+3,rear-5],[half-3,rear-5]],'#637885',.8);
-  }else{
-    for(const side of [-1,1]){
-      shape([[side*(half-2),glassY+4],[side*(half-2),rear-11],[side*(half-4),rear-13],
-        [side*(half-4),glassY+8]],'#284657');
-      rounded(side*half-1,glassY+5,3,2.3,.8,light);
-    }
-    rounded(-half+4,glassY+9,half*2-8,9,2,paint);
-    shape([[-half+4,rear-13],[half-4,rear-13],[half-3,rear-8],[-half+3,rear-8]],'#304955');
-    line([[-half+3,front+6],[half-4,front+6]],light,1);
-  }
-  for(const edge of [-half+2,half-6]){
-    rounded(edge,front+2,4,2.6,1,'#fff6d9');
-    if(braking)rounded(edge-1,rear-6,6,6,2,'#ff504d57');
-    rounded(edge,rear-5,4,2.6,1,braking?'#ff8d75':'#a83941');
-  }
-  rect(-2.5,rear-2.8,5,1.6,'#efece4');
-  ctx.restore();
-}
-
-const URBAN_STOP_OCTAGON=Array.from({length:8},(_,i)=>{
-  const angle=(i+.5)*Math.PI/4;
-  return [Math.cos(angle),Math.sin(angle)];
-});
-
-function drawUrbanStopSign({label,line,rect,shape}){
-  const face=(x,y,r,color)=>shape(URBAN_STOP_OCTAGON.map(([dx,dy])=>[x+dx*r,y+dy*r]),color);
-  line([[276,316],[294,322]],'#21352e61',2.8);
-  rect(274,287,3.5,29,'#394d58');rect(274,287,1,29,'#c2d0cc');
-  face(276,286,19.5,'#742b35');face(275,284.5,19,'#fff5e6');
-  face(275,284.5,17.1,'#ae2534');label('STOP',275,285,10.2,'#fff');
-}
-
-function runUrbanStop(){
+function loadSimulator(entry,options){
   const token=animToken;
-  V.innerHTML=`<section class="card drive" aria-labelledby="drive-title">
-   <h2 id="drive-title">Cruce con STOP</h2>
-   <div class="drive-scene"><canvas width="800" height="676" role="img" aria-label="Cruce urbano visto desde arriba"></canvas></div>
-   <div class="drive-key small muted"><span><i aria-hidden="true"></i>Tu coche</span><span><i aria-hidden="true"></i>Tráfico transversal</span></div>
-   <p class="eyebrow drive-step"></p><p class="drive-prompt" tabindex="-1"></p>
-   <p class="drive-feedback small" role="status"></p>
-   <div class="drive-actions"></div>
-  </section>`;
-  const game=V.querySelector('.drive'),actions=game.querySelector('.drive-actions');
-  const prompt=game.querySelector('.drive-prompt'),feedback=game.querySelector('.drive-feedback');
-  const stepLabel=game.querySelector('.drive-step');
-  const paint=urbanStopPainter(game.querySelector('canvas'));
-  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
-  const total=URBAN_STOP.length;
-  let stage=0,car=360,traffic=-34,score=0,missed=false,busy=false;
-  function drawStep(focus=false){
-    const step=URBAN_STOP[stage];
-    stepLabel.textContent=`Decisión ${stage+1} de ${total}`;
-    prompt.textContent=step.prompt;
-    actions.replaceChildren();
-    const options=[[step.good,true],[step.bad,false]];
-    if(stage%2)options.reverse();
-    for(const [label,correct] of options){
-      const button=document.createElement('button');
-      button.type='button';button.className='btn ghost';button.textContent=label;
-      button.onclick=()=>choose(correct);actions.appendChild(button);
-    }
-    if(focus)prompt.focus({preventScroll:true});
-  }
-  function finish(){
-    const last=S.sims['urbano-stop'];
-    S.sims['urbano-stop']={last:score,best:Math.max(score,last?.best||0),total};
+  V.innerHTML='<p class="card" role="status">Preparando el simulador en 3D…</p>';
+  import('./simulators.js').then(module=>{
+    if(token!==animToken)return;
+    closeDrivingGame=module[entry]({root:V,sample:at,fallback:simulatorFallback,signHTML:kind=>SIGN[kind],...options});
+  }).catch(()=>{
+    if(token!==animToken)return;
+    V.innerHTML='<section class="card"><p>No se ha podido cargar el simulador. Comprueba la conexión o vuelve a intentarlo.</p><button class="btn primary" type="button" id="simulator-retry">Reintentar</button><button class="btn ghost" type="button" data-back>Volver</button></section>';
+    V.querySelector('#simulator-retry').onclick=()=>loadSimulator(entry,options);
+  });
+}
+function runSim(simId,set){
+  loadSimulator('openPriorityExercise',{id:simId,set,mascot:mascot(80),onResult(score,total){
+    const previous=S.sims[simId];
+    S.sims[simId]={best:Math.max(score,previous?.best||0),last:score,total};
+    markDay();save();celebrate('sim');
+  }});
+}
+
+/* ================= STOP guiado ================= */
+const URBAN_STOP=[
+  {prompt:'Te acercas a un STOP. La furgoneta aparcada tapa la visión desde el puesto de conducción.',
+   good:'Detenerme antes de la línea',bad:'Avanzar sin parar',error:'El STOP exige una detención completa antes de la línea, aunque no veas tráfico.',
+   result:'Primera parada hecha. Desde el puesto de conducción aún no hay visibilidad suficiente.',car:258,traffic:-34,duration:950},
+  {prompt:'Estás detenido antes de la línea, pero desde el coche todavía no ves bien la calle transversal.',
+   good:'Avanzar despacio y volver a parar',bad:'Cruzar de una vez',error:'Avanza despacio y vuelve a detenerte donde tengas visibilidad, sin poner en peligro a otros usuarios.',
+   result:'Segunda parada hecha. Ya puedes comprobar el tráfico de la calle transversal.',car:204,traffic:90,duration:1500},
+  {prompt:'El coche naranja se aproxima por la izquierda y tiene preferencia.',
+   good:'Esperar a que pase',bad:'Cruzar ahora',error:'Si cruzas ahora interferirías en la trayectoria del vehículo con prioridad. Espera y cédele el paso.',
+   result:'Has cedido el paso. El coche naranja ya ha despejado el cruce.',car:204,traffic:360,duration:1900},
+  {prompt:'Has comprobado ambos sentidos. No se aproxima ningún otro vehículo y puedes salir del cruce.',
+   good:'Cruzar con precaución',bad:'Esperar a que cambie el STOP',error:'El STOP no cambia como un semáforo. Tras detenerte y ceder el paso, puedes continuar cuando sea seguro.',
+   result:'Has cruzado con seguridad.',car:65,traffic:360,duration:1700}
+];
+function runUrbanStop(){
+  loadSimulator('openStopExercise',{steps:URBAN_STOP,onResult(score,total){
+    const previous=S.sims['urbano-stop'];
+    S.sims['urbano-stop']={last:score,best:Math.max(score,previous?.best||0),total};
     markDay();save();
-    stepLabel.textContent='Cruce completado';
-    prompt.textContent=`${score} de ${total} decisiones acertadas a la primera.`;
-    feedback.innerHTML=`<a href="${RGC}#A5" target="_blank" rel="noopener">Regla del STOP · RGC, anexo I, señal R-2</a>`;
-    actions.innerHTML='<button class="btn primary" type="button">Repetir cruce</button><button class="btn ghost" type="button" data-back>Volver</button>';
-    actions.firstElementChild.onclick=render;
-    actions.firstElementChild.focus({preventScroll:true});
-  }
-  function choose(correct){
-    if(busy)return;
-    const step=URBAN_STOP[stage];
-    if(!correct){
-      missed=true;feedback.className='drive-feedback small is-error';
-      feedback.textContent=step.error;return;
-    }
-    busy=true;
-    if(!missed)score++;
-    actions.querySelectorAll('button').forEach(button=>{button.disabled=true;});
-    feedback.className='drive-feedback small';
-    feedback.textContent='Maniobra en curso…';
-    const fromCar=car,fromTraffic=traffic,start=performance.now();
-    function advance(now){
-      if(token!==animToken||!game.isConnected)return;
-      const t=reduced.matches||!paint?1:Math.min(1,(now-start)/step.duration);
-      const eased=ease(t);
-      car=fromCar+(step.car-fromCar)*eased;
-      traffic=fromTraffic+(step.traffic-fromTraffic)*t;
-      paint?.(car,traffic,stage,t>.45&&stage<2);
-      if(t<1){requestAnimationFrame(advance);return;}
-      stage++;missed=false;busy=false;
-      paint?.(car,traffic,stage,stage<3);
-      feedback.textContent=step.result;
-      if(stage===total)finish();else drawStep(true);
-    }
-    advance(start);
-  }
-  paint?.(car,traffic,stage);
-  drawStep();
+  }});
 }
 
 function runDrivingGame(district){

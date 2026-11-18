@@ -1,9 +1,10 @@
 // Autoescuela · funcionamiento sin conexión
 const SCOPE=self.registration.scope;
 const PREFIX=`autoescuela:${SCOPE}:`;
-const CACHE=PREFIX+'0.13.0';
+const CACHE=PREFIX+'0.14.0';
 const FILES=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable-512.png',
-  'driving.js','driving-world.js','driving-scene.js','driving-audio.js','driving.css','driving-materials.jpg'];
+  'driving.js','driving-world.js','driving-scene.js','driving-audio.js','driving.css','driving-materials.jpg',
+  'simulators.js','simulator-view.js','simulators.css'];
 const URLS=new Set(FILES.map(file=>new URL(file,SCOPE).href));
 
 self.addEventListener('install',event=>{
