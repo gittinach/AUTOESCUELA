@@ -143,6 +143,35 @@ figure{margin:0}
 .qprog span{width:14px;height:6px;border-radius:3px;background:var(--line)}
 .qprog span.ok{background:var(--ok)}.qprog span.bad{background:var(--bad)}.qprog span.now{background:var(--accent)}
 .qtext{font-size:18px;font-weight:700;line-height:1.35}
+/* Simulacros: selección sin corrección hasta la entrega */
+.exam-toolbar{position:sticky;top:calc(54px + env(safe-area-inset-top,0px));z-index:4;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.exam-clock{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.exam-clock.urgent{color:var(--bad)}
+.opt.exam-selected{border-color:var(--accent);background:var(--accent-soft)}
+.exam-actions{display:flex;flex-wrap:wrap;gap:8px}
+.exam-actions .btn{flex:1;min-height:44px;padding:10px 12px;font-size:14px}
+.exam-map{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}
+.exam-map button{min-height:44px;min-width:0;border:2px solid var(--control-line);border-radius:10px;background:var(--surface);color:var(--fg);font:inherit;font-weight:600;cursor:pointer}
+.exam-map button.answered{background:var(--accent-soft);border-color:var(--accent)}
+.exam-map button.flagged{border-style:dashed}
+.exam-map button[aria-current="step"]{outline:3px solid var(--accent);outline-offset:1px}
+.exam-map small{display:block;font-size:11px;line-height:1}
+.exam-question-map summary{min-height:44px;cursor:pointer;font-weight:600}
+.exam-summary{display:flex;flex-wrap:wrap;gap:8px}
+.exam-history{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.exam-history button{align-items:flex-start;flex-direction:column;gap:6px}
+.exam-history .exam-history-row{display:flex;flex-wrap:wrap;width:100%;justify-content:space-between;gap:6px}
+.exam-review summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600}
+.exam-review[open] summary{margin-bottom:8px}
+.exam-review ol{padding:0;list-style:none;margin:12px 0;display:grid;gap:6px}
+.exam-review li{padding:9px 12px;border-radius:10px;border:1px solid var(--line);overflow-wrap:anywhere}
+.exam-review li.correct{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.exam-review li.incorrect{background:var(--bad-bg);color:var(--bad);border-color:var(--bad)}
+.exam-review .qimg svg{width:68px;height:68px}
+.exam-dialog{max-width:440px;width:calc(100% - 32px);max-height:85dvh;overflow:auto;border:2px solid var(--line);border-radius:18px;padding:20px;background:var(--surface);color:var(--fg);font:inherit}
+.exam-dialog::backdrop{background:#0008}
+.exam-dialog form{display:grid;gap:14px}
+.exam-live{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .qimg{display:flex;justify-content:center;padding:6px 0}
 .qimg svg{width:96px;height:96px}
 .opts{display:flex;flex-direction:column;gap:8px}
@@ -317,7 +346,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.12.0';
+const VERSION='0.13.0';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -327,6 +356,27 @@ let S={profile:null,q:{},lessons:{},sims:{},tests:[],days:[]};
 const isObject=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const isCount=v=>Number.isSafeInteger(v)&&v>=0;
 const isBool=v=>typeof v==='boolean';
+const isExamAnswer=v=>v===0||v===1||v===2;
+function validExamPaper(v){
+  if(!isObject(v)||!['comun','moto'].includes(v.kind)||typeof v.attempt!=='string'||!/^exam-[a-z0-9-]{1,80}$/.test(v.attempt))return false;
+  const n=v.kind==='comun'?30:20;
+  const text=(s,max)=>typeof s==='string'&&s.length>0&&s.length<=max;
+  return Array.isArray(v.paper)&&v.paper.length===n&&v.paper.every(q=>isObject(q)&&typeof q.id==='string'&&/^q[1-9]\d*$/.test(q.id)&&
+    text(q.q,3000)&&Array.isArray(q.o)&&q.o.length===3&&q.o.every(o=>text(o,1500))&&new Set(q.o).size===3&&isExamAnswer(q.c)&&text(q.e,6000)&&text(q.r,3000)&&
+    (q.img===undefined||(typeof q.img==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(q.img))))&&
+    new Set(v.paper.map(q=>q.id)).size===n&&Array.isArray(v.answers)&&v.answers.length===n&&v.answers.every(a=>a===null||isExamAnswer(a))&&
+    Array.isArray(v.orders)&&v.orders.length===n&&v.orders.every(a=>Array.isArray(a)&&a.length===3&&a.every(isExamAnswer)&&new Set(a).size===3);
+}
+function validExamDraft(v){
+  return validExamPaper(v)&&isCount(v.started)&&v.started>0&&isCount(v.deadline)&&v.deadline-v.started===v.paper.length*60000&&
+    Number.isFinite(new Date(v.started).getTime())&&Number.isFinite(new Date(v.deadline).getTime())&&
+    isCount(v.index)&&v.index<v.paper.length&&Array.isArray(v.flags)&&v.flags.length===v.paper.length&&v.flags.every(isBool)&&
+    (v.mapOpen===undefined||isBool(v.mapOpen));
+}
+function validExamResult(v){
+  return validExamPaper(v)&&v.n===v.paper.length&&v.ok===v.paper.filter((q,i)=>v.answers[i]===q.c).length&&
+    isCount(v.d)&&Number.isFinite(new Date(v.d).getTime())&&isCount(v.elapsed)&&v.elapsed<=v.n*60000&&['entrega','tiempo'].includes(v.reason);
+}
 function validProgress(v){
   return isObject(v)&&
     (v.profile===null||(isObject(v.profile)&&typeof v.profile.name==='string'&&['B','A2','A2B'].includes(v.profile.obj)))&&
@@ -335,7 +385,9 @@ function validProgress(v){
     isObject(v.lessons)&&Object.values(v.lessons).every(isBool)&&
     isObject(v.sims)&&Object.values(v.sims).every(r=>isObject(r)&&isCount(r.total)&&r.total>0&&
       isCount(r.best)&&r.best<=r.total&&isCount(r.last)&&r.last<=r.best)&&
-    Array.isArray(v.tests)&&v.tests.every(r=>isObject(r)&&isCount(r.d)&&isCount(r.n)&&isCount(r.ok)&&r.ok<=r.n&&typeof r.mode==='string')&&
+    Array.isArray(v.tests)&&v.tests.every(r=>isObject(r)&&isCount(r.d)&&isCount(r.n)&&isCount(r.ok)&&r.ok<=r.n&&typeof r.mode==='string'&&
+      (r.mode!=='examen'||validExamResult(r)))&&
+    (v.activeExam===undefined||v.activeExam===null||validExamDraft(v.activeExam))&&
     Array.isArray(v.days)&&v.days.every(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d))&&
     (v.savedQuestions===undefined||(Array.isArray(v.savedQuestions)&&v.savedQuestions.every(id=>typeof id==='string')))&&
     (v.masteredTopics===undefined||(Array.isArray(v.masteredTopics)&&v.masteredTopics.every(id=>typeof id==='string')))&&
@@ -387,9 +439,9 @@ function markDay(){const t=today();if(S.days.includes(t))return false;S.days.pus
 function streak(){if(!S.days.length)return 0;const set=new Set(S.days);let n=0;const d=new Date();if(!set.has(today()))d.setDate(d.getDate()-1);
   for(;;){const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(set.has(k)){n++;d.setDate(d.getDate()-1);}else break;}return n;}
 const DAY=864e5;
-function record(id,ok){const r=S.q[id]||{n:0,ok:0,last:false,streak:0,wrong:false,due:0};r.n++;r.last=ok;
+function record(id,ok,persist=true){const r=S.q[id]||{n:0,ok:0,last:false,streak:0,wrong:false,due:0};r.n++;r.last=ok;
   if(ok){r.ok++;r.streak++;r.due=Date.now()+[1,3,7][Math.min(r.streak-1,2)]*DAY;}else{r.streak=0;r.wrong=true;r.due=Date.now()+DAY;}
-  S.q[id]=r;const earnedStreak=markDay();save();return earnedStreak;}
+  S.q[id]=r;const earnedStreak=markDay();if(persist)save();return earnedStreak;}
 const isFallo=id=>{const r=S.q[id];return r&&r.wrong&&r.streak<3;};
 
 /* ================= Temario ================= */
@@ -2217,6 +2269,8 @@ function header(title){
 function render(){
   closeDrivingGame?.();closeDrivingGame=null;
   animToken++;stopSpeech();
+  if(S.activeExam&&Date.now()>=S.activeExam.deadline)finishExam('tiempo',stack.at(-1)?.name==='exam',false);
+  syncExamTimer();
   if(!S.profile){NAV.parentElement.hidden=true;document.body.style.paddingBottom='0';header('');TOP.innerHTML=`<div class="brand">Autoescuela</div>`;viewOnboard();return;}
   NAV.parentElement.hidden=false;document.body.style.paddingBottom='';
   NAV.innerHTML=TABS.map(([k,l])=>`<button type="button" data-tab="${k}" class="${k===tab?'on':''}" aria-current="${k===tab?'page':'false'}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${l}</button>`).join('');
@@ -2480,12 +2534,9 @@ const VIEWS={
     (neighbor?.querySelector('[data-remove-saved]')||count).focus();
   });
  },
- simulacros(){header();
-  V.innerHTML=`<div class="card"><div class="eyebrow">Próximamente</div><h2>Simulacros de examen</h2><p>Reproducirán el examen real de la DGT: preguntas de todos los temas, tiempo límite y corrección al final.</p>
-   <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px"><li>Teoría común: 30 preguntas, máximo 3 fallos</li><li>Específica de moto: máximo 2 fallos</li><li>Historial de notas e indicador de «Listo para el examen»</li></ul>
-   <p class="muted small">Los simulacros cronometrados están pendientes. Ya puedes practicar todos los temas disponibles para tu permiso con los tests y repasos.</p></div>
-   <div class="section-title">Mientras tanto</div><div class="list">${studyTopics().map(topic=>item({go:'quiz',mode:'tema',id:topic.id,icon:'pen',t:`Test del tema ${topic.id}`,s:esc(topic.name)})).join('')}</div>`;
- },
+ simulacros(){showExamHub();},
+ exam(v){showExam(v.id);},
+ examResult(v){showExamResult(v.id);},
  progreso(){header();
   const records=availableQuestions().map(q=>S.q[q.id]).filter(Boolean);
   const tot=records.reduce((a,r)=>a+r.n,0),okc=records.reduce((a,r)=>a+r.ok,0);
@@ -2498,13 +2549,13 @@ const VIEWS={
   const testNames={lesson:'Comprobación de lección','practica-leccion':'Práctica de lección',rapido:'Test rápido',fallos:'Test de fallos',repaso:'Repaso del último intento','repaso-programado':'Repaso programado',guardadas:'Preguntas guardadas'};
   const testDate=new Intl.DateTimeFormat('es-ES',{dateStyle:'medium',timeStyle:'short'});
   const recentTests=S.tests.slice().reverse().sort((a,b)=>b.d-a.d).slice(0,50);
-  const historyRows=recentTests.map(({mode,d,ok,n,topic})=>{
-    const name=mode==='tema'?`Test del tema ${typeof topic==='string'&&Object.hasOwn(TOPIC_BY_ID,topic)?topic:'5'}`:
+  const historyRows=recentTests.map(({mode,d,ok,n,topic,kind,attempt})=>{
+    const name=mode==='examen'?`Simulacro ${kind==='moto'?'específico A2':'común'}`:mode==='tema'?`Test del tema ${typeof topic==='string'&&Object.hasOwn(TOPIC_BY_ID,topic)?topic:'5'}`:
       Object.hasOwn(testNames,mode)?testNames[mode]:'Test';
     const date=new Date(d);
     const when=Number.isFinite(date.getTime())?`<time class="small muted" datetime="${date.toISOString()}">${testDate.format(date)}</time>`:
       '<span class="small muted">Fecha no disponible</span>';
-    return `<li><div><b>${name}</b>${when}</div><span class="chip acc">Aciertos: ${ok}/${n}</span></li>`;
+    return `<li><div><b>${name}</b>${when}</div><span class="chip acc">Aciertos: ${ok}/${n}</span>${mode==='examen'&&canViewExam(kind)?`<button class="btn ghost" type="button" data-go="examResult" data-id="${esc(attempt)}">Ver corrección</button>`:''}</li>`;
   });
   V.innerHTML=`<div class="grid2"><div class="stat"><b>${tot}</b><span>respuestas</span></div><div class="stat"><b>${tot?Math.round(okc/tot*100):0}%</b><span>de aciertos</span></div><div class="stat"><b>${streak()}</b><span>días seguidos</span></div><div class="stat"><b>${fallos().length}</b><span>por repasar</span></div></div>
   <div class="section-title">Dominio por tema</div>
@@ -2597,6 +2648,184 @@ const VIEWS={
  juego(view){const district=view.mode!=='stop';header(district?'Conducción libre en 3D':'Ejercicio de STOP en 3D');runDrivingGame(district);},
  sim(v){const set=SIMS[v.id];header(set.name);runSim(v.id,set);}
 };
+
+/* ================= Simulacros cronometrados ================= */
+const EXAM_TYPES={comun:{name:'Teoría común',n:30,minutes:30,maxErrors:3},moto:{name:'Específico A2',n:20,minutes:20,maxErrors:2}};
+const EXAM_GUIDE='https://sede.dgt.gob.es/export/sites/dgt/.galleries/permisos-de-conducir/certificacion-aptitud-profesores-formacion-vial/2025/Manual-IV-Normativa-Permisos-Conduccion-2025.pdf';
+let examTimer=null;
+const examKinds=()=>S.profile?.obj==='B'?['comun']:S.profile?.obj==='A2B'?['moto']:['comun','moto'];
+const canViewExam=kind=>kind==='comun'||(kind==='moto'&&S.profile?.obj!=='B');
+const examPassed=test=>test.n-test.ok<=EXAM_TYPES[test.kind].maxErrors;
+const examTime=seconds=>Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0');
+const examSeconds=exam=>Math.max(0,Math.min(exam.paper.length*60,Math.ceil((exam.deadline-Date.now())/1000)));
+const examRecords=()=>S.tests.filter(t=>t.mode==='examen').slice().sort((a,b)=>b.d-a.d);
+function syncExamTimer(){
+  if(!S.activeExam){if(examTimer!==null)clearInterval(examTimer);examTimer=null;return;}
+  if(examTimer===null)examTimer=setInterval(examTick,1000);
+}
+function examTick(){
+  const exam=S.activeExam;
+  if(!exam){syncExamTimer();return;}
+  if(Date.now()>=exam.deadline){const onExam=stack.at(-1)?.name==='exam';finishExam('tiempo',onExam,onExam||(tab==='simulacros'&&!stack.length));return;}
+  updateExamClock();
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)examTick();});
+function updateExamClock(){
+  const exam=S.activeExam,clock=document.getElementById('exam-time');
+  if(!exam||!clock||clock.dataset.attempt!==exam.attempt)return;
+  const seconds=examSeconds(exam);
+  clock.textContent=examTime(seconds);clock.classList.toggle('urgent',seconds<=60);
+  const live=document.getElementById('exam-announcement');
+  if(live&&seconds<=60&&!live.dataset.minute){live.dataset.minute='true';live.textContent='Queda menos de un minuto. El simulacro se entregará al terminar el tiempo.';}
+}
+function startExam(kind){
+  if(!examKinds().includes(kind))return;
+  if(S.activeExam){tab='simulacros';stack=[];rememberView(true);render();return;}
+  const config=EXAM_TYPES[kind];
+  const topics=ACTIVE_TOPICS.filter(t=>t.id.startsWith('M')===(kind==='moto'));
+  const buckets=shuffle(topics).map(t=>shuffle(t.questions));
+  if(buckets.reduce((n,qs)=>n+qs.length,0)<config.n)return;
+  const selected=[];
+  while(selected.length<config.n){
+    for(const bucket of buckets){if(bucket.length)selected.push(bucket.pop());if(selected.length===config.n)break;}
+  }
+  const paper=shuffle(selected).map(q=>({id:q.id,q:q.q,o:q.o.slice(),c:q.c,e:q.e,r:q.r,...(q.img?{img:q.img}:{})}));
+  const started=Date.now();
+  const token=globalThis.crypto?.randomUUID?.()||started.toString(36)+'-'+Math.random().toString(36).slice(2);
+  S.activeExam={attempt:'exam-'+token,kind,started,deadline:started+config.minutes*60000,paper,
+    answers:Array(config.n).fill(null),orders:paper.map(()=>shuffle([0,1,2])),flags:Array(config.n).fill(false),index:0,mapOpen:false};
+  save();syncExamTimer();
+  tab='simulacros';stack=[{name:'exam',id:S.activeExam.attempt}];rememberView(true);render();
+}
+function currentExam(attempt){
+  if(!S.activeExam||S.activeExam.attempt!==attempt)return null;
+  if(Date.now()>=S.activeExam.deadline){finishExam('tiempo',true);return null;}
+  return S.activeExam;
+}
+function showExamHub(){
+  header();
+  const active=S.activeExam,records=examRecords().filter(t=>examKinds().includes(t.kind));
+  const when=d=>new Intl.DateTimeFormat('es-ES',{dateStyle:'medium',timeStyle:'short'}).format(new Date(d));
+  V.innerHTML=`<div class="card"><div class="eyebrow">A tu ritmo de estudio</div><h2>Simulacros de examen</h2>
+   <p class="muted">Preguntas de todos los temas de la prueba, sin pistas ni corrección hasta entregar. Puedes cambiar respuestas y marcar dudas.</p>
+   <p class="small">El tiempo sigue corriendo si cambias de pantalla o bloqueas el móvil. Las preguntas sin contestar cuentan como fallo.</p>
+   ${S.profile.obj==='A2B'?'<p class="small muted">Como ya tienes el B, aquí practicas la prueba específica de moto.</p>':''}</div>
+  ${active?`<section class="card"><h3>Hay un simulacro en curso</h3><p>${EXAM_TYPES[active.kind].name} · ${active.answers.filter(a=>a!==null).length}/${active.paper.length} contestadas</p>
+    <p class="small muted">El plazo termina a las ${new Intl.DateTimeFormat('es-ES',{timeStyle:'short'}).format(new Date(active.deadline))}.</p>
+    ${canViewExam(active.kind)?`<button class="btn primary" type="button" data-go="exam" data-id="${esc(active.attempt)}">Continuar simulacro</button>`:'<p class="small">Para retomar este específico de moto, selecciona A2 en Progreso. El tiempo continúa.</p>'}
+    <button class="btn ghost" type="button" id="exam-discard">Descartar intento</button></section>`:''}
+  ${examKinds().map(kind=>{
+    const c=EXAM_TYPES[kind],last=records.filter(t=>t.kind===kind).slice(0,5),passed=last.filter(examPassed).length;
+    const trend=last.length?`${passed} de ${last.length} ${last.length===1?'simulacro reciente aprobado':'simulacros recientes aprobados'}`:'Tu primer simulacro te espera';
+    return `<section class="card"><h3>${c.name}</h3><p>${c.n} preguntas · ${c.minutes} minutos · máximo ${c.maxErrors} fallos</p>
+      <p class="small muted">${kind==='comun'?'Teoría común para B y A2.':'Solo los seis temas específicos de moto.'}</p>
+      <span class="chip ${last.length===5&&passed===5?'ok':'acc'}">${last.length===5&&passed===5?'Buena racha de práctica':trend}</span>
+      ${last.length===5?`<p class="small muted">${passed}/5 aprobados en tus últimos cinco intentos de esta prueba.</p>`:''}
+      <button class="btn primary" type="button" data-start-exam="${kind}" ${active?'disabled':''}>Empezar simulacro</button></section>`;
+  }).join('')}
+  <div class="section-title">Resultados recientes</div>
+  ${records.length?`<ol class="exam-history">${records.slice(0,10).map(t=>`<li><button class="item" type="button" data-go="examResult" data-id="${esc(t.attempt)}"><span class="exam-history-row"><b>${EXAM_TYPES[t.kind].name}</b><span class="chip ${examPassed(t)?'ok':'bad'}">${examPassed(t)?'Aprobado':'Suspenso'}</span></span><span class="small muted">${when(t.d)} · ${t.n-t.ok} ${t.n-t.ok===1?'fallo':'fallos'} · ${examTime(Math.ceil(t.elapsed/1000))}</span></button></li>`).join('')}</ol>`:'<p class="card muted small">Aquí encontrarás tus resultados y podrás volver a abrir sus explicaciones.</p>'}
+  <p class="note">Entrenamiento con preguntas propias. El formato de tiempo de esta práctica no incluye vídeos ni adaptaciones de la prueba oficial. <a href="${EXAM_GUIDE}" target="_blank" rel="noopener">Formato de pruebas, DGT</a>.</p>`;
+  V.querySelectorAll('[data-start-exam]').forEach(b=>b.onclick=()=>startExam(b.dataset.startExam));
+  const discard=document.getElementById('exam-discard');if(discard)discard.onclick=()=>showExamDialog(active,'discard');
+}
+function showExam(attempt){
+  const exam=currentExam(attempt);
+  if(!exam){const previous=S.tests.find(t=>t.mode==='examen'&&t.attempt===attempt);if(previous){showExamResult(attempt);return;}showExamHub();return;}
+  if(!canViewExam(exam.kind)){showExamHub();return;}
+  header(EXAM_TYPES[exam.kind].name);
+  const i=exam.index,q=exam.paper[i];
+  V.innerHTML=`<div class="exam-toolbar"><div><b>Pregunta ${i+1} de ${exam.paper.length}</b><p class="small muted" id="exam-count"></p></div><div><span class="small muted">Tiempo restante</span><p><time class="exam-clock" role="timer" aria-live="off" id="exam-time" data-attempt="${esc(attempt)}">${examTime(examSeconds(exam))}</time></p></div></div>
+    <p class="exam-live" id="exam-announcement" role="status" aria-live="polite"></p>
+    <div class="card"><p class="qtext" id="exam-question" tabindex="-1">${esc(q.q)}</p>${q.img&&Object.hasOwn(SIGN,q.img)?`<div class="qimg">${SIGN[q.img]}</div>`:''}</div>
+    <div class="opts" role="group" aria-labelledby="exam-question">${exam.orders[i].map((o,k)=>`<button class="opt" type="button" data-exam-answer="${o}" aria-pressed="false"><b>${'ABC'[k]}</b><span>${esc(q.o[o])}</span></button>`).join('')}</div>
+    <div class="exam-actions"><button class="btn ghost" type="button" id="exam-blank">Dejar en blanco</button><button class="btn ghost" type="button" id="exam-flag" aria-pressed="false"></button></div>
+    <div class="grid2"><button class="btn ghost" type="button" id="exam-prev" ${i===0?'disabled':''}>Anterior</button><button class="btn primary" type="button" id="exam-next">${i===exam.paper.length-1?'Revisar preguntas':'Siguiente'}</button></div>
+    <details class="card exam-question-map" ${exam.mapOpen?'open':''}><summary id="exam-map-summary">Todas las preguntas</summary><p class="small muted">Color de fondo: contestada. Signo ?: marcada para revisar. Puedes saltar a cualquier pregunta.</p>
+      <div class="exam-map">${exam.paper.map((_,k)=>`<button type="button" data-exam-page="${k}"><span>${k+1}</span><small aria-hidden="true"></small></button>`).join('')}</div></details>
+    <button class="btn primary" type="button" id="exam-submit">Entregar y corregir</button><p class="small muted">Podrás repasar las explicaciones cuando termines.</p>`;
+  const update=()=>{
+    const draft=S.activeExam;if(!draft||draft.attempt!==attempt)return;
+    V.querySelectorAll('[data-exam-answer]').forEach(b=>{const selected=draft.answers[i]===+b.dataset.examAnswer;b.classList.toggle('exam-selected',selected);b.setAttribute('aria-pressed',String(selected));});
+    document.getElementById('exam-count').textContent=draft.answers.filter(a=>a!==null).length+' contestadas · '+draft.flags.filter(Boolean).length+' para revisar';
+    document.getElementById('exam-blank').disabled=draft.answers[i]===null;
+    const flag=document.getElementById('exam-flag');flag.textContent=draft.flags[i]?'Quitar marca ?':'Marcar duda ?';flag.setAttribute('aria-pressed',String(draft.flags[i]));
+    document.getElementById('exam-map-summary').textContent='Todas las preguntas · '+draft.answers.filter(a=>a===null).length+' sin contestar';
+    V.querySelectorAll('[data-exam-page]').forEach(b=>{const k=+b.dataset.examPage;b.classList.toggle('answered',draft.answers[k]!==null);b.classList.toggle('flagged',draft.flags[k]);b.setAttribute('aria-current',k===i?'step':'false');b.setAttribute('aria-label',`Pregunta ${k+1}, ${draft.answers[k]===null?'sin contestar':'contestada'}${draft.flags[k]?', marcada para revisar':''}`);b.querySelector('small').textContent=draft.flags[k]?'?':'';});
+  };
+  V.querySelectorAll('[data-exam-answer]').forEach(b=>b.onclick=()=>{const draft=currentExam(attempt);if(!draft)return;draft.answers[i]=+b.dataset.examAnswer;save();update();});
+  document.getElementById('exam-blank').onclick=()=>{const draft=currentExam(attempt);if(!draft)return;draft.answers[i]=null;save();update();};
+  document.getElementById('exam-flag').onclick=()=>{const draft=currentExam(attempt);if(!draft)return;draft.flags[i]=!draft.flags[i];save();update();};
+  const move=k=>{const draft=currentExam(attempt);if(!draft)return;draft.index=k;save();render();document.getElementById('exam-question')?.focus({preventScroll:true});};
+  document.getElementById('exam-prev').onclick=()=>move(i-1);
+  document.getElementById('exam-next').onclick=()=>{
+    if(i<exam.paper.length-1){move(i+1);return;}
+    if(!currentExam(attempt))return;
+    const map=V.querySelector('.exam-question-map');map.open=true;exam.mapOpen=true;save();
+    map.style.scrollMarginTop=Math.ceil(document.querySelector('.top').getBoundingClientRect().bottom+V.querySelector('.exam-toolbar').getBoundingClientRect().height+16)+'px';
+    map.scrollIntoView({block:'start'});map.querySelector('summary').focus({preventScroll:true});
+  };
+  V.querySelectorAll('[data-exam-page]').forEach(b=>b.onclick=()=>move(+b.dataset.examPage));
+  V.querySelector('.exam-question-map').ontoggle=e=>{const draft=S.activeExam;if(draft?.attempt===attempt&&draft.mapOpen!==e.target.open){draft.mapOpen=e.target.open;save();}};
+  document.getElementById('exam-submit').onclick=()=>{const draft=currentExam(attempt);if(draft)showExamDialog(draft,'submit');};
+  update();updateExamClock();syncExamTimer();
+}
+function showExamDialog(exam,action){
+  if(!currentExam(exam.attempt))return;
+  const blank=exam.answers.filter(a=>a===null).length,flags=exam.flags.filter(Boolean).length;
+  const dialog=document.createElement('dialog');dialog.className='exam-dialog';dialog.setAttribute('aria-labelledby','exam-dialog-title');
+  dialog.innerHTML=`<form method="dialog"><h3 id="exam-dialog-title">${action==='discard'?'¿Descartar este intento?':'¿Entregar el simulacro?'}</h3>
+    <p>${action==='discard'?'Se eliminarán las respuestas de este intento y no se añadirá al historial. Tu progreso anterior se conserva.':`${blank?`Quedan ${blank} ${blank===1?'pregunta sin contestar':'preguntas sin contestar'}. Cuentan como fallo.`:'Has contestado todas las preguntas.'}${flags?` Hay ${flags} ${flags===1?'pregunta marcada':'preguntas marcadas'} para revisar.`:''}`}</p>
+    <p class="small muted">El tiempo sigue corriendo hasta terminar.</p><button class="btn primary" type="submit" value="confirm" id="exam-confirm">${action==='discard'?'Descartar intento':'Entregar y ver resultado'}</button><button class="btn ghost" type="submit" value="cancel" autofocus>Seguir revisando</button></form>`;
+  dialog.querySelector('form').onsubmit=e=>{
+    if(e.submitter?.value!=='confirm')return;
+    e.preventDefault();if(dialog.open)dialog.close();dialog.remove();
+    const draft=currentExam(exam.attempt);if(!draft)return;
+    if(action==='discard'){S.activeExam=null;save();syncExamTimer();tab='simulacros';stack=[];rememberView(false);render();}
+    else finishExam('entrega',true);
+  };
+  dialog.onclose=()=>dialog.remove();V.appendChild(dialog);
+  if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
+}
+function finishExam(reason='entrega',navigate=true,redraw=true){
+  const exam=S.activeExam;if(!exam)return null;
+  let result=S.tests.find(t=>t.mode==='examen'&&t.attempt===exam.attempt);
+  if(!result){
+    if(Date.now()>=exam.deadline)reason='tiempo';
+    const end=reason==='tiempo'?exam.deadline:Date.now(),duration=exam.paper.length*60000;
+    const ok=exam.paper.filter((q,i)=>exam.answers[i]===q.c).length;
+    result={mode:'examen',attempt:exam.attempt,kind:exam.kind,d:end,n:exam.paper.length,ok,
+      elapsed:Math.min(duration,Math.max(0,end-exam.started)),reason,version:VERSION,
+      paper:exam.paper,answers:exam.answers.slice(),orders:exam.orders};
+    exam.paper.forEach((q,i)=>record(q.id,exam.answers[i]===q.c,false));
+    S.tests.push(result);S.tests=S.tests.slice(-50);
+  }
+  S.activeExam=null;save();syncExamTimer();
+  if(navigate){tab='simulacros';stack=[{name:'examResult',id:result.attempt}];rememberView(false);}
+  if(redraw)render();
+  return result;
+}
+function showExamResult(attempt){
+  const test=S.tests.find(t=>t.mode==='examen'&&t.attempt===attempt);
+  if(!test||!canViewExam(test.kind)){showExamHub();return;}
+  header('Resultado del simulacro');
+  const config=EXAM_TYPES[test.kind],passed=examPassed(test),blank=test.answers.filter(a=>a===null).length;
+  const wrong=test.paper.filter((q,i)=>test.answers[i]!==q.c);
+  const repeatIds=wrong.filter(q=>Object.hasOwn(QBY,q.id)&&availableQuestions().some(a=>a.id===q.id)).map(q=>q.id);
+  V.innerHTML=`<div class="card result"><div class="mascot-c">${mascot(80,!passed)}</div><span class="chip ${passed?'ok':'bad'}">${passed?'Aprobado':'Suspenso'} en esta práctica</span><h2>${config.name}</h2><div class="big">${test.ok}/${test.n}</div>
+    <p>${test.n-test.ok} ${test.n-test.ok===1?'fallo':'fallos'} · máximo ${config.maxErrors}</p><p class="small muted">${test.reason==='tiempo'?'Entregado al agotarse el tiempo':'Entregado por ti'} · ${examTime(Math.ceil(test.elapsed/1000))}</p>
+    ${blank?`<p class="small">${blank} ${blank===1?'pregunta quedó sin contestar':'preguntas quedaron sin contestar'} y ${blank===1?'cuenta':'cuentan'} como fallo.</p>`:''}
+    <p class="small muted">${passed?'Buen trabajo. Sigue variando los simulacros y repasando las dudas.':'Revisa las explicaciones y vuelve a practicar los temas que necesites.'}</p>
+    ${repeatIds.length?'<button class="btn primary" type="button" id="exam-retry-wrong">Practicar fallos con explicación</button>':''}
+    <button class="btn ghost" type="button" id="exam-return">Volver a simulacros</button></div>
+    <div class="section-title">Corrección de las ${test.n} preguntas</div>
+    ${test.paper.map((q,i)=>{const answer=test.answers[i],right=answer===q.c;return `<details class="card exam-review" ${right?'':'open'}><summary>Pregunta ${i+1} · ${right?'Correcta':answer===null?'Sin contestar':'Incorrecta'}</summary>
+      <p class="qtext">${esc(q.q)}</p>${q.img&&Object.hasOwn(SIGN,q.img)?`<div class="qimg">${SIGN[q.img]}</div>`:''}
+      <ol>${test.orders[i].map((o,k)=>`<li class="${o===q.c?'correct':o===answer?'incorrect':''}"><b>${'ABC'[k]}.</b> ${esc(q.o[o])}${o===q.c?' · Correcta':''}${o===answer?' · Tu respuesta':''}</li>`).join('')}</ol>
+      ${answer===null?'<p class="small">No elegiste ninguna opción.</p>':''}<p>${withSigns(esc(q.e))}</p><p class="ref">${withSigns(esc(q.r))}</p></details>`;}).join('')}`;
+  const retry=document.getElementById('exam-retry-wrong');if(retry)retry.onclick=()=>go({name:'quiz',mode:'repaso',ids:repeatIds});
+  document.getElementById('exam-return').onclick=()=>{tab='simulacros';stack=[];rememberView(false);render();};
+}
 
 /* ================= Test ================= */
 const TUTOR_CODE_KEY='autoescuela_tutor_code';
