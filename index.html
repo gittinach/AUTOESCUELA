@@ -347,7 +347,7 @@ h3{font-weight:600;font-size:18px}
 
 <script>
 "use strict";
-const VERSION='0.14.0';
+const VERSION='0.14.1';
 const TUTOR_URL=location.hostname==='gittinach.github.io'
   ?'https://autoescuela-tutor.onrender.com/api/tutor'
   :location.protocol==='file:'?'':'/api/tutor';
@@ -2592,6 +2592,7 @@ const VIEWS={
    <textarea id="bk" readonly>${esc(JSON.stringify(S))}</textarea><button class="btn ghost" type="button" id="cpBtn">Copiar</button>
    <textarea id="rs" aria-label="Copia de seguridad para restaurar" placeholder="Pega aquí una copia de seguridad"></textarea><button class="btn ghost" type="button" id="rsBtn">Restaurar</button><p class="small" id="rsMsg" aria-live="polite"></p>
    <button class="btn ghost" type="button" id="rsPrevious" hidden>Recuperar copia anterior</button></div>
+  <div class="card"><b>Actualizaciones</b><p class="small muted">Recupera los archivos de la última versión conservando tu progreso.</p><a class="btn ghost" href="actualizar.html">Buscar actualización</a></div>
   <div class="card"><b>Borrar progreso</b><p class="small muted">Elimina respuestas, lecciones, simuladores y preguntas guardadas de este móvil.</p><button class="btn danger" type="button" id="delBtn">Borrar todo el progreso</button><div id="delConf" hidden style="display:flex;flex-direction:column;gap:8px"><p class="small">¿Seguro? No se puede deshacer.</p><div class="grid2"><button class="btn ghost" type="button" id="delNo">Cancelar</button><button class="btn danger" type="button" id="delYes">Sí, borrar</button></div></div></div>
   <p class="note">Autoescuela · versión ${VERSION}</p>`;
   (function(){const sel=document.getElementById('vsel'),r=document.getElementById('vrate'),pi=document.getElementById('vpitch');
@@ -3034,16 +3035,19 @@ function simulatorFallback(spec,vehicles){
   return '<svg viewBox="0 0 300 300" role="img" aria-label="Vista sencilla de la situación">'+DEFS+ground+
     Object.entries(vehicles).map(([id,p])=>'<g data-car="'+esc(id)+'">'+carBody(p.kind||'grey')+'</g>').join('')+'</svg>';
 }
-function loadSimulator(entry,options){
+function loadSimulator(entry,options,attempt=0){
   const token=animToken;
   V.innerHTML='<p class="card" role="status">Preparando el simulador en 3D…</p>';
-  import('./simulators.js').then(module=>{
+  const source=new URL(`./simulators-${VERSION}.js`,location.href);
+  if(attempt)source.searchParams.set('reintento',String(attempt));
+  import(source.href).then(module=>{
     if(token!==animToken)return;
+    if(module.SIMULATOR_VERSION!==VERSION)throw new Error('Los archivos del simulador no corresponden a esta versión de la app.');
     closeDrivingGame=module[entry]({root:V,sample:at,fallback:simulatorFallback,signHTML:kind=>SIGN[kind],...options});
-  }).catch(()=>{
+  }).catch(error=>{
     if(token!==animToken)return;
-    V.innerHTML='<section class="card"><p>No se ha podido cargar el simulador. Comprueba la conexión o vuelve a intentarlo.</p><button class="btn primary" type="button" id="simulator-retry">Reintentar</button><button class="btn ghost" type="button" data-back>Volver</button></section>';
-    V.querySelector('#simulator-retry').onclick=()=>loadSimulator(entry,options);
+    V.innerHTML=`<section class="card"><h2>No se ha podido abrir el simulador</h2><p>Puedes volver a intentarlo o buscar una actualización de los archivos de la app.</p><button class="btn primary" type="button" id="simulator-retry">Reintentar</button><a class="btn ghost" href="actualizar.html">Actualizar la aplicación</a><details><summary>Ver detalle del error</summary><p class="small">Versión ${VERSION} · ${esc(error?.message||'Error de carga')}</p></details><button class="btn ghost" type="button" data-back>Volver</button></section>`;
+    V.querySelector('#simulator-retry').onclick=()=>loadSimulator(entry,options,attempt+1);
   });
 }
 function runSim(simId,set){

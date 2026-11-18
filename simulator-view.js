@@ -22,7 +22,10 @@ export function createSimulatorView(host,{sample,fallback}){
 
   function draw(){
     if(disposed||contextLost)return;
-    if(renderer){renderer.draw({positions,look:0});return;}
+    if(renderer){
+      try{renderer.draw({positions,look:0});}catch{useFallback();}
+      return;
+    }
     plain.querySelectorAll('[data-car]').forEach(node=>{
       const p=positions[node.dataset.car];
       if(p)node.setAttribute('transform',`translate(${p.x} ${p.y}) rotate(${p.h})`);
@@ -31,9 +34,10 @@ export function createSimulatorView(host,{sample,fallback}){
   function resize(){
     if(disposed)return;
     const rect=host.getBoundingClientRect();
-    renderer?.resize(rect.width,rect.height);draw();
+    try{renderer?.resize(rect.width,rect.height);draw();}catch{useFallback();}
   }
-  const observer=new ResizeObserver(resize);observer.observe(host);
+  const observer=typeof ResizeObserver==='function'?new ResizeObserver(resize):null;
+  if(observer)observer.observe(host);else window.addEventListener('resize',resize);
   function ui(){
     pause.disabled=!task||contextLost;
     pause.textContent=paused?'Continuar animación':'Pausar animación';
@@ -91,7 +95,7 @@ export function createSimulatorView(host,{sample,fallback}){
   canvas.addEventListener('webglcontextlost',lost);
   canvas.addEventListener('webglcontextrestored',restored);
   function setScene(next,vehicles,description='Situación de circulación en tres dimensiones, vista desde arriba'){
-    cancel();spec=next;positions=structuredClone(vehicles);effect.hidden=true;
+    cancel();spec=next;positions=Object.fromEntries(Object.entries(vehicles).map(([id,p])=>[id,{...p}]));effect.hidden=true;
     canvas.setAttribute('aria-label',description);
     renderer?.dispose();renderer=null;plain.hidden=true;canvas.hidden=false;status.textContent='';
     try{renderer=createStreetRenderer(canvas,draw,false,spec);}catch{renderer=null;}
@@ -109,7 +113,7 @@ export function createSimulatorView(host,{sample,fallback}){
     onReplay(action){replayAction=action;ui();},
     lockReplay(locked){replay.disabled=locked||!replayAction;},
     dispose(){
-      if(disposed)return;disposed=true;cancel();observer.disconnect();
+      if(disposed)return;disposed=true;cancel();observer?.disconnect();window.removeEventListener('resize',resize);
       document.removeEventListener('visibilitychange',visibility);
       canvas.removeEventListener('webglcontextlost',lost);canvas.removeEventListener('webglcontextrestored',restored);
       renderer?.dispose();renderer=null;
